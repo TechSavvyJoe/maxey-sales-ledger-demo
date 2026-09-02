@@ -1,0 +1,64 @@
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --navy-950: #071a2b;
+  --navy-900: #0b2945;
+  --navy-800: #173d5d;
+  --blue-700: #075ea8;
+  --blue-600: #0969da;
+  --blue-100: #eaf3fb;
+  --green-700: #116b56;
+  --green-600: #147d64;
+  --green-100: #e7f5f0;
+  --amber-700: #875000;
+  --amber-600: #a45e00;
+  --amber-100: #fff3dc;
+  --red-700: #97251d;
+  --red-600: #b42318;
+  --red-100: #fdecea;
+  --slate-900: #17212b;
+  --slate-700: #425466;
+  --slate-600: #607080;
+  --slate-500: #7d8b98;
+  --slate-300: #c8d3dd;
+  --slate-200: #dce4eb;
+  --slate-100: #eef2f6;
+  --slate-50: #f7f9fb;
+  --canvas: #f6f8fa;
+  --surface: #ffffff;
+
+  --color-text: var(--slate-900);
+  --color-text-muted: var(--slate-600);
+  --color-border: var(--slate-200);
+  --color-border-strong: var(--slate-300);
+  --color-action: var(--blue-600);
+  --color-focus: #3d91e8;
+  --color-positive: var(--green-700);
+  --color-attention: var(--amber-700);
+  --color-danger: var(--red-700);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-control: 8px;
+  --radius-surface: 12px;
+  --shadow-sm: 0 1px 2px rgba(11, 41, 69, 0.05);
+  --shadow-md: 0 14px 36px rgba(11, 41, 69, 0.12);
+
+  --shell-sidebar-width: 208px;
+  --shell-topbar-height: 64px;
+
+  font-family: var(--font-sans);
+  font-synthesis: none;
+  color: var(--color-text);
+  background: var(--canvas);
+}

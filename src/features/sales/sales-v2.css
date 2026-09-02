@@ -1,0 +1,506 @@
+/* Sales workspace: responsive table/list behavior and legible input density. */
+
+.app-shell .sales-page,
+.app-shell .sales-page > *,
+.app-shell .sales-toolbar,
+.app-shell .sales-surface,
+.app-shell .sales-table-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-shell .sales-page {
+  width: 100%;
+  overflow-x: clip;
+}
+
+.app-shell .sales-toolbar {
+  grid-template-columns: minmax(240px, 1fr) auto auto;
+}
+
+.app-shell .sales-toolbar > *,
+.app-shell .sales-toolbar__actions,
+.app-shell .filter-chips,
+.app-shell .search-field {
+  min-width: 0;
+}
+
+.app-shell .search-field {
+  width: 100%;
+  max-width: none;
+}
+
+.app-shell .search-field input {
+  min-height: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+.app-shell .filter-chip {
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-shell .filter-chip span {
+  font-size: 12px;
+}
+
+.app-shell .sort-control {
+  min-height: 44px;
+  overflow: hidden;
+}
+
+.app-shell .sort-control select {
+  min-width: 0;
+  height: 44px;
+  min-height: 44px;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .sales-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-shell .sales-table td {
+  font-size: 14px;
+}
+
+.app-shell .sales-table thead th {
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.02em;
+}
+
+.app-shell .row-primary-action {
+  min-height: 44px;
+}
+
+.app-shell .row-primary-action strong {
+  font-size: 14px;
+}
+
+.app-shell .row-primary-action small,
+.app-shell .sales-table--deleted td:nth-child(2) small,
+.app-shell .table-review {
+  font-size: 12px;
+}
+
+.app-shell .stock-number {
+  font-size: 13px;
+}
+
+.app-shell .sale-products > span,
+.app-shell .sale-products--empty {
+  min-height: 22px;
+  font-size: 12px;
+}
+
+.app-shell .sales-table td:last-child > button,
+.app-shell .sale-card__actions button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+/* A 1280px display has roughly 1024px of workspace after the product rail. */
+@media (min-width: 1121px) and (max-width: 1320px) {
+  .app-shell .sales-toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+  }
+
+  .app-shell .filter-chips {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .app-shell .sales-table:not(.sales-table--deleted) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-shell .sales-table:not(.sales-table--deleted) th,
+  .app-shell .sales-table:not(.sales-table--deleted) td {
+    padding-inline: 8px;
+  }
+
+  .app-shell .sales-table:not(.sales-table--deleted) th:nth-child(5),
+  .app-shell .sales-table:not(.sales-table--deleted) td:nth-child(5) {
+    display: none;
+  }
+
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(1) { width: 7%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(2) { width: 22%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(3) { width: 11%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(4) { width: 10%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(6),
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(7) { width: 10%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(8) { width: 13%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(9) { width: 12%; }
+  .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(10) { width: 48px; }
+}
+
+/* Compact laptops use scannable two-column deal cards instead of a squeezed table. */
+@media (max-width: 1120px) {
+  .app-shell .sales-table-wrap {
+    display: none;
+  }
+
+  .app-shell .sales-surface:has(.sales-card-list) {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .app-shell .sales-card-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 0;
+  }
+
+  .app-shell .sale-card {
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-surface);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    flex-direction: column;
+  }
+
+  .app-shell .sale-card.needs-review {
+    box-shadow: inset 3px 0 var(--amber-600), var(--shadow-sm);
+  }
+
+  .app-shell .sale-card.is-demo {
+    background: #fffdf6;
+  }
+
+  .app-shell .sale-card__main {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    flex: 1;
+    border: 0;
+    background: transparent;
+    padding: 14px;
+    text-align: left;
+  }
+
+  .app-shell .sale-card__topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 7px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+  }
+
+  .app-shell .sale-card__main > strong {
+    display: block;
+    overflow: hidden;
+    color: var(--navy-900);
+    font-size: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .sale-card__main > span:not(.sale-card__topline) {
+    display: block;
+    overflow: hidden;
+    margin-top: 2px;
+    color: var(--color-text-muted);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .sale-card dl {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0;
+    margin: 12px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .app-shell .sale-card dl > div {
+    min-width: 0;
+    padding-inline: 8px;
+    border-right: 1px solid var(--color-border);
+  }
+
+  .app-shell .sale-card dl > div:first-child {
+    padding-left: 0;
+  }
+
+  .app-shell .sale-card dl > div:last-child {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .app-shell .sale-card dt {
+    color: var(--color-text-muted);
+    font-size: 12px;
+    line-height: 1.25;
+    text-transform: none;
+  }
+
+  .app-shell .sale-card dd {
+    overflow: hidden;
+    margin: 3px 0 0;
+    color: var(--navy-900);
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .sale-card__main > .sale-products {
+    display: flex;
+    margin-top: 10px;
+  }
+
+  .app-shell .sale-card__actions {
+    display: flex;
+    min-height: 48px;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 4px 2px 14px;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .app-shell .sale-card__actions .table-review {
+    overflow: hidden;
+    flex: 1;
+  }
+
+  .app-shell .sale-card--deleted {
+    padding-bottom: 12px;
+  }
+
+  .app-shell .sale-card--deleted > button {
+    width: calc(100% - 28px);
+    min-height: 44px;
+    margin: 0 14px;
+  }
+}
+
+/* Sale entry stays contained even when footer labels are translated or zoomed. */
+.sale-sheet,
+.sale-sheet *,
+.sale-form,
+.sale-form__scroll,
+.sale-form__footer,
+.sale-form__footer-actions {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.sale-sheet {
+  overflow-x: hidden;
+}
+
+.sale-form__header p {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.sale-form .form-section legend,
+.sale-form .field-group label,
+.sale-form .sale-detail-group legend,
+.sale-form .sale-fi-products legend,
+.sale-form .status-choice > span {
+  font-size: 14px;
+}
+
+.sale-form .status-choice-help,
+.sale-form .field-help,
+.sale-form .character-count,
+.sale-form .optional-label,
+.sale-form .sale-more-details > summary small,
+.sale-form .privacy-note p {
+  font-size: 12px;
+}
+
+.sale-form .sale-fi-products > .grid > label {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.sale-form .sale-fi-products > .grid > label small {
+  font-size: 12px;
+}
+
+.sale-form__footer-estimate {
+  min-width: 100px;
+  flex: 1 1 120px;
+}
+
+.sale-form__footer-actions {
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+.sale-form__footer-actions button {
+  min-width: 0;
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .app-shell .sales-toolbar {
+    grid-template-columns: minmax(0, 1fr) 138px;
+    gap: 8px;
+  }
+
+  .app-shell .search-field {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .app-shell .sales-toolbar__actions {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    gap: 4px;
+  }
+
+  .app-shell .sort-control {
+    width: 100%;
+    max-width: none;
+    flex: 1;
+    padding-inline: 8px;
+  }
+
+  .app-shell .sort-control > svg:first-child {
+    display: none;
+  }
+
+  .app-shell .sort-control select {
+    width: 100%;
+    padding-right: 18px;
+  }
+
+  .app-shell .sales-clear-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .app-shell .sales-clear-button > svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .app-shell .filter-chips {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .app-shell .filter-chip {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding: 5px 6px;
+    font-size: 13px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .app-shell .filter-chip.is-empty:not(.is-active) {
+    display: inline-flex;
+  }
+
+  .app-shell .sales-card-list {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .app-shell .sale-card__main {
+    padding: 13px;
+  }
+
+  .sale-form__footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sale-form__footer-estimate {
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .sale-form__footer-actions {
+    display: grid;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .sale-form__footer-actions:has(> :nth-child(3)) {
+    grid-template-columns: minmax(80px, 0.8fr) minmax(0, 1.4fr);
+  }
+
+  .sale-form__footer-actions:has(> :nth-child(3)) button[type="submit"] {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .sale-form__footer-actions:not(:has(> :nth-child(3))) {
+    grid-template-columns: minmax(80px, 0.8fr) minmax(0, 1.2fr);
+  }
+
+  .sale-form__footer-actions:not(:has(> :nth-child(3))) button[type="submit"] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .sale-form__footer-actions button {
+    width: 100%;
+    padding-inline: 10px;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 360px) {
+  .app-shell .sales-toolbar {
+    grid-template-columns: minmax(0, 1fr) 122px;
+  }
+
+  .app-shell .sort-control {
+    padding-left: 7px;
+  }
+
+  .app-shell .sort-control select {
+    font-size: 13px;
+  }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 128 128" role="img" aria-labelledby="title description">
+  <title id="title">Sales Ledger mark</title>
+  <desc id="description">A ledger page with a vehicle-inspired roofline and an integrated completed-sale check.</desc>
+  <path fill="#0b2a47" d="M22 34C32 21 45 15 59 15c15 0 28 7 36 19h3c6 0 9 4 9 9v32c0 5-2 8-6 11l-31 24c-4 4-9 4-14 0L26 85c-4-3-6-7-6-12V41c0-3 1-5 2-7Z"/>
+  <path fill="none" stroke="#fff" stroke-linecap="round" stroke-width="7" d="M38 44h46M38 57h38M38 70h26"/>
+  <path fill="none" stroke="#147d64" stroke-linecap="round" stroke-linejoin="round" stroke-width="11" d="m47 76 16 17 45-43"/>
+</svg>

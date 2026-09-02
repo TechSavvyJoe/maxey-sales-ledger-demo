@@ -1,0 +1,569 @@
+/* Compact Settings layout -------------------------------------------------
+   Low-frequency controls stay one click away without making the page feel
+   like a long form. Native details/summary keeps the interaction familiar,
+   keyboard accessible, and useful without JavaScript-specific controls. */
+
+.settings-page.page-stack {
+  gap: 12px;
+}
+
+.settings-page .page-heading {
+  min-height: 54px;
+}
+
+.settings-page .page-heading h1 {
+  font-size: clamp(23px, 2vw, 29px);
+}
+
+.settings-page .settings-layout {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+  grid-auto-rows: max-content;
+  align-items: start;
+  gap: 10px;
+}
+
+.settings-page .settings-section {
+  width: 100%;
+  min-width: 0;
+  padding: 16px;
+}
+
+.settings-page .settings-section:focus-visible {
+  outline: 3px solid rgba(18, 104, 167, 0.3);
+  outline-offset: 2px;
+}
+
+.settings-page .section-header h2 {
+  font-size: 16px;
+}
+
+.settings-page .settings-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.settings-page .settings-form-grid input,
+.settings-page .pay-plan-version input,
+.settings-page .pay-plan-grid input,
+.settings-page .bonus-tier-table input {
+  min-height: 44px;
+}
+
+.settings-page .profile-sharing-note {
+  min-height: 44px;
+}
+
+.settings-page .schedule-settings {
+  grid-column: 1;
+}
+
+.settings-page .schedule-settings .work-schedule-details {
+  margin-top: 11px;
+}
+
+.settings-page .schedule-settings .work-schedule-details > summary {
+  min-height: 56px;
+}
+
+.settings-page .settings-disclosure {
+  grid-column: 1;
+  align-self: start;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.settings-page .settings-disclosure[open] {
+  grid-column: 1;
+}
+
+.settings-disclosure__summary {
+  display: grid;
+  min-height: 62px;
+  grid-template-columns: 36px minmax(170px, 1fr) minmax(150px, auto) 22px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px;
+  color: var(--navy-900);
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-disclosure__summary::marker {
+  content: "";
+}
+
+.settings-disclosure__summary:hover {
+  background: #f6f9fb;
+}
+
+.settings-disclosure__summary:focus-visible {
+  outline: 3px solid rgba(18, 104, 167, 0.3);
+  outline-offset: -3px;
+}
+
+.settings-disclosure__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+
+.settings-disclosure__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.settings-disclosure__title,
+.settings-disclosure__title strong,
+.settings-disclosure__title small {
+  min-width: 0;
+}
+
+.settings-disclosure__title strong,
+.settings-disclosure__title small {
+  display: block;
+}
+
+.settings-disclosure__title strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.settings-disclosure__title small {
+  margin-top: 2px;
+  color: var(--slate-600);
+  font-size: 11px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.settings-disclosure__status {
+  min-width: 0;
+  color: var(--slate-700);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-align: right;
+  white-space: normal;
+}
+
+.settings-disclosure__chevron {
+  width: 18px;
+  color: var(--slate-600);
+  transition: transform 160ms ease;
+}
+
+.settings-disclosure[open] .settings-disclosure__chevron {
+  transform: rotate(180deg);
+}
+
+.settings-disclosure__body {
+  min-width: 0;
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--slate-200);
+}
+
+.settings-disclosure__body > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.settings-page .settings-disclosure__body .pay-plan-version,
+.settings-page .settings-disclosure__body .bonus-tier-table,
+.settings-page .settings-disclosure__body .storage-card,
+.settings-page .settings-disclosure__body .privacy-grid,
+.settings-page .settings-disclosure__body .activity-list {
+  margin-top: 12px;
+}
+
+.settings-page .settings-disclosure__body .pay-plan-rule,
+.settings-page .settings-disclosure__body .pay-plan-caveat,
+.settings-page .settings-disclosure__body .automatic-backup-card,
+.settings-page .settings-disclosure__body .google-drive-card,
+.settings-page .settings-disclosure__body .data-action-grid,
+.settings-page .settings-disclosure__body .demo-data-callout,
+.settings-page .settings-disclosure__body .backup-reminder,
+.settings-page .settings-disclosure__body .local-only-explanation {
+  margin-top: 9px;
+}
+
+.settings-page .settings-disclosure__body .data-action-grid > button {
+  min-height: 98px;
+  padding: 10px;
+}
+
+.settings-page .settings-disclosure__body .activity-list li {
+  min-height: 44px;
+}
+
+.settings-page .pay-plan-impact {
+  margin-top: 10px;
+  padding: 11px;
+  border: 1px solid var(--slate-300);
+  border-radius: 8px;
+  background: #f4f9fd;
+}
+
+.pay-plan-impact__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pay-plan-impact__heading strong {
+  color: var(--navy-900);
+  font-size: 13px;
+}
+
+.pay-plan-impact__heading small,
+.pay-plan-impact > p {
+  color: var(--slate-600);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pay-plan-impact dl {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr;
+  gap: 8px;
+  margin: 9px 0 0;
+}
+
+.pay-plan-impact dl > div {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--slate-200);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.pay-plan-impact dt,
+.pay-plan-impact dd {
+  margin: 0;
+}
+
+.pay-plan-impact dt {
+  color: var(--slate-600);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.pay-plan-impact dd {
+  margin-top: 3px;
+  color: var(--navy-900);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.pay-plan-impact dd.is-positive {
+  color: var(--green-700);
+}
+
+.pay-plan-impact dd.is-negative {
+  color: var(--red-700);
+}
+
+.pay-plan-impact > p {
+  margin: 7px 1px 0;
+}
+
+.settings-page .pay-plan-history {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--slate-200);
+}
+
+.pay-plan-history > strong {
+  color: var(--navy-900);
+  font-size: 13px;
+}
+
+.pay-plan-history ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 7px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pay-plan-history li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--slate-200);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.pay-plan-history li span,
+.pay-plan-history li strong,
+.pay-plan-history li small {
+  display: block;
+  min-width: 0;
+}
+
+.pay-plan-history li strong {
+  overflow: hidden;
+  color: var(--navy-900);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pay-plan-history li small {
+  margin-top: 2px;
+  color: var(--slate-600);
+  font-size: 10.5px;
+}
+
+.pay-plan-history li em {
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: var(--blue-100);
+  color: var(--blue-700);
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.settings-page .about-strip {
+  min-height: 28px;
+  padding: 0 3px;
+}
+
+@media (min-width: 721px) {
+  .settings-page .settings-form-grid > .field-group--full:not(.profile-sharing-note) {
+    grid-column: auto;
+  }
+
+  .settings-page .settings-form-grid > .profile-sharing-note {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 920px) {
+  .settings-page .settings-disclosure,
+  .settings-page .settings-disclosure[open],
+  .settings-page .schedule-settings {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .settings-page.page-stack {
+    gap: 9px;
+  }
+
+  .settings-page .page-heading {
+    min-height: 0;
+  }
+
+  .settings-page .page-heading p {
+    display: none;
+  }
+
+  .settings-page .page-heading h1 {
+    margin-bottom: 0;
+    font-size: 22px;
+  }
+
+  .settings-page .settings-layout {
+    gap: 8px;
+  }
+
+  .settings-page .settings-section {
+    padding: 12px;
+  }
+
+  .settings-page .settings-disclosure {
+    padding: 0;
+  }
+
+  .settings-page .settings-mobile-save {
+    position: fixed;
+    z-index: 41;
+    right: 11px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    left: 11px;
+    top: auto;
+    width: auto;
+    min-height: 48px;
+    box-shadow: 0 8px 24px rgba(11, 42, 71, 0.24);
+  }
+
+  .settings-page.has-unsaved-settings::after {
+    display: block;
+    height: 52px;
+    flex: 0 0 52px;
+    content: "";
+  }
+
+  .settings-page .settings-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    margin-top: 10px;
+  }
+
+  .settings-page .settings-form-grid > .field-group--full,
+  .settings-page .settings-form-grid > .profile-sharing-note {
+    grid-column: 1 / -1;
+  }
+
+  .settings-page .settings-form-grid input {
+    font-size: 16px;
+  }
+
+  .settings-page .profile-sharing-note small {
+    display: none;
+  }
+
+  .settings-page .section-header p {
+    margin-top: 1px;
+    font-size: 11px;
+  }
+
+  .settings-page .schedule-settings .work-schedule-details {
+    margin-top: 9px;
+  }
+
+  .settings-page .schedule-settings .work-schedule-details > summary {
+    min-height: 52px;
+    padding-block: 5px;
+  }
+
+  .settings-disclosure__summary {
+    min-height: 56px;
+    grid-template-columns: 34px minmax(0, 1fr) minmax(110px, auto) 20px;
+    gap: 8px;
+    padding: 7px 10px;
+  }
+
+  .settings-disclosure__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .settings-disclosure__title small {
+    display: none;
+  }
+
+  .settings-disclosure__status {
+    font-size: 10.5px;
+  }
+
+  .settings-disclosure__body {
+    padding: 0 12px 12px;
+  }
+
+  .settings-page .settings-disclosure__body .pay-plan-version,
+  .settings-page .settings-disclosure__body .bonus-tier-table,
+  .settings-page .settings-disclosure__body .storage-card,
+  .settings-page .settings-disclosure__body .privacy-grid,
+  .settings-page .settings-disclosure__body .activity-list {
+    margin-top: 10px;
+  }
+
+  .settings-page .settings-disclosure__body .data-action-grid > button {
+    min-height: 88px;
+  }
+
+  .pay-plan-impact__heading {
+    display: block;
+  }
+
+  .pay-plan-impact__heading small {
+    display: block;
+    margin-top: 2px;
+  }
+
+  .pay-plan-impact dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-disclosure__summary {
+    min-height: 62px;
+    grid-template-columns: 34px minmax(0, 1fr) 20px;
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+
+  .settings-disclosure__status {
+    grid-column: 2;
+    grid-row: 2;
+    margin-top: 0;
+    text-align: left;
+  }
+
+  .settings-disclosure__chevron {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  .settings-disclosure__icon {
+    grid-row: 1 / span 2;
+  }
+
+  .settings-page .about-strip span:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 340px) {
+  .settings-page .settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page .settings-form-grid > .field-group,
+  .settings-page .settings-form-grid > .field-group--full,
+  .settings-page .settings-form-grid > .profile-sharing-note {
+    grid-column: 1;
+  }
+
+  .settings-disclosure__summary {
+    grid-template-columns: minmax(0, 1fr) 20px;
+  }
+
+  .settings-disclosure__icon {
+    display: none;
+  }
+
+  .settings-disclosure__title,
+  .settings-disclosure__status {
+    grid-column: 1;
+  }
+
+  .settings-disclosure__chevron {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-disclosure__chevron {
+    transition: none;
+  }
+}

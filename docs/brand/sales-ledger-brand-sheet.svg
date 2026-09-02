@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" role="img" aria-labelledby="title description">
+  <title id="title">Sales Ledger identity system</title>
+  <desc id="description">Primary and reversed logo treatments, palette, and usage guidance for the Sales Ledger product mark.</desc>
+  <rect width="1600" height="1000" fill="#f4f7fa"/>
+  <text x="90" y="88" fill="#0b2a47" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="44" font-weight="800">Sales Ledger identity system</text>
+  <text x="90" y="128" fill="#465767" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="20">One idea: a sales ledger whose lower edge resolves into a completed-sale check.</text>
+
+  <rect x="90" y="178" width="880" height="330" rx="28" fill="#fff" stroke="#dbe3eb"/>
+  <g transform="translate(138 220) scale(1.9)">
+    <path fill="#0b2a47" d="M22 34C32 21 45 15 59 15c15 0 28 7 36 19h3c6 0 9 4 9 9v32c0 5-2 8-6 11l-31 24c-4 4-9 4-14 0L26 85c-4-3-6-7-6-12V41c0-3 1-5 2-7Z"/>
+    <path fill="none" stroke="#fff" stroke-linecap="round" stroke-width="7" d="M38 44h46M38 57h38M38 70h26"/>
+    <path fill="none" stroke="#147d64" stroke-linecap="round" stroke-linejoin="round" stroke-width="11" d="m47 76 16 17 45-43"/>
+  </g>
+  <text x="410" y="345" fill="#0b2a47" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="74" font-weight="800" letter-spacing="-2">Sales Ledger</text>
+  <text x="414" y="390" fill="#465767" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="21" font-weight="700" letter-spacing="3">VEHICLE SALES COMMISSION TRACKER</text>
+
+  <rect x="1010" y="178" width="500" height="330" rx="28" fill="#0b2a47"/>
+  <g transform="translate(1130 210) scale(2.05)">
+    <path fill="#fff" d="M22 34C32 21 45 15 59 15c15 0 28 7 36 19h3c6 0 9 4 9 9v32c0 5-2 8-6 11l-31 24c-4 4-9 4-14 0L26 85c-4-3-6-7-6-12V41c0-3 1-5 2-7Z"/>
+    <path fill="none" stroke="#0b2a47" stroke-linecap="round" stroke-width="7" d="M38 44h46M38 57h38M38 70h26"/>
+    <path fill="none" stroke="#45d6aa" stroke-linecap="round" stroke-linejoin="round" stroke-width="11" d="m47 76 16 17 45-43"/>
+  </g>
+  <text x="1173" y="469" fill="#fff" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="24" font-weight="800">Reversed mark</text>
+
+  <text x="90" y="590" fill="#0b2a47" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="30" font-weight="800">Palette</text>
+  <rect x="90" y="625" width="250" height="120" rx="18" fill="#0b2a47"/>
+  <text x="110" y="700" fill="#fff" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="19" font-weight="800">Ledger Navy</text>
+  <text x="110" y="728" fill="#b9cada" font-family="ui-monospace, SFMono-Regular, monospace" font-size="17">#0B2A47</text>
+  <rect x="365" y="625" width="250" height="120" rx="18" fill="#075ca8"/>
+  <text x="385" y="700" fill="#fff" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="19" font-weight="800">Action Blue</text>
+  <text x="385" y="728" fill="#e7f2fb" font-family="ui-monospace, SFMono-Regular, monospace" font-size="17">#075CA8</text>
+  <rect x="640" y="625" width="250" height="120" rx="18" fill="#147d64"/>
+  <text x="660" y="700" fill="#fff" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="19" font-weight="800">Verified Green</text>
+  <text x="660" y="728" fill="#e4f4ef" font-family="ui-monospace, SFMono-Regular, monospace" font-size="17">#147D64</text>
+  <rect x="915" y="625" width="250" height="120" rx="18" fill="#fff" stroke="#dbe3eb"/>
+  <text x="935" y="700" fill="#0b2a47" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="19" font-weight="800">Paper White</text>
+  <text x="935" y="728" fill="#465767" font-family="ui-monospace, SFMono-Regular, monospace" font-size="17">#FFFFFF</text>
+  <rect x="1190" y="625" width="250" height="120" rx="18" fill="#f4f7fa" stroke="#c8d4df"/>
+  <text x="1210" y="700" fill="#0b2a47" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="19" font-weight="800">Workspace Canvas</text>
+  <text x="1210" y="728" fill="#465767" font-family="ui-monospace, SFMono-Regular, monospace" font-size="17">#F4F7FA</text>
+
+  <text x="90" y="835" fill="#0b2a47" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="28" font-weight="800">Usage</text>
+  <text x="90" y="880" fill="#465767" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="20">Clear space: at least one ledger-line height on every side. Minimum digital mark: 24px; use the simplified favicon at 16px.</text>
+  <text x="90" y="915" fill="#465767" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="20">The mark identifies the Sales Ledger product only. It is not a Ford or Bob Maxey dealership logo and must not imply manufacturer endorsement.</text>
+  <text x="90" y="950" fill="#465767" font-family="Avenir Next, Avenir, Segoe UI, Arial, sans-serif" font-size="20">Wordmark type: Avenir Next Heavy with restrained negative tracking; UI text remains real HTML for accessibility.</text>
+</svg>

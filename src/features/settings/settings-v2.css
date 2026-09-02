@@ -1,0 +1,413 @@
+/* Settings category workspace --------------------------------------------
+   One stable content column prevents expanding sections from jumping into
+   another grid position. All category panels stay mounted so draft values and
+   backup controls are preserved while only the selected panel is visible. */
+
+.settings-page .settings-v2-layout {
+  display: grid;
+  grid-template-columns: 224px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.settings-page .settings-category-nav {
+  position: sticky;
+  top: 76px;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(11, 42, 71, 0.05);
+}
+
+.settings-page .settings-category-button {
+  display: grid;
+  min-width: 0;
+  min-height: 56px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  padding: 7px 9px;
+  color: var(--slate-700);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.settings-page .settings-category-button:hover {
+  border-color: var(--slate-200);
+  background: #f7f9fb;
+  color: var(--navy-900);
+}
+
+.settings-page .settings-category-button:focus-visible {
+  outline: 3px solid rgba(9, 105, 218, 0.25);
+  outline-offset: 1px;
+}
+
+.settings-page .settings-category-button.is-active {
+  border-color: #c7dff2;
+  background: var(--blue-100);
+  color: var(--navy-900);
+  box-shadow: inset 3px 0 0 var(--blue-600);
+}
+
+.settings-page .settings-category-button__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--slate-100);
+  color: var(--slate-700);
+}
+
+.settings-page .settings-category-button.is-active .settings-category-button__icon {
+  background: #fff;
+  color: var(--blue-700);
+}
+
+.settings-page .settings-category-button__icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.settings-page .settings-category-button > span:last-child,
+.settings-page .settings-category-button strong,
+.settings-page .settings-category-button small {
+  display: block;
+  min-width: 0;
+}
+
+.settings-page .settings-category-button strong {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.settings-page .settings-category-button small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--slate-600);
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-page .settings-category-content,
+.settings-page .settings-category-panel {
+  min-width: 0;
+}
+
+.settings-page .settings-category-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.settings-page .settings-category-panel[hidden] {
+  display: none !important;
+}
+
+.settings-page .settings-category-panel > * {
+  width: 100%;
+  min-width: 0;
+  grid-column: 1;
+}
+
+.settings-page .settings-category-content {
+  font-size: 14px;
+}
+
+.settings-page .settings-category-content :where(input, select, textarea, button),
+.settings-page .settings-category-content summary {
+  min-height: 44px;
+}
+
+.settings-page .page-heading button,
+.settings-page .settings-mobile-save {
+  min-height: 44px;
+}
+
+.settings-page .settings-category-content :where(input, select, textarea) {
+  font-size: 14px;
+}
+
+.settings-page .settings-category-content :where(p, li) {
+  font-size: 14px;
+}
+
+.settings-page .settings-category-content :where(small, .field-help, .optional-label) {
+  font-size: 12px;
+}
+
+.settings-page .settings-category-content .settings-section {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-page .settings-primary-section {
+  overflow: hidden;
+  padding: 0;
+}
+
+.settings-page .settings-primary-section .settings-disclosure__summary {
+  min-height: 68px;
+  grid-template-columns: 38px minmax(0, 1fr) minmax(150px, auto);
+  padding: 10px 16px;
+  cursor: default;
+}
+
+.settings-page .settings-primary-section .settings-disclosure__summary:hover {
+  background: transparent;
+}
+
+.settings-page .settings-primary-section .settings-disclosure__body {
+  padding: 0 16px 16px;
+}
+
+.settings-page .settings-disclosure__title strong {
+  font-size: 16px;
+}
+
+.settings-page .settings-disclosure__title small,
+.settings-page .settings-disclosure__status {
+  font-size: 12px;
+}
+
+.settings-page .settings-secondary-disclosure {
+  overflow: hidden;
+  padding: 0;
+}
+
+.settings-page .settings-secondary-disclosure > .settings-disclosure__summary {
+  min-height: 58px;
+  padding: 8px 14px;
+}
+
+.settings-page .settings-secondary-disclosure > .settings-disclosure__body {
+  padding: 0 14px 14px;
+}
+
+.settings-page .section-header h2 {
+  font-size: 17px;
+}
+
+.settings-page .section-header p {
+  font-size: 13px;
+}
+
+.settings-page .settings-form-grid label,
+.settings-page .pay-plan-field > label {
+  font-size: 13px;
+}
+
+.settings-page .profile-sharing-note,
+.settings-page .storage-card,
+.settings-page .automatic-backup-card,
+.settings-page .google-drive-card,
+.settings-page .demo-data-callout,
+.settings-page .backup-reminder {
+  min-height: 56px;
+}
+
+.settings-page .pay-plan-rule p,
+.settings-page .pay-plan-caveat p,
+.settings-page .pay-plan-impact__heading small,
+.settings-page .pay-plan-impact > p,
+.settings-page .privacy-grid p,
+.settings-page .local-only-explanation,
+.settings-page .settings-empty {
+  font-size: 13px;
+}
+
+.settings-page .pay-plan-impact dt,
+.settings-page .pay-plan-history li small,
+.settings-page .pay-plan-history li em,
+.settings-page .bonus-tier-total small {
+  font-size: 12px;
+}
+
+.settings-page .pay-plan-impact dd,
+.settings-page .pay-plan-history li strong,
+.settings-page .storage-card strong,
+.settings-page .demo-data-callout strong,
+.settings-page .backup-reminder strong,
+.settings-page .privacy-grid strong,
+.settings-page .activity-list strong,
+.settings-page .activity-list small,
+.settings-page .activity-list time {
+  font-size: 13px;
+}
+
+.settings-page .data-action-grid > button {
+  min-height: 104px;
+}
+
+.settings-page .data-action-grid strong {
+  font-size: 14px;
+}
+
+.settings-page .data-action-grid small {
+  font-size: 12px;
+}
+
+.settings-page .about-strip {
+  min-height: 32px;
+  font-size: 12px;
+}
+
+@media (max-width: 1180px) {
+  .settings-page .settings-v2-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .settings-page .settings-category-nav {
+    position: static;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .settings-page .settings-category-button {
+    min-height: 54px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 7px;
+    padding: 6px 7px;
+  }
+
+  .settings-page .settings-category-button__icon {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-page .settings-category-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .settings-page .settings-category-button {
+    min-height: 48px;
+  }
+
+  .settings-page .settings-category-button:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .settings-page .settings-category-button small {
+    display: none;
+  }
+
+  .settings-page .settings-primary-section .settings-disclosure__summary {
+    min-height: 62px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 9px;
+    padding: 9px 12px;
+  }
+
+  .settings-page .settings-primary-section .settings-disclosure__status {
+    grid-column: 2;
+    margin-top: -2px;
+    text-align: left;
+  }
+
+  .settings-page .settings-primary-section .settings-disclosure__body {
+    padding: 0 12px 12px;
+  }
+
+  .settings-page .settings-secondary-disclosure > .settings-disclosure__summary {
+    min-height: 60px;
+  }
+
+  .settings-page .settings-category-content :where(input, select, textarea) {
+    font-size: 16px;
+  }
+
+  .settings-page .pay-plan-impact dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-page .settings-category-button {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 6px;
+    padding: 5px 7px;
+  }
+
+  .settings-page .settings-category-button__icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .settings-page .settings-category-button strong {
+    font-size: 12px;
+  }
+
+  .settings-page .settings-secondary-disclosure > .settings-disclosure__summary {
+    grid-template-columns: 34px minmax(0, 1fr) 20px;
+  }
+
+  .settings-page .settings-secondary-disclosure .settings-disclosure__status {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .settings-page .settings-primary-section .settings-disclosure__title small {
+    display: block;
+  }
+
+  .settings-page .settings-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-page .settings-form-grid > .field-group,
+  .settings-page .settings-form-grid > .field-group--full,
+  .settings-page .settings-form-grid > .profile-sharing-note {
+    grid-column: 1;
+  }
+
+  .settings-page .data-action-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The primary category header is not collapsible, so keep its complete context
+   in one readable column instead of forcing title and status into tiny cells. */
+@media (max-width: 340px) {
+  .settings-page .settings-primary-section .settings-disclosure__summary {
+    min-height: 82px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3px;
+    padding: 10px 12px;
+  }
+
+  .settings-page .settings-primary-section .settings-disclosure__icon {
+    display: none;
+  }
+
+  .settings-page .settings-primary-section .settings-disclosure__title,
+  .settings-page .settings-primary-section .settings-disclosure__status {
+    grid-column: 1;
+    grid-row: auto;
+    margin: 0;
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-page .settings-category-button {
+    transition: none;
+  }
+}

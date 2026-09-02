@@ -1,0 +1,22 @@
+MAXEY SALES LEDGER - START HERE
+
+MAC
+1. Double-click "Start Maxey Sales Ledger.command".
+2. Leave the Terminal window open while you use Sales Ledger.
+
+WINDOWS
+1. Double-click "Start Maxey Sales Ledger.cmd".
+2. Leave the Command Prompt window open while you use Sales Ledger.
+
+REQUIREMENT
+Node.js 22 or newer must be installed. The launcher does not install software or change another running app.
+
+IMPORTANT
+- Do not open app/index.html directly.
+- Always use http://127.0.0.1:4180/ in the same browser profile.
+- localhost, another port, another browser, or another computer is a separate local data workspace.
+- Closing the launcher window stops the local web address but does not erase browser data.
+- In desktop Edge or Chrome, Settings can create verified recovery copies in a private folder you choose.
+- Keep the manual full-backup download as a second recovery path and confirm each file exists.
+
+Automatic folder backups are recovery copies, not live sync. If the chosen folder is inside OneDrive, OneDrive controls any upload. The local launcher does not add centralized backups, accounts, manager visibility, or payroll approval. A stable HTTPS deployment is the recommended coworker rollout.

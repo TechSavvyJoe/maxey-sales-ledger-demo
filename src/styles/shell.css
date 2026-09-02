@@ -1,0 +1,428 @@
+.app-shell {
+  min-height: 100vh;
+  background: var(--canvas);
+}
+
+.app-shell .sidebar {
+  width: var(--shell-sidebar-width);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--navy-900);
+}
+
+.product-lockup {
+  display: flex;
+  min-height: var(--shell-topbar-height);
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.product-lockup > img {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+}
+
+.product-lockup > span,
+.product-lockup strong,
+.product-lockup small {
+  display: block;
+  min-width: 0;
+}
+
+.product-lockup strong {
+  overflow: hidden;
+  color: white;
+  font-size: 16px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-lockup small {
+  margin-top: 1px;
+  color: #b9c9d6;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+}
+
+.app-shell .sidebar-nav {
+  align-items: stretch;
+  gap: 4px;
+  padding: 16px 10px;
+}
+
+.app-shell .sidebar-nav__item {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+  flex-direction: row;
+  gap: 10px;
+  border-radius: var(--radius-control);
+  padding: 0 12px;
+  color: #cad7e2;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-shell .sidebar-nav__item svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-shell .sidebar-nav__item.is-active {
+  background: white;
+  color: var(--navy-900);
+  box-shadow: none;
+}
+
+.app-shell .sidebar-footer {
+  gap: 10px;
+  padding: 14px 16px 16px;
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-profile,
+.sidebar-profile strong,
+.sidebar-profile span {
+  display: block;
+  min-width: 0;
+}
+
+.sidebar-profile strong,
+.sidebar-profile span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-profile strong {
+  color: white;
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sidebar-profile span {
+  margin-top: 1px;
+  color: #b9c9d6;
+  font-size: 11px;
+}
+
+.app-shell .sidebar .dealership-logo-link {
+  width: 108px;
+  min-height: 0;
+  justify-self: start;
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.app-shell .sidebar .dealership-logo-link:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.app-shell .storage-state {
+  display: flex;
+  gap: 7px;
+  color: #e4edf4;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+}
+
+.app-shell .sidebar-footer > small {
+  display: block;
+  margin-top: -7px;
+  color: #aebfcd;
+  font-size: 10px;
+}
+
+.app-shell .workspace {
+  margin-left: var(--shell-sidebar-width);
+}
+
+.app-shell .topbar {
+  min-height: var(--shell-topbar-height);
+  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom-color: var(--color-border);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: none;
+}
+
+.topbar-product {
+  display: none;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  color: var(--navy-900);
+  text-decoration: none;
+}
+
+.topbar-product:focus-visible {
+  border-radius: var(--radius-control);
+  outline: 3px solid rgb(19 93 172 / 28%);
+  outline-offset: 2px;
+}
+
+.topbar-product img {
+  width: 58px;
+  height: 26px;
+  flex: 0 0 58px;
+  object-fit: contain;
+}
+
+.topbar-product strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell .period-switcher {
+  min-width: 246px;
+  min-height: 44px;
+  border-color: var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  padding: 1px;
+}
+
+.app-shell .period-switcher__arrow,
+.app-shell .period-switcher__label {
+  min-height: 40px !important;
+  height: 40px;
+}
+
+.app-shell .period-switcher__arrow {
+  width: 40px;
+  min-width: 40px;
+}
+
+.app-shell .period-switcher__label {
+  min-width: 160px;
+  gap: 8px;
+  padding-inline: 14px !important;
+  border-color: var(--color-border);
+  color: var(--navy-900) !important;
+  font-size: 14px !important;
+  font-weight: var(--font-weight-semibold);
+}
+
+.period-switcher__calendar {
+  width: 16px;
+  height: 16px;
+}
+
+.period-switcher__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.period-switcher__value--compact {
+  display: none;
+}
+
+.app-shell .add-sale-button {
+  min-width: 108px;
+  min-height: 44px;
+  justify-self: end;
+  border-radius: var(--radius-control);
+  box-shadow: none;
+  font-size: 14px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.app-shell .main-content {
+  max-width: 1440px;
+  padding: 22px 24px 44px;
+}
+
+@media (min-width: 721px) and (max-width: 1040px) {
+  :root {
+    --shell-sidebar-width: 188px;
+  }
+
+  .product-lockup {
+    padding-inline: 13px;
+  }
+
+  .product-lockup > img {
+    width: 32px;
+    height: 32px;
+    flex-basis: 32px;
+  }
+
+  .product-lockup strong {
+    font-size: 15px;
+  }
+
+  .app-shell .sidebar-nav__item {
+    padding-inline: 10px;
+  }
+
+  .app-shell .sidebar-footer {
+    padding-inline: 13px;
+  }
+
+  .app-shell .topbar {
+    padding-inline: 18px;
+  }
+
+  .app-shell .main-content {
+    padding-inline: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --shell-topbar-height: 60px;
+  }
+
+  .app-shell .sidebar {
+    display: none;
+  }
+
+  .app-shell .workspace {
+    margin-left: 0;
+  }
+
+  .app-shell .topbar {
+    min-height: var(--shell-topbar-height);
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 7px 8px;
+  }
+
+  .topbar-product {
+    display: flex;
+  }
+
+  .app-shell .period-switcher {
+    grid-column: 2;
+    grid-row: 1;
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+  }
+
+  .app-shell .period-switcher__arrow,
+  .app-shell .period-switcher__label {
+    min-height: 44px !important;
+    height: 44px;
+  }
+
+  .app-shell .period-switcher__arrow {
+    width: 40px;
+    min-width: 40px;
+  }
+
+  .app-shell .period-switcher__label {
+    min-width: 0;
+    flex: 1;
+    gap: 5px;
+    padding-inline: 7px !important;
+    font-size: 13px !important;
+  }
+
+  .app-shell .period-switcher__calendar {
+    display: none;
+  }
+
+  .app-shell .add-sale-button {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 82px;
+    min-height: 44px;
+    gap: 5px;
+    padding-inline: 10px;
+    font-size: 13px;
+  }
+
+  .app-shell .main-content {
+    padding: 14px 11px calc(82px + env(safe-area-inset-bottom));
+  }
+
+  .app-shell .mobile-nav {
+    height: calc(62px + env(safe-area-inset-bottom));
+    padding: 3px 4px env(safe-area-inset-bottom);
+    border-top-color: var(--color-border);
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -4px 14px rgba(11, 41, 69, 0.08);
+  }
+
+  .app-shell .mobile-nav__item {
+    min-height: 56px;
+    gap: 1px;
+    border-radius: var(--radius-control);
+    color: var(--slate-600);
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .app-shell .mobile-nav__item.is-active {
+    background: var(--blue-100);
+    color: var(--blue-700);
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-product strong {
+    display: none;
+  }
+
+  .app-shell .period-switcher__value {
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 350px) {
+  .topbar-product img {
+    width: 42px;
+    height: 24px;
+    flex-basis: 42px;
+  }
+
+  .app-shell .period-switcher__arrow {
+    width: 36px;
+    min-width: 36px;
+  }
+
+  .app-shell .add-sale-button {
+    min-width: 66px;
+    padding-inline: 8px;
+  }
+
+  .app-shell .add-sale-button__suffix {
+    display: none;
+  }
+
+  .app-shell .period-switcher__label {
+    padding-inline: 5px !important;
+    font-size: 12px !important;
+  }
+
+  .app-shell .period-switcher__value--full {
+    display: none;
+  }
+
+  .app-shell .period-switcher__value--compact {
+    display: inline;
+    overflow: visible;
+    text-overflow: clip;
+  }
+}
+
+@media print {
+  .product-lockup,
+  .topbar-product {
+    display: none !important;
+  }
+}

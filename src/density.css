@@ -1,0 +1,110 @@
+/*
+ * Responsive density layer
+ *
+ * The everyday target is a 1280x800 laptop, not an oversized design canvas.
+ * These rules tighten unused space while preserving readable type, 44px actions,
+ * keyboard focus, and the feature-specific layouts loaded by each page.
+ */
+
+@media (min-width: 721px) and (max-height: 900px) {
+  .brand-lockup {
+    min-height: 68px;
+    padding-block: 5px;
+  }
+
+  .brand-lockup .dealership-logo-link { width: 146px; }
+
+  .sidebar-nav {
+    gap: 3px;
+    padding: 14px 10px;
+  }
+
+  .sidebar-nav__item {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+
+  .sidebar-footer { padding: 12px 16px 15px; }
+
+  .topbar {
+    min-height: 68px;
+    padding-inline: 22px;
+  }
+
+  .period-switcher > button,
+  .period-switcher__label { min-height: 40px !important; }
+
+  .main-content { padding: 18px 22px 34px; }
+
+  .page-stack { gap: 13px; }
+
+  .page-heading {
+    min-height: 52px;
+    align-items: flex-end;
+  }
+
+  .page-heading h1 {
+    margin-block: 0 2px;
+    font-size: clamp(23px, 2vw, 29px);
+  }
+
+  .page-heading p { font-size: 13px; }
+
+  .page-heading__eyebrow,
+  .eyebrow { font-size: 11px; }
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    min-height: 106px;
+    gap: 5px 8px;
+    padding: 6px 10px;
+  }
+
+  .period-switcher > button,
+  .period-switcher__label { min-height: 42px !important; }
+
+  .mobile-brand-lockup {
+    width: 94px;
+    min-height: 42px;
+  }
+
+  .add-sale-button {
+    min-width: 106px;
+    min-height: 44px;
+  }
+
+  .main-content { padding: 13px 11px 88px; }
+
+  .page-stack { gap: 10px; }
+
+  .page-heading h1 { font-size: 23px; }
+
+  .page-heading p {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .page-heading__eyebrow,
+  .eyebrow { font-size: 11px; }
+
+  .mobile-nav {
+    height: calc(62px + env(safe-area-inset-bottom));
+    padding-top: 3px;
+  }
+
+  .mobile-nav__item {
+    min-height: 56px;
+    gap: 0;
+  }
+
+  .mobile-nav__item svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .panel,
+  .sales-surface,
+  .report-document,
+  .export-toolbar { border-radius: 8px; }
+}
