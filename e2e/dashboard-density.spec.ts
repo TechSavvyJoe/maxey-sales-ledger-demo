@@ -109,3 +109,32 @@ test("phone disclosures and dashboard actions remain accessible", async ({ page 
     .analyze();
   expect(results.violations).toEqual([]);
 });
+
+test("a closed phone trend loads chart code only when opened", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "Covered once with a fixed phone viewport.");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const chartRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/\/TrendChart[.-]|\/recharts[.-]/.test(request.url())) {
+      chartRequests.push(request.url());
+    }
+  });
+  await loadDemoData(page);
+  await openView(page, "Dashboard");
+
+  const trend = page.locator(".trend-panel");
+  await expect(trend).toHaveJSProperty("open", false);
+  await expect(trend.locator(".trend-chart")).toHaveCount(0);
+  expect(chartRequests).toEqual([]);
+
+  await trend.locator(":scope > summary").click();
+  await expect(trend.getByRole("img", { name: /chart of delivered units/ })).toBeVisible();
+  expect(chartRequests.length).toBeGreaterThan(0);
+  await trend.getByText("View monthly chart data", { exact: true }).click();
+  await expect(trend.getByRole("table")).toBeVisible();
+
+  await trend.locator(":scope > summary").click();
+  await expect(trend.locator(".trend-chart")).toHaveCount(0);
+  await trend.locator(":scope > summary").click();
+  await expect(trend.getByRole("img", { name: /chart of delivered units/ })).toBeVisible();
+});

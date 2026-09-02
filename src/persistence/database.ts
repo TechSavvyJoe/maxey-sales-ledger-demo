@@ -299,9 +299,9 @@ export async function initializeDatabase(): Promise<ProfileSettings> {
   if (existing) {
     const normalized = normalizeSettings(existing);
     const legacyVoidSales = await db.sales
-      .where("profileId")
-      .equals(PROFILE_ID)
-      .filter((sale) => sale.status === "void" && !sale.deletedAt)
+      .where("status")
+      .equals("void")
+      .filter((sale) => sale.profileId === PROFILE_ID && !sale.deletedAt)
       .toArray();
     const settingsChanged = JSON.stringify(existing) !== JSON.stringify(normalized);
     if (settingsChanged || legacyVoidSales.length > 0) {

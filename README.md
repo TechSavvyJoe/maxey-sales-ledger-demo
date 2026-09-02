@@ -75,6 +75,8 @@ The repository's GitHub Pages workflow builds and publishes a **demo-only** stat
 
 GitHub Pages is a helpful way to show the product, but it is not a database, sign-in system, shared ledger, or backup service. Its origin is different from the local launcher, so its browser storage is separate. Do not enter real customer or live-deal information on a public demo site; use a separate, authenticated system with a server-authoritative database for that future workflow.
 
+The app keeps each installed version's page, styles, and code together. After the first visit, reopening a cached workspace does not wait for a fresh page download. Updates download in the background; choose **Update now** when offered to apply the new version. Updating does not clear sales or settings. Do not clear browser site data just to refresh the app.
+
 In current desktop Edge or Chrome, each salesperson can optionally choose a private Documents folder or an existing locally synced OneDrive or Google Drive folder in **Settings → Automatic backup folder**. Sales Ledger writes checksum-verified recovery copies there after committed changes while the app is open. This requires no Sales Ledger account, tenant registration, Graph permission, installation, or managed backend. The folder must already be available on the computer, and browser policy may still block website folder access.
 
 **Settings → Google Drive backup** is the no-install fallback when Google Drive for desktop is unavailable. Sales Ledger checks the complete recovery file, starts its download, and opens Google Drive. The salesperson signs in on Google's website and uploads the displayed filename. Sales Ledger does not connect to or browse the Google account.

@@ -440,7 +440,13 @@ describe("local database", () => {
       status: "void" as const,
       source: "json-restore" as const,
     };
-    await db.sales.put(legacyVoid);
+    const previouslyArchived = {
+      ...legacyVoid,
+      id: "legacy-void-archived",
+      deletedAt: "2026-08-21T12:00:00.000Z",
+    };
+    const otherProfile = { ...legacyVoid, id: "legacy-void-other-profile", profileId: "other-profile" };
+    await db.sales.bulkPut([legacyVoid, previouslyArchived, otherProfile]);
 
     await initializeDatabase();
 
@@ -448,6 +454,12 @@ describe("local database", () => {
     expect(archived).toMatchObject({ status: "void", deletedAt: expect.any(String), revision: 2 });
     expect((await db.auditEvents.where("action").equals("sale.deleted").toArray()).at(-1)?.summary)
       .toMatch(/Moved 1 older undelivered sale to Recently deleted/);
+    expect(await db.sales.get(previouslyArchived.id)).toEqual(previouslyArchived);
+    expect(await db.sales.get(otherProfile.id)).toEqual(otherProfile);
+
+    await initializeDatabase();
+    expect(await db.sales.get(legacyVoid.id)).toEqual(archived);
+    expect(await db.auditEvents.where("action").equals("sale.deleted").count()).toBe(1);
   });
 
   it("restores a legacy void record as Pending and rejects new void sales", async () => {

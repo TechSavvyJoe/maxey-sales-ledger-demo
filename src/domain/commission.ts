@@ -32,8 +32,11 @@ export function normalizeStock(stockNumber: string): string {
 }
 
 export function getDeliveredStockCounts(sales: Sale[]): Map<string, number> {
+  return deliveredStockCountsAsOf(sales, todayDateOnly());
+}
+
+function deliveredStockCountsAsOf(sales: Sale[], today: string): Map<string, number> {
   const counts = new Map<string, number>();
-  const today = todayDateOnly();
   for (const sale of sales) {
     // Only a valid, already-delivered record may make another sale a duplicate.
     // A malformed or future backup row should stay reviewable without suppressing
@@ -109,6 +112,7 @@ function allocateRateAcrossSales(
 function reviewFlagsForSale(
   sale: Sale,
   deliveredStockCounts: Map<string, number>,
+  today: string,
 ): SaleReviewFlag[] {
   const flags: SaleReviewFlag[] = [];
   const stockKey = normalizeStock(sale.stockNumber);
@@ -143,7 +147,7 @@ function reviewFlagsForSale(
   if ((sale.frontGrossCents ?? 0) < 0 || (sale.fiGrossCents ?? 0) < 0) {
     flags.push({ code: "negative-gross", label: "Negative correction", severity: "warning" });
   }
-  if (sale.status === "delivered" && sale.saleDate > todayDateOnly()) {
+  if (sale.status === "delivered" && sale.saleDate > today) {
     flags.push({
       code: "future-delivery",
       label: "Delivery date is in the future",
@@ -159,9 +163,33 @@ export function calculateMonth(
   payPlanOrSchedule: PayPlan | PayPlan[],
   actualPaidCents: number | null = null,
 ): MonthSummary {
-  const payPlan = getPayPlanForMonth(payPlanOrSchedule, monthKey);
+  return calculatePreparedMonth(
+    prepareSalesForCalculation(allSales),
+    monthKey,
+    payPlanOrSchedule,
+    actualPaidCents,
+  );
+}
+
+function prepareSalesForCalculation(allSales: Sale[]) {
+  // One consistent date and duplicate index for the whole calculation. Annual
+  // reports share this snapshot across months, including cross-year duplicates.
+  const today = todayDateOnly();
   const activeSales = allSales.filter((sale) => !sale.deletedAt);
-  const deliveredStockCounts = getDeliveredStockCounts(activeSales);
+  return {
+    activeSales,
+    deliveredStockCounts: deliveredStockCountsAsOf(activeSales, today),
+    today,
+  };
+}
+
+function calculatePreparedMonth(
+  { activeSales, deliveredStockCounts, today }: ReturnType<typeof prepareSalesForCalculation>,
+  monthKey: string,
+  payPlanOrSchedule: PayPlan | PayPlan[],
+  actualPaidCents: number | null,
+): MonthSummary {
+  const payPlan = getPayPlanForMonth(payPlanOrSchedule, monthKey);
   const monthSales = activeSales
     .filter((sale) => monthKeyFromDate(sale.saleDate) === monthKey)
     .sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.createdAt.localeCompare(b.createdAt));
@@ -171,11 +199,12 @@ export function calculateMonth(
     return (
       sale.status === "delivered" &&
       isValidDateOnly(sale.saleDate) &&
-      sale.saleDate <= todayDateOnly() &&
+      sale.saleDate <= today &&
       Boolean(key) &&
       deliveredStockCounts.get(key) === 1
     );
   });
+  const countableDeliveredIds = new Set(countableDelivered.map((sale) => sale.id));
 
   const deliveredCount = countableDelivered.length;
   const frontRateBps =
@@ -196,8 +225,8 @@ export function calculateMonth(
 
   const calculatedSales: CalculatedSale[] = monthSales.map((sale) => {
     const key = normalizeStock(sale.stockNumber);
-    const flags = reviewFlagsForSale(sale, deliveredStockCounts);
-    const countsTowardVolume = countableDelivered.some((item) => item.id === sale.id);
+    const flags = reviewFlagsForSale(sale, deliveredStockCounts, today);
+    const countsTowardVolume = countableDeliveredIds.has(sale.id);
     const frontCommissionCents = countsTowardVolume ? (frontAllocations.get(sale.id) ?? 0) : 0;
     const fiCommissionCents = countsTowardVolume ? (fiAllocations.get(sale.id) ?? 0) : 0;
     return {
@@ -280,12 +309,13 @@ export function calculateYear(
   payPlanOrSchedule: PayPlan | PayPlan[],
   actualPaidByMonth: Record<string, number | null>,
 ): MonthSummary[] {
+  const preparedSales = prepareSalesForCalculation(allSales);
   return Array.from(
     { length: 12 },
     (_, monthIndex) => `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
   )
     .filter((monthKey) => hasPayPlanCoverage(payPlanOrSchedule, monthKey))
     .map((monthKey) =>
-      calculateMonth(allSales, monthKey, payPlanOrSchedule, actualPaidByMonth[monthKey] ?? null),
+      calculatePreparedMonth(preparedSales, monthKey, payPlanOrSchedule, actualPaidByMonth[monthKey] ?? null),
     );
 }

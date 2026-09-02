@@ -36,6 +36,7 @@ export function TrendChart({ data, year }: TrendChartProps) {
           <YAxis yAxisId="units" allowDecimals={false} tick={{ fill: "#5e6f7f", fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
           <YAxis yAxisId="commission" orientation="right" tickFormatter={(value) => `$${Math.round(Number(value) / 1_000)}k`} tick={{ fill: "#5e6f7f", fontSize: 12 }} axisLine={false} tickLine={false} width={44} />
           <Tooltip
+            isAnimationActive={false}
             cursor={{ fill: "#eaf1f7" }}
             formatter={(value, name) =>
               name === "Commission" ? [formatCurrency(Number(value) * 100), name] : [Number(value), name]
@@ -43,8 +44,8 @@ export function TrendChart({ data, year }: TrendChartProps) {
             labelFormatter={(label) => `${label} ${year}`}
             contentStyle={{ borderRadius: 8, borderColor: "#c8d4df", boxShadow: "0 12px 30px rgba(11,42,71,.12)" }}
           />
-          <Bar yAxisId="units" dataKey="units" name="Delivered" fill="#1268a7" radius={[4, 4, 0, 0]} barSize={24} />
-          <Line yAxisId="commission" type="monotone" dataKey="commission" name="Commission" stroke="#147d64" strokeWidth={3} dot={{ r: 3, fill: "#147d64" }} activeDot={{ r: 5 }} />
+          <Bar yAxisId="units" dataKey="units" name="Delivered" fill="#1268a7" radius={[4, 4, 0, 0]} barSize={24} isAnimationActive={false} />
+          <Line yAxisId="commission" type="monotone" dataKey="commission" name="Commission" stroke="#147d64" strokeWidth={3} dot={{ r: 3, fill: "#147d64" }} activeDot={{ r: 5 }} isAnimationActive={false} />
         </ComposedChart>
       </ResponsiveContainer>
     </div>

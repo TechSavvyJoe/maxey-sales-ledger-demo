@@ -591,9 +591,11 @@ export function Dashboard({
             </span>
           </summary>
           <div className="dashboard-disclosure__content" aria-labelledby="trend-heading">
-            <Suspense fallback={<div className="trend-chart trend-chart--loading" role="status">Loading chart…</div>}>
-              <TrendChart data={chartData} year={yearForMonth(settings.selectedMonth)} />
-            </Suspense>
+            {trendDisclosure.open && (
+              <Suspense fallback={<div className="trend-chart trend-chart--loading" role="status">Loading chart…</div>}>
+                <TrendChart data={chartData} year={yearForMonth(settings.selectedMonth)} />
+              </Suspense>
+            )}
             <details className="trend-data-details">
               <summary>View monthly chart data</summary>
               <div className="trend-data-table-wrap" role="region" aria-label={`${yearForMonth(settings.selectedMonth)} chart data table`} tabIndex={0}>

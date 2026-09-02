@@ -290,4 +290,50 @@ describe("commission engine", () => {
     const year = calculateYear([], 2025, [decemberPlan], {});
     expect(year.map((month) => month.monthKey)).toEqual(["2025-12"]);
   });
+
+  it("preserves global duplicate rules and refreshes them between annual calculations", () => {
+    const previousYear = sale(1, { month: "2025-12", stock: "REUSED" });
+    const deletedPreviousYear = {
+      ...sale(2, { month: "2025-12", stock: "DELETED" }),
+      deletedAt: "2026-01-01T12:00:00.000Z",
+    };
+    const records = [
+      previousYear,
+      sale(1, { month: "2026-01", stock: " reused " }),
+      sale(2, { month: "2026-01", stock: "SAFE" }),
+      sale(1, { month: "2099-01", stock: "SAFE" }),
+      { ...sale(1, { month: "2026-02", stock: "SAFE" }), saleDate: "2026-02-30" },
+      deletedPreviousYear,
+      sale(1, { month: "2026-07", stock: "DELETED" }),
+    ];
+    const julyPlan = {
+      ...DEFAULT_PAY_PLAN,
+      version: "July plan",
+      effectiveMonth: "2026-07",
+      baseFrontRateBps: 4_000,
+      acceleratedFrontRateBps: 4_500,
+    };
+    const plans = [DEFAULT_PAY_PLAN, julyPlan];
+    const actualPaid = { "2026-01": 33_000 };
+    const firstYear = calculateYear(records, 2026, plans, actualPaid);
+
+    expect(firstYear[0].deliveredCount).toBe(1);
+    expect(firstYear[0].duplicateGroupCount).toBe(1);
+    expect(firstYear[0].payrollVarianceCents).toBe(1_000);
+    expect(firstYear[6].estimatedCommissionCents).toBe(42_000);
+    for (const month of firstYear) {
+      expect(month).toEqual(calculateMonth(
+        records,
+        month.monthKey,
+        plans,
+        month.monthKey === "2026-01" ? actualPaid["2026-01"] : null,
+      ));
+    }
+
+    previousYear.deletedAt = "2026-09-02T12:00:00.000Z";
+    const refreshedYear = calculateYear(records, 2026, plans, actualPaid);
+    expect(refreshedYear[0].deliveredCount).toBe(2);
+    expect(refreshedYear[0].duplicateGroupCount).toBe(0);
+    expect(refreshedYear[0].estimatedCommissionCents).toBe(64_000);
+  });
 });
