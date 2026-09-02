@@ -73,4 +73,27 @@ describe("legacy workbook import", () => {
       dealerFinanced: undefined,
     });
   });
+
+  it("skips undelivered workbook rows with a clear import warning", async () => {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["Delivery Date", "Customer Last Name", "Stock #", "Vehicle", "Status", "Unit Credit", "Front Gross", "F&I Gross"],
+      ["8/10/2026", "Delivered", "KEEP-1", "2023 Ford Escape", "Delivered", 1, 2500, 500],
+      ["8/11/2026", "Void", "SKIP-1", "2023 Ford Escape", "Void", 1, 2500, 500],
+      ["8/12/2026", "Unwound", "SKIP-2", "2023 Ford Escape", "Unwound", 1, 2500, 500],
+    ]);
+    XLSX.utils.book_append_sheet(workbook, sheet, "Enter Sales");
+    const bytes = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    const file = new File([bytes], "undelivered.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    const preview = await previewLegacyWorkbook(file);
+
+    expect(preview.validSales.map((sale) => sale.stockNumber)).toEqual(["KEEP-1"]);
+    expect(preview.rejectedRows).toEqual([]);
+    expect(preview.warnings).toEqual([
+      expect.stringMatching(/2 undelivered rows were skipped \(row 3, row 4\).*Keep only Delivered or Pending sales/i),
+    ]);
+  });
 });

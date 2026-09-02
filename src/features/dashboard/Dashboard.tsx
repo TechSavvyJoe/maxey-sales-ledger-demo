@@ -25,6 +25,7 @@ import {
 } from "@/components/shared";
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
 import { calculateMonth, calculateYear, getNextBonusMilestone } from "@/domain/commission";
+import { DEMO_DATASET_LABEL } from "@/domain/demo";
 import {
   currentMonthKey,
   monthLabel,
@@ -379,7 +380,7 @@ export function Dashboard({
           </div>
           <div className="onboarding-banner__content">
             <span className="eyebrow">Welcome to your private sales workspace</span>
-            <h2 id="onboarding-title">Start your workspace, import a tracker, or explore the full-year demo</h2>
+            <h2 id="onboarding-title">Start your workspace, import a tracker, or explore the {DEMO_DATASET_LABEL} demo</h2>
             <p>
               Your sales stay in this browser profile. Commission estimates update automatically by month,
               and you can export a backup anytime.
@@ -389,7 +390,7 @@ export function Dashboard({
                 <Plus aria-hidden="true" /> Add first sale
               </Button>
               <Button type="button" variant="secondary" onClick={onLoadDemo}>
-                <Sparkles aria-hidden="true" /> Explore full-year demo
+                <Sparkles aria-hidden="true" /> Explore {DEMO_DATASET_LABEL} demo
               </Button>
               <Button type="button" variant="outline" onClick={() => onNavigate({ view: "settings", section: "data" })}>
                 <Import aria-hidden="true" /> Import Excel tracker

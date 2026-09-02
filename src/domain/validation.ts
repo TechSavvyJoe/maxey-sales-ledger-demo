@@ -1,9 +1,9 @@
 import { isValidDateOnly, todayDateOnly } from "@/domain/date";
 import { parseCurrencyToCents } from "@/domain/money";
-import type { SaleStatus } from "@/domain/types";
+import type { EditableSaleStatus } from "@/domain/types";
 
 export interface SaleFormValues {
-  status: SaleStatus;
+  status: EditableSaleStatus;
   saleDate: string;
   customerLastName: string;
   stockNumber: string;

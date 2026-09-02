@@ -240,7 +240,6 @@ export function calculateMonth(
   ).size;
   const reviewCount = calculatedSales.filter((sale) => sale.flags.length > 0).length;
   const pendingCount = monthSales.filter((sale) => sale.status === "pending").length;
-  const voidCount = monthSales.filter((sale) => sale.status === "void").length;
   const creditedUnitsBasis = countableDelivered.reduce(
     (sum, sale) => sum + sale.unitCreditBasis,
     0,
@@ -257,7 +256,6 @@ export function calculateMonth(
     deliveredCount,
     creditedUnitsBasis,
     pendingCount,
-    voidCount,
     frontRateBps,
     frontGrossCents,
     fiGrossCents,

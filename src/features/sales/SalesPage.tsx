@@ -36,10 +36,10 @@ import { monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
 import { formatCurrency, formatUnitCredit } from "@/domain/money";
 import type { SalesDestinationFilter } from "@/domain/navigation";
 import { getPayPlanSchedule } from "@/domain/payPlan";
-import type { CalculatedSale, ProfileSettings, Sale, SaleStatus } from "@/domain/types";
+import type { CalculatedSale, EditableSaleStatus, ProfileSettings, Sale } from "@/domain/types";
 import { cn } from "@/lib/utils";
 
-type Filter = "all" | SaleStatus | "review" | "deleted";
+type Filter = "all" | EditableSaleStatus | "review" | "deleted";
 type Sort =
   | "newest"
   | "oldest"
@@ -65,7 +65,6 @@ const filters: Array<{ id: Filter; label: string }> = [
   { id: "all", label: "All" },
   { id: "delivered", label: "Delivered" },
   { id: "pending", label: "Pending" },
-  { id: "void", label: "Void" },
   { id: "review", label: "Needs review" },
   { id: "deleted", label: "Recently deleted" },
 ];
@@ -167,7 +166,7 @@ export function SalesPage({
     const matches = summary.calculatedSales.filter((item) => {
       if (filter === "deleted") return false;
       if (filter === "review" && !attentionBySaleId.has(item.sale.id)) return false;
-      if (filter !== "all" && filter !== "review" && item.sale.status !== filter) return false;
+      if ((filter === "delivered" || filter === "pending") && item.sale.status !== filter) return false;
       if (!normalizedQuery) return true;
       return [item.sale.customerLastName, item.sale.stockNumber, item.sale.vehicleDescription]
         .join(" ")
@@ -192,8 +191,10 @@ export function SalesPage({
         return aName.localeCompare(bName, "en-US", { numeric: true, sensitivity: "base" }) || newestFirst(a, b);
       }
       if (sort === "pending-first") {
-        const statusOrder: Record<SaleStatus, number> = { pending: 0, delivered: 1, void: 2 };
-        return statusOrder[a.sale.status] - statusOrder[b.sale.status] || newestFirst(a, b);
+        const statusOrder: Record<EditableSaleStatus, number> = { pending: 0, delivered: 1 };
+        const aStatus = a.sale.status === "void" ? "pending" : a.sale.status;
+        const bStatus = b.sale.status === "void" ? "pending" : b.sale.status;
+        return statusOrder[aStatus] - statusOrder[bStatus] || newestFirst(a, b);
       }
       if (sort === "review-first") {
         return Number(attentionBySaleId.has(b.sale.id)) - Number(attentionBySaleId.has(a.sale.id)) || newestFirst(a, b);
@@ -216,7 +217,6 @@ export function SalesPage({
     all: summary.calculatedSales.length,
     delivered: summary.calculatedSales.filter((item) => item.sale.status === "delivered").length,
     pending: summary.calculatedSales.filter((item) => item.sale.status === "pending").length,
-    void: summary.calculatedSales.filter((item) => item.sale.status === "void").length,
     review: attentionRecords.length,
     deleted: sales.filter((sale) => sale.deletedAt && monthKeyFromDate(sale.saleDate) === settings.selectedMonth).length,
   };
@@ -420,7 +420,7 @@ export function SalesPage({
                     <div className="sale-card__main">
                       <span className="sale-card__topline">
                         <time dateTime={sale.saleDate}>{sale.saleDate.slice(5).replace("-", "/")}</time>
-                        <span className="status-badge status-badge--void">Deleted</span>
+                        <span className="status-badge status-badge--deleted">Deleted</span>
                       </span>
                       <strong>{sale.customerLastName || "No last name"}</strong>
                       <span>{sale.stockNumber || "Missing stock"} · {sale.vehicleDescription || "Vehicle not entered"}</span>

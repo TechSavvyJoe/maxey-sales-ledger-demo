@@ -18,10 +18,10 @@ async function loadDemoData(page: Page) {
   await page.getByRole("button", { name: /^Data & backups/ }).click();
   const dataSection = page.locator(".data-settings");
   await expect(dataSection).toBeVisible();
-  const loadButton = page.getByRole("button", { name: "Load full-year demo", exact: true });
+  const loadButton = page.getByRole("button", { name: "Load 2-year demo", exact: true });
   if (await loadButton.isVisible()) {
     await loadButton.click();
-    await expect(page.getByText(/Full-year demonstration loaded/)).toBeVisible();
+    await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
   }
   await page.reload();
 }

@@ -37,7 +37,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify application
-        run: pnpm check
+        run: VITE_PUBLIC_DEMO=true pnpm check
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

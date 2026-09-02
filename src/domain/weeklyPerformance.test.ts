@@ -71,7 +71,6 @@ function summary(monthKey: string, calculatedSales: CalculatedSale[]): MonthSumm
     deliveredCount: valid.length,
     creditedUnitsBasis: valid.reduce((total, item) => total + item.sale.unitCreditBasis, 0),
     pendingCount: 0,
-    voidCount: 0,
     frontRateBps: 3_000,
     frontGrossCents: valid.reduce((total, item) => total + (item.sale.frontGrossCents ?? 0), 0),
     fiGrossCents: valid.reduce((total, item) => total + (item.sale.fiGrossCents ?? 0), 0),

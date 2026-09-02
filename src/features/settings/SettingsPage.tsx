@@ -51,8 +51,15 @@ import {
 } from "@/features/settings/AutomaticBackupCard";
 import { GoogleDriveBackupCard } from "@/features/settings/GoogleDriveBackupCard";
 import { calculateMonth } from "@/domain/commission";
-import { buildDemoSales } from "@/domain/demo";
-import { monthKeyFromDate, monthLabel, shiftMonth } from "@/domain/date";
+import {
+  buildDemoSales,
+  createPublicDemoHistoricPlan,
+  DEMO_DATASET_LABEL,
+  DEMO_DATASET_TITLE,
+  demoRangeDescription,
+  IS_PUBLIC_DEMO_BUILD,
+} from "@/domain/demo";
+import { monthKeyFromDate, monthLabel, shiftMonth, todayDateOnly } from "@/domain/date";
 import {
   getCommissionGoalForMonth,
   getDeliveryGoalForMonth,
@@ -862,12 +869,18 @@ export function SettingsPage({
       return;
     }
     try {
-      const result = await loadDemoSales(buildDemoSales(settings.selectedMonth));
+      const asOfDate = todayDateOnly();
+      const result = await loadDemoSales(
+        buildDemoSales(settings.selectedMonth, asOfDate),
+        IS_PUBLIC_DEMO_BUILD ? { historicDemoPlan: createPublicDemoHistoricPlan(asOfDate) } : undefined,
+      );
       await onRefresh();
       const restoredDetail = result.restored > 0 ? ` ${result.restored} previously removed record${result.restored === 1 ? " was" : "s were"} restored.` : "";
-      toast.success(`Full-year demonstration loaded. It is clearly marked and can be removed from active views.${restoredDetail}`);
+      toast.success(`${DEMO_DATASET_TITLE} demonstration loaded. ${demoRangeDescription(asOfDate)} · fictional records only.${restoredDetail}`);
     } catch (error) {
-      toast.error(error instanceof Error ? `Could not load the full-year demo: ${error.message}` : "Could not load the full-year demo.");
+      toast.error(error instanceof Error
+        ? `Could not load the ${DEMO_DATASET_LABEL} demo: ${error.message}`
+        : `Could not load the ${DEMO_DATASET_LABEL} demo.`);
     }
   }
 
@@ -1187,7 +1200,7 @@ export function SettingsPage({
             <p>
               Sell more than {draft.payPlan.acceleratedThresholdExclusive} valid delivered vehicles in a month to apply
               {` ${draft.payPlan.acceleratedFrontRateBps / 100}%`} front commission retroactively to every valid delivered sale that month.
-              Pending, void, missing-stock, and duplicate delivered records do not trigger it.
+              Pending, missing-stock, and duplicate delivered records do not trigger it.
             </p>
           </div>
           <div className="pay-plan-caveat">
@@ -1426,12 +1439,15 @@ export function SettingsPage({
             <div className="demo-data-callout">
               <Sparkles aria-hidden="true" />
               <span>
-                <strong>{demoSalesCount > 0 ? `${demoSalesCount} demonstration sales are loaded` : "Want to explore before entering real sales?"}</strong>
-                <small>{demoSalesCount > 0 ? "Remove only the demo records when training is finished; your real sales stay in place." : "Load a clearly labeled full-year walkthrough with delivered, pending, F&I, bonus, and pacing examples."}</small>
+                <strong>{demoSalesCount > 0 ? `${demoSalesCount} fictional demonstration sales are loaded` : "Want to explore before entering real sales?"}</strong>
+                <small>{demoSalesCount > 0 ? `${demoRangeDescription()} · remove only the demo records when training is finished; your real sales stay in place.` : `Load a clearly labeled ${DEMO_DATASET_LABEL} walkthrough with delivered, pending, F&I, bonus, and pacing examples.`}</small>
               </span>
               {demoSalesCount > 0
-                ? <Button variant="outline" disabled={isDirty} onClick={() => setRemoveDemoOpen(true)}><Trash2 aria-hidden="true" /> Remove demo data</Button>
-                : <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}>Load full-year demo</Button>}
+                ? <>
+                    <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}><Sparkles aria-hidden="true" /> Refresh {DEMO_DATASET_LABEL} demo</Button>
+                    <Button variant="outline" disabled={isDirty} onClick={() => setRemoveDemoOpen(true)}><Trash2 aria-hidden="true" /> Remove demo data</Button>
+                  </>
+                : <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}>Load {DEMO_DATASET_LABEL} demo</Button>}
             </div>
           ) : null}
 
@@ -1577,7 +1593,7 @@ export function SettingsPage({
           <DialogHeader>
             <DialogTitle>Remove demonstration data?</DialogTitle>
             <DialogDescription>
-              This soft-deletes {demoSalesCount} records marked as demonstration data. Real and imported sales are not touched.
+              This moves {demoSalesCount} fictional demonstration records out of active views. Real and imported sales are not touched.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

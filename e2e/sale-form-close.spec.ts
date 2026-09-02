@@ -13,6 +13,8 @@ test("opens on the fast entry path with optional details collapsed", async ({ pa
   const lastName = page.getByLabel("Customer last name");
   await expect(lastName).toBeFocused();
   await expect(page.getByRole("button", { name: /^Delivered\./ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Pending\./ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Void\./ })).toHaveCount(0);
   await expect(page.getByLabel("Delivery date")).toBeVisible();
   await expect(page.getByLabel(/Stock number/)).toBeVisible();
   await expect(page.getByLabel("Front gross")).toBeVisible();

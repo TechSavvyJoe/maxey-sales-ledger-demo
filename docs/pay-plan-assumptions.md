@@ -10,7 +10,7 @@ This page records the calculation settings used by Sales Ledger. Its figures are
 | Higher front-end rate | 35% when the month has more than 10 valid delivered vehicles |
 | Retroactive treatment | Once above 10, 35% applies to every qualifying delivery in that month, including the first |
 | F&I commission rate | 20% of the entered total eligible F&I gross |
-| Status | Delivered may count and pay; Pending and Void do not |
+| Status | Delivered may count and pay; Pending does not. Delete a deal that does not deliver. |
 | Stock number | Required for a countable delivery |
 | Duplicate delivered stock | Every active record in the global duplicate group is flagged and excluded until corrected |
 | Unit credit | Reported separately; it does not multiply gross, commission, threshold count, or bonus count |

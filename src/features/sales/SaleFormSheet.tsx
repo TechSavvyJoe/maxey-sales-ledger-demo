@@ -31,7 +31,7 @@ import {
   hasPayPlanCoverage,
   payPlanCoverageMessage,
 } from "@/domain/payPlan";
-import type { ProfileSettings, Sale, SaleStatus } from "@/domain/types";
+import type { ProfileSettings, Sale } from "@/domain/types";
 import {
   type SaleFormErrors,
   type SaleFormValues,
@@ -77,7 +77,10 @@ function defaultDateForMonth(monthKey: string): string {
 function valuesForSale(sale: Sale | null, monthKey: string): SaleFormValues {
   return sale
     ? {
-        status: sale.status,
+        // An interrupted legacy restore can still briefly supply a void row
+        // before persistence moves it to Recently deleted. Never offer that
+        // retired status as an editable choice.
+        status: sale.status === "void" ? "pending" : sale.status,
         saleDate: sale.saleDate,
         customerLastName: sale.customerLastName,
         stockNumber: sale.stockNumber,
@@ -137,10 +140,9 @@ function comparableFormValues(values: SaleFormValues): string {
   });
 }
 
-const statusOptions: Array<{ value: SaleStatus; label: string; description: string }> = [
+const statusOptions: Array<{ value: SaleFormValues["status"]; label: string; description: string }> = [
   { value: "delivered", label: "Delivered", description: "Counts toward monthly volume and commission" },
   { value: "pending", label: "Pending", description: "Planning only; counts after delivery" },
-  { value: "void", label: "Void", description: "Does not count toward volume or commission" },
 ];
 
 export function SaleFormSheet({
@@ -784,7 +786,7 @@ export function SaleFormSheet({
                   </dl>
                   <p>
                     {values.status !== "delivered"
-                      ? "Pending and void sales stay saved but do not count toward volume or commission."
+                      ? "Pending sales stay saved but do not count toward volume or commission."
                       : isAccelerated
                         ? `${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front commission applies to every valid delivered sale this month because the month is above ${previewPayPlan.acceleratedThresholdExclusive} deliveries.`
                         : `Sell more than ${previewPayPlan.acceleratedThresholdExclusive} valid delivered vehicles this month to apply ${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front commission to every valid delivered sale that month.`}

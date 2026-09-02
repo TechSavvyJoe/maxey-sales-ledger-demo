@@ -27,7 +27,11 @@ export function PageHeading({
 }
 
 export function StatusBadge({ status }: { status: SaleStatus }) {
-  return <span className={cn("status-badge", `status-badge--${status}`)}>{status}</span>;
+  // Older backup files can contain a void record. Initialization moves it to
+  // Recently deleted, but this fallback keeps an interrupted restore from
+  // putting the retired status back into the visible interface.
+  const visibleStatus = status === "void" ? "pending" : status;
+  return <span className={cn("status-badge", `status-badge--${visibleStatus}`)}>{visibleStatus}</span>;
 }
 
 export function ReviewState({

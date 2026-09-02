@@ -1410,7 +1410,7 @@ button:not(:disabled),
   color: var(--amber-700);
 }
 
-.status-badge--void {
+.status-badge--deleted {
   background: var(--slate-100);
   color: var(--slate-700);
 }

@@ -85,7 +85,7 @@ describe("commission engine", () => {
     expect(result.calculatedSales.every((item) => item.frontRateBps === 3_500)).toBe(true);
   });
 
-  it("does not let a pending or void record trigger the higher rate", () => {
+  it("does not let a pending or legacy void record trigger the higher rate", () => {
     const firstTen = Array.from({ length: 10 }, (_, index) => sale(index));
     for (const status of ["pending", "void"] as const) {
       const result = calculateMonth(
@@ -116,6 +116,23 @@ describe("commission engine", () => {
     expect(result.frontGrossCents).toBe(100_000);
     expect(result.duplicateGroupCount).toBe(0);
     expect(result.calculatedSales[0]?.flags.some((flag) => flag.code === "duplicate-stock")).toBe(false);
+  });
+
+  it("does not let an invalid-date duplicate suppress a valid delivered sale", () => {
+    const valid = sale(1, { stock: "SHARED-INVALID" });
+    const malformed = {
+      ...sale(2, { stock: " shared-invalid " }),
+      saleDate: "2026-08-32",
+    };
+    const result = calculateMonth([valid, malformed], "2026-08", DEFAULT_PAY_PLAN);
+
+    expect(result.deliveredCount).toBe(1);
+    expect(result.frontGrossCents).toBe(100_000);
+    expect(result.duplicateGroupCount).toBe(0);
+    expect(result.calculatedSales.find((item) => item.sale.id === valid.id)?.flags
+      .some((flag) => flag.code === "duplicate-stock")).toBe(false);
+    expect(result.calculatedSales.find((item) => item.sale.id === malformed.id)?.flags
+      .some((flag) => flag.code === "invalid-date")).toBe(true);
   });
 
   it("excludes every delivered record in a duplicate stock group", () => {

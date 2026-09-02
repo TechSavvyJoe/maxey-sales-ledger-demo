@@ -1,4 +1,10 @@
+/**
+ * `void` is retained only so older local backups can still be restored.
+ * New and active sales use `EditableSaleStatus`; initialization moves any
+ * legacy void record to Recently deleted.
+ */
 export type SaleStatus = "delivered" | "pending" | "void";
+export type EditableSaleStatus = Exclude<SaleStatus, "void">;
 
 export interface Sale {
   id: string;
@@ -119,7 +125,6 @@ export interface MonthSummary {
   deliveredCount: number;
   creditedUnitsBasis: number;
   pendingCount: number;
-  voidCount: number;
   frontRateBps: number;
   frontGrossCents: number;
   fiGrossCents: number;

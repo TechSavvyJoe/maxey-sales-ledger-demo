@@ -6,8 +6,14 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { SaleFormSheet } from "@/features/sales/SaleFormSheet";
-import { buildDemoSales } from "@/domain/demo";
-import { monthKeyFromDate, monthLabel } from "@/domain/date";
+import {
+  buildDemoSales,
+  createPublicDemoHistoricPlan,
+  DEMO_DATASET_TITLE,
+  demoRangeDescription,
+  IS_PUBLIC_DEMO_BUILD,
+} from "@/domain/demo";
+import { monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
 import {
   destinationForView,
   type AppDestination,
@@ -101,6 +107,21 @@ function AppContent() {
       ? saved.selectedView as AppView
       : persistedSettings.selectedView;
     setTabContext({ selectedMonth, selectedView });
+  }, [persistedSettings]);
+
+  useEffect(() => {
+    if (!persistedSettings || !tabContextInitializedRef.current) return;
+    const schedule = getPayPlanSchedule(persistedSettings);
+    setTabContext((current) => {
+      if (!current || hasPayPlanCoverage(schedule, current.selectedMonth)) return current;
+      const next = { ...current, selectedMonth: persistedSettings.selectedMonth };
+      try {
+        sessionStorage.setItem(SESSION_CONTEXT_KEY, JSON.stringify(next));
+      } catch {
+        // The in-memory tab context still works when session storage is unavailable.
+      }
+      return next;
+    });
   }, [persistedSettings]);
 
   useEffect(() => {
@@ -274,19 +295,23 @@ function AppContent() {
   async function handleLoadDemo() {
     if (!settings) return;
     try {
-      const result = await loadDemoSales(buildDemoSales(settings.selectedMonth));
+      const asOfDate = todayDateOnly();
+      const result = await loadDemoSales(
+        buildDemoSales(settings.selectedMonth, asOfDate),
+        IS_PUBLIC_DEMO_BUILD ? { historicDemoPlan: createPublicDemoHistoricPlan(asOfDate) } : undefined,
+      );
       await refreshAfterExternalMutation();
       const restoredDetail = result.restored > 0
         ? ` ${result.restored} previously removed record${result.restored === 1 ? " was" : "s were"} restored.`
         : "";
-      toast.success("Full-year demonstration loaded.", {
-        description: `It is clearly marked and can be removed from Settings.${restoredDetail}`,
+      toast.success(`${DEMO_DATASET_TITLE} demonstration loaded.`, {
+        description: `${demoRangeDescription(asOfDate)} · fictional records only. Remove them anytime from Settings.${restoredDetail}`,
       });
     } catch (caughtError) {
       toast.error(
         caughtError instanceof Error
-          ? `Could not load the full-year demo: ${caughtError.message}`
-          : "Could not load the full-year demo.",
+          ? `Could not load the ${DEMO_DATASET_TITLE.toLowerCase()} demo: ${caughtError.message}`
+          : `Could not load the ${DEMO_DATASET_TITLE.toLowerCase()} demo.`,
       );
     }
   }
@@ -367,7 +392,7 @@ function AppContent() {
             <FlaskConical aria-hidden="true" />
             <span>
               <strong>Demo data is active</strong>
-              <small>{demoSalesCount} sample {demoSalesCount === 1 ? "record is" : "records are"} included in totals and exports.</small>
+              <small>{demoSalesCount} fictional {demoSalesCount === 1 ? "record is" : "records are"} included in totals and exports.</small>
             </span>
             <Button type="button" variant="outline" size="sm" onClick={() => navigate({ view: "settings", section: "data" })}>
               Manage demo data

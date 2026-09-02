@@ -1,7 +1,7 @@
 import { format, isValid, parse } from "date-fns";
 import { isValidDateOnly, todayDateOnly } from "@/domain/date";
 import { parseCurrencyToCents } from "@/domain/money";
-import type { ImportPreview, Sale, SaleStatus } from "@/domain/types";
+import type { EditableSaleStatus, ImportPreview, Sale } from "@/domain/types";
 import { sha256 } from "@/lib/files";
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -32,11 +32,10 @@ function parseLegacyDate(value: unknown, XLSX: typeof import("xlsx")): string | 
   return null;
 }
 
-function parseStatus(value: unknown): SaleStatus | null {
+function parseStatus(value: unknown): EditableSaleStatus | null {
   const normalized = String(value ?? "").trim().toLocaleLowerCase("en-US");
   if (normalized === "delivered") return "delivered";
   if (normalized === "pending") return "pending";
-  if (normalized === "void" || normalized === "unwound") return "void";
   return null;
 }
 
@@ -137,6 +136,7 @@ export async function previewLegacyWorkbook(
   const validSales: Sale[] = [];
   const rejectedRows: ImportPreview["rejectedRows"] = [];
   const warnings: string[] = [];
+  const skippedUndeliveredRows: number[] = [];
   for (let index = headerRow + 1; index < rows.length; index += 1) {
     const row = rows[index];
     const rowNumber = index + 1;
@@ -144,9 +144,13 @@ export async function previewLegacyWorkbook(
     const normalizedStatus = String(statusText).trim().toLocaleLowerCase("en-US");
     if (!row.some((value) => String(value).trim())) continue;
     if (normalizedStatus === "example") continue;
+    if (normalizedStatus === "void" || normalizedStatus === "unwound") {
+      skippedUndeliveredRows.push(rowNumber);
+      continue;
+    }
     const status = parseStatus(statusText);
     if (!status) {
-      rejectedRows.push({ row: rowNumber, reason: "Status must be Delivered, Pending, or Void." });
+      rejectedRows.push({ row: rowNumber, reason: "Status must be Delivered or Pending." });
       continue;
     }
     const saleDate = parseLegacyDate(row[indexes.date], XLSX);
@@ -233,7 +237,16 @@ export async function previewLegacyWorkbook(
     });
   }
 
-  if (!validSales.length && !rejectedRows.length) warnings.push("No sales rows were found after the heading row.");
+  if (skippedUndeliveredRows.length) {
+    const sampleRows = skippedUndeliveredRows.slice(0, 8).map((row) => `row ${row}`).join(", ");
+    const moreRows = skippedUndeliveredRows.length > 8
+      ? ` and ${skippedUndeliveredRows.length - 8} more`
+      : "";
+    warnings.push(
+      `${skippedUndeliveredRows.length} undelivered ${skippedUndeliveredRows.length === 1 ? "row was" : "rows were"} skipped (${sampleRows}${moreRows}). Keep only Delivered or Pending sales.`,
+    );
+  }
+  if (!validSales.length && !rejectedRows.length && !skippedUndeliveredRows.length) warnings.push("No sales rows were found after the heading row.");
   if (rejectedRows.length) warnings.push(`${rejectedRows.length} row(s) need correction and will not import.`);
   return { sourceName: file.name, sourceHash, validSales, rejectedRows, warnings };
 }

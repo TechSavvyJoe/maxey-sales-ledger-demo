@@ -163,7 +163,6 @@ export interface ReportPopulationAnalytics {
   creditedUnitsBasis: number;
   creditedUnits: number;
   pendingRecordCount: number;
-  voidRecordCount: number;
   /** Deleted records are visible only when the caller includes them in calculatedSales. */
   deletedRecordCount: number;
   /** Active Delivered records that fail the commission engine's valid-delivery rules. */
@@ -659,7 +658,6 @@ export function calculateReportAnalytics(
       creditedUnitsBasis,
       creditedUnits: creditedUnitsBasis / 1_000,
       pendingRecordCount: activeItems.filter((item) => item.sale.status === "pending").length,
-      voidRecordCount: activeItems.filter((item) => item.sale.status === "void").length,
       deletedRecordCount: calculatedSales.length - activeItems.length,
       excludedDeliveredRecordCount: activeItems.filter(
         (item) => item.sale.status === "delivered" && !item.countsTowardVolume,

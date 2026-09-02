@@ -372,6 +372,13 @@ export function ReportsPage({
     [commissionRunRate, monthlyCommissionGoalCents, pace.remainingWorkdays, pace.status, summary.estimatedCommissionCents],
   );
   const year = yearForMonth(settings.selectedMonth);
+  const hasHistoricalMonthsOutsideSelectedPeriod = settings.selectedMonth < todayMonth;
+  const hasFutureMonthsInSelectedYear = `${year}-12` > todayMonth;
+  const yearPeriodDescription = hasHistoricalMonthsOutsideSelectedPeriod
+    ? hasFutureMonthsInSelectedYear
+      ? "later historical months are outside the selected period; later months are marked Upcoming when they are still in the future"
+      : "later historical months are outside the selected period"
+    : "later months are marked Upcoming";
   const yearly = useMemo(
     () => calculateYear(sales, year, payPlanSchedule, settings.actualPaidByMonth),
     [payPlanSchedule, sales, settings.actualPaidByMonth, year],
@@ -992,7 +999,7 @@ export function ReportsPage({
           <section className="panel year-report print-report">
             <SectionHeader
               title={`${year} through ${monthLabel(settings.selectedMonth, "short")}`}
-              description={`${yearThroughSelectedMonth.length} ${yearThroughSelectedMonth.length === 1 ? "month" : "months"} through the selected month; later months are marked Upcoming`}
+              description={`${yearThroughSelectedMonth.length} ${yearThroughSelectedMonth.length === 1 ? "month" : "months"} through the selected month; ${yearPeriodDescription}`}
             />
             <ReportSubjectTabs
               label="Year report subject"
@@ -1077,7 +1084,10 @@ export function ReportsPage({
                 <tbody>
                   {yearly.map((month) => {
                     const attentionCount = yearAttention.get(month.monthKey) ?? 0;
-                    const isFutureMonth = month.monthKey > todayMonth || month.monthKey > settings.selectedMonth;
+                    const isCalendarFuture = month.monthKey > todayMonth;
+                    const isOutsideSelectedPeriod = month.monthKey > settings.selectedMonth;
+                    const isFutureMonth = isCalendarFuture || isOutsideSelectedPeriod;
+                    const endState = isCalendarFuture ? "Upcoming" : "Outside selected period";
                     return (
                       <tr key={month.monthKey} className={cn(month.monthKey === settings.selectedMonth && "is-selected-month", isFutureMonth && "is-upcoming")}>
                         <th scope="row">{monthLabel(month.monthKey, "short")}</th>
@@ -1092,10 +1102,10 @@ export function ReportsPage({
                         <td className={cn(month.payrollVarianceCents !== null && month.payrollVarianceCents !== 0 && "has-variance")}>
                           {isFutureMonth || month.payrollVarianceCents === null ? "—" : formatCurrency(month.payrollVarianceCents)}
                         </td>
-                        <td>{attentionCount > 0
+                        <td>{!isFutureMonth && attentionCount > 0
                           ? <span className="report-warning">{attentionCount}</span>
                           : isFutureMonth
-                            ? <span className="year-report-card__upcoming">Upcoming</span>
+                            ? <span className="year-report-card__upcoming">{endState}</span>
                             : <CheckCircle2 aria-label="No attention items" className="ready-icon" />}</td>
                       </tr>
                     );
@@ -1106,15 +1116,18 @@ export function ReportsPage({
             <div className="year-report-cards" aria-label={`${year} monthly performance list`}>
               {yearly.map((month) => {
                 const attentionCount = yearAttention.get(month.monthKey) ?? 0;
-                const isFutureMonth = month.monthKey > todayMonth || month.monthKey > settings.selectedMonth;
+                const isCalendarFuture = month.monthKey > todayMonth;
+                const isOutsideSelectedPeriod = month.monthKey > settings.selectedMonth;
+                const isFutureMonth = isCalendarFuture || isOutsideSelectedPeriod;
+                const endState = isCalendarFuture ? "Upcoming" : "Outside selected period";
                 return (
                   <article className={cn("year-report-card", month.monthKey === settings.selectedMonth && "is-selected-month", isFutureMonth && "is-upcoming")} key={month.monthKey}>
                     <header>
                       <h2>{monthLabel(month.monthKey, "short")}</h2>
-                      {attentionCount > 0
+                      {!isFutureMonth && attentionCount > 0
                         ? <span className="report-warning">{attentionCount} attention</span>
                         : isFutureMonth
-                          ? <span className="year-report-card__upcoming">Upcoming</span>
+                          ? <span className="year-report-card__upcoming">{endState}</span>
                           : <span className="year-report-card__clear"><CheckCircle2 aria-hidden="true" /> No attention items</span>}
                     </header>
                     <dl>

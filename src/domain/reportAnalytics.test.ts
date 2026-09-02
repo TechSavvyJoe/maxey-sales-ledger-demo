@@ -75,24 +75,22 @@ function rawSale(id: string, month: string, overrides: Partial<Sale> = {}): Sale
 }
 
 describe("report population", () => {
-  it("separates valid delivered deals, credited units, statuses, exclusions, and provided deletions", () => {
+  it("separates valid delivered deals, credited units, pending rows, exclusions, and provided deletions", () => {
     const analytics = calculateReportAnalytics([
       calculatedSale("full"),
       calculatedSale("split", { unitCreditBasis: 500 }),
       calculatedSale("pending", { status: "pending", countsTowardVolume: false }),
-      calculatedSale("void", { status: "void", countsTowardVolume: false }),
       calculatedSale("excluded", { countsTowardVolume: false }),
       calculatedSale("deleted", { deletedAt: "2026-08-06T12:00:00.000Z" }),
     ]);
 
     expect(analytics.population).toEqual({
-      analyzedRecordCount: 6,
-      activeRecordCount: 5,
+      analyzedRecordCount: 5,
+      activeRecordCount: 4,
       deliveredDealCount: 2,
       creditedUnitsBasis: 1_500,
       creditedUnits: 1.5,
       pendingRecordCount: 1,
-      voidRecordCount: 1,
       deletedRecordCount: 1,
       excludedDeliveredRecordCount: 1,
     });

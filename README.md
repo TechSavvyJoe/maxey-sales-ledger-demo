@@ -25,7 +25,7 @@ The calculation engine currently implements the rules supplied for the Howell us
 - Exactly 10 valid delivered vehicles: 30% of credited front-end gross.
 - More than 10 valid delivered vehicles: 35% of credited front-end gross, retroactive to the first qualifying delivery that month.
 - Commission on total eligible F&I gross: 20%.
-- Pending, void, invalid, missing-stock, and duplicate delivered records do not count toward the threshold or commission.
+- Pending, invalid, missing-stock, and duplicate delivered records do not count toward the threshold or commission. A deal that does not deliver should be deleted from the log.
 - Unit credit is reported as a metric; gross should already be the salesperson's credited share and is not multiplied again.
 
 Service contract / warranty, Tire & Wheel, and GAP are product outcomes; Dealer financed is a separate financing outcome, not a product. Reports distinguish **Yes**, **No**, and **Not marked**, so an unanswered outcome is never presented as a confirmed No. Sales Ledger stores one total eligible F&I gross amount for the deal and never invents a dollar amount for an individual outcome. Outcome rates use valid delivered deals as their denominator. A half deal is one eligible delivered deal for an outcome rate while its credited-unit value remains 0.5.
@@ -71,7 +71,7 @@ Deploy `dist/` to a static HTTPS host with the included cache/security headers o
 
 ### Public GitHub Pages demo
 
-The repository's GitHub Pages workflow builds and publishes a **demo-only** static site. A new visitor starts with an empty, isolated browser workspace and can choose **Explore full-year demo** to load fictional records marked with `DEMO-` stock numbers. No sales records, backups, browser storage, or account credentials are committed to the repository or sent to GitHub Pages by the app.
+The repository's GitHub Pages workflow builds and publishes a **demo-only** static site. The fictional sales history is included with the website: a new visitor automatically sees two years of sample records through today, marked with `DEMO-` stock numbers. No import or setup is required to demonstrate the product from its public link. Each visitor can try changes in their own browser. Reloading preserves those changes and respects an explicit removal of demo data; **Settings → Refresh 2-year demo** reloads the samples when wanted. Existing sales or payroll entries are never replaced by the automatic first visit setup. The historic sample uses a clearly named illustrative plan only inside that demo workspace; it does not backdate the editable Howell pay plan. No visitor-entered sales, backups, browser storage, or account credentials are committed to the repository or sent to GitHub Pages by the app.
 
 GitHub Pages is a helpful way to show the product, but it is not a database, sign-in system, shared ledger, or backup service. Its origin is different from the local launcher, so its browser storage is separate. Do not enter real customer or live-deal information on a public demo site; use a separate, authenticated system with a server-authoritative database for that future workflow.
 

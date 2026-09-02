@@ -18,13 +18,13 @@ Always use the same address and the same browser on the same computer. A differe
 6. If a synced folder is unavailable, use **Google Drive backup** to create a checked download and open Google Drive for a manual upload.
 7. Download a full backup after entering initial records so the manual recovery path is also confirmed.
 
-For training, **Load demo data** adds clearly labeled fictional sales around the selected month.
+For training, **Load demo data** adds clearly labeled fictional sales. The public GitHub Pages link opens with two years of fictional history automatically for a new visitor. Changes and removals stay in that visitor's browser; use **Settings → Refresh 2-year demo** to reload the samples.
 
 ## Add a sale
 
 Select **Add sale** from any page. The form opens on customer last name and keeps the most-used fields large and close together:
 
-1. Choose Delivered, Pending, or Void.
+1. Choose Delivered or Pending. If the deal does not deliver, delete it from the log.
 2. Enter the delivery/expected date.
 3. Enter customer last name, stock number, credited front gross, and total eligible F&I gross.
 4. Record the three product outcomes—**Service contract / warranty**, **Tire & Wheel**, and **GAP**—plus the separate **Dealer financed** outcome. Dealer financing is not a product. Each outcome can be reported as **Yes**, **No**, or **Not marked**; Not marked means no answer was saved and is not the same as No.
@@ -92,7 +92,7 @@ Use the **Month / Week / Year / Payroll** tabs to choose the report scope:
 
 - **Month** shows the selected calendar month.
 - **Week** shows one selected Monday-through-Saturday window clipped to that month. Past weeks show final recorded results, the current week shows its required checkpoint, and future weeks show targets without projecting unrecorded sales. A Sunday-dated valid delivery stays in the Month total but is called out and excluded from weekly pace.
-- **Year** shows the selected calendar year. Its YTD figures run from January through the selected month, even when later months remain visible for full-year context.
+- **Year** shows the selected calendar year. Its YTD figures run from January through the selected month, even when later months remain visible for full-year context. Later historical months are labeled outside the selected period; only calendar-future months are labeled Upcoming.
 - **Payroll** compares the selected month's estimate with the actual-paid amount entered for that month.
 
 The report heading and controls show the active scope. On a narrow screen, cards replace wide tables but keep the same period, record order, labels, values, and actions.

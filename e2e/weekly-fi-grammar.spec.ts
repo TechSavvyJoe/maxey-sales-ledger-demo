@@ -204,8 +204,8 @@ test("mobile Year report uses month cards without page-level horizontal overflow
   await openWorkspace(page);
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   const dataSettings = await openDataSettings(page);
-  await dataSettings.getByRole("button", { name: "Load full-year demo", exact: true }).click();
-  await expect(page.getByText(/Full-year demonstration loaded/)).toBeVisible();
+  await dataSettings.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
+  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
 
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   await page.getByRole("tab", { name: "Full-year report", exact: true }).click();

@@ -14,7 +14,7 @@ Reports must make their time scope obvious and keep outcome metrics from implyin
 
 - **Month** reports the selected calendar month.
 - **Week** reports one selected Monday-through-Saturday window clipped to the selected month. A valid Sunday delivery remains in Month totals but not in weekly pace.
-- **Year** reports the selected calendar year. **YTD** means January through the selected month, even when later months remain visible for full-year context.
+- **Year** reports the selected calendar year. **YTD** means January through the selected month, even when later months remain visible for full-year context. Later historical months are outside the selected period; only calendar-future months are Upcoming.
 - **Payroll** reconciles the selected month's estimate with the actual-paid amount entered for that same month.
 
 The active scope must remain visible in the report heading, controls, empty states, and exports. Changing Month, Week, Year, or Payroll changes the scope of the same Reports Center; it does not create a second definition of a valid delivery, commission, or outcome.

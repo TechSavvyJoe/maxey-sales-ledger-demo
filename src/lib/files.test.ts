@@ -154,6 +154,9 @@ describe("JSON backup validation", () => {
       Metric: "F&I report and commission amount",
       Value: "Total F&I gross",
     }));
+    expect(tables.dataQualityRows).not.toContainEqual(expect.objectContaining({
+      Metric: "Void records",
+    }));
     expect(JSON.stringify(tables)).not.toMatch(/credited gross|gross breakdown/i);
   });
 
@@ -201,6 +204,26 @@ describe("JSON backup validation", () => {
       gapSold: false,
       dealerFinanced: true,
     });
+  });
+
+  it("refuses to create a backup with an invalid actual-paid amount", async () => {
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    settings.actualPaidByMonth = {
+      "2026-08": Number.POSITIVE_INFINITY,
+    } as unknown as typeof settings.actualPaidByMonth;
+
+    await expect(createBackupEnvelope(settings, [testSale()], []))
+      .rejects.toThrow(/Cannot create backup/);
+  });
+
+  it("keeps older Void backup records parseable so initialization can move them to Recently deleted", async () => {
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    const legacyVoid = { ...testSale(), status: "void" as const };
+
+    const envelope = await createBackupEnvelope(settings, [legacyVoid], []);
+    const parsed = await parseBackupFile(jsonFile(envelope));
+
+    expect(parsed.data.sales[0]).toMatchObject({ status: "void", stockNumber: "B-0001" });
   });
 
   it("preserves unrecorded F&I products and defaults month-specific goals for an older backup", async () => {

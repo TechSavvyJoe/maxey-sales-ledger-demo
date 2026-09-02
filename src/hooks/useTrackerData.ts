@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AUTOLOAD_PUBLIC_DEMO } from "@/domain/demo";
 import type { AuditEvent, ProfileSettings, Sale } from "@/domain/types";
 import {
+  initializePublishedDemo,
   loadTrackerData,
   persistSale,
   persistSettings,
@@ -19,9 +21,17 @@ export function useTrackerData() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
+  const startupRef = useRef<Promise<unknown> | null>(null);
 
   const refresh = useCallback(async () => {
     try {
+      if (AUTOLOAD_PUBLIC_DEMO) {
+        startupRef.current ??= initializePublishedDemo().catch((caughtError) => {
+          startupRef.current = null;
+          throw caughtError;
+        });
+        await startupRef.current;
+      }
       const data = await loadTrackerData();
       setSettings(data.settings);
       setSales(data.sales);

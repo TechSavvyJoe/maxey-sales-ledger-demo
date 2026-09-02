@@ -100,8 +100,8 @@ test("Excel export carries the cumulative bonus schedule and included total", as
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load full-year demo", exact: true }).click();
-  await expect(page.getByText(/Full-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
+  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
 
   const downloadPromise = page.waitForEvent("download");
@@ -178,8 +178,8 @@ test("commission goal and money projection follow the salesperson across dashboa
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load full-year demo", exact: true }).click();
-  await expect(page.getByText(/Full-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
+  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel("Salesperson name *").fill("Goal Test");
   await page.getByLabel(/commission goal/).fill("9000");
@@ -398,8 +398,8 @@ test("populated dashboard and sales views have no automatically detectable WCAG 
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load full-year demo", exact: true }).click();
-  await expect(page.getByText(/Full-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
+  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
 
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
   await expect(page.getByText(/DEMO-\d{6}-13/).first()).toBeVisible();
@@ -426,8 +426,8 @@ test("sales log keeps filtered context clear and offers practical sorting", asyn
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load full-year demo", exact: true }).click();
-  await expect(page.getByText(/Full-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
+  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
 
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
   await page.getByLabel(/Customer last name/).fill("Review");
@@ -475,8 +475,8 @@ test("sales log keeps filtered context clear and offers practical sorting", asyn
   if (isPhone) {
     const filterRail = page.locator(".filter-chips");
     const filterButtons = filterRail.locator(".filter-chip:visible");
-    await expect(filterButtons).toHaveCount(6);
-    for (let index = 0; index < 6; index += 1) {
+    await expect(filterButtons).toHaveCount(5);
+    for (let index = 0; index < 5; index += 1) {
       await expect(filterButtons.nth(index)).toBeVisible();
     }
     const filterLayout = await filterRail.evaluate((element) => {

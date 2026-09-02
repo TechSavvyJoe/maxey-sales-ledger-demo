@@ -29,7 +29,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm exec vite --host 127.0.0.1 --port 4192",
+    command: `VITE_PUBLIC_DEMO=true VITE_PUBLIC_DEMO_AUTOLOAD=${process.env.VITE_PUBLIC_DEMO_AUTOLOAD === "true"} pnpm exec vite --host 127.0.0.1 --port 4192`,
     port: 4192,
     // Reuse a developer's local app when present, while CI always verifies a fresh server.
     reuseExistingServer: !process.env.CI,

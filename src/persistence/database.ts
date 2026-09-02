@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import { currentMonthKey, monthKeyFromDate } from "@/domain/date";
+import { currentMonthKey, monthKeyFromDate, todayDateOnly } from "@/domain/date";
 import { DEFAULT_PAY_PLAN } from "@/domain/commission";
 import {
   normalizeCommissionGoalsByMonth,
@@ -12,7 +12,13 @@ import {
   getPayPlanSchedule,
   hasPayPlanCoverage,
   payPlanCoverageMessage,
+  upsertPayPlan,
 } from "@/domain/payPlan";
+import {
+  buildDemoSales,
+  createPublicDemoHistoricPlan,
+  DEMO_HISTORIC_PLAN_VERSION,
+} from "@/domain/demo";
 import type { AuditEvent, PayPlan, ProfileSettings, Sale } from "@/domain/types";
 import { SaleWriteConflictError, type SaleVersionToken } from "@/persistence/errors";
 
@@ -103,6 +109,34 @@ function isMonthKey(value: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 }
 
+function isValidActualPaidAmount(value: unknown): value is number | null {
+  return value === null || (
+    typeof value === "number"
+    && Number.isSafeInteger(value)
+    && Math.abs(value) <= MAX_CURRENCY_CENTS
+  );
+}
+
+/**
+ * Settings loaded from an older browser are normalized below, but new writes
+ * must fail loudly instead of silently dropping a payroll amount the user just
+ * entered. This keeps the stored record and every backup within the same
+ * numeric contract.
+ */
+function assertPersistableActualPaidByMonth(value: unknown): asserts value is Record<string, number | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Actual-paid amounts must be saved by month.");
+  }
+  for (const [monthKey, amount] of Object.entries(value)) {
+    if (!isMonthKey(monthKey)) {
+      throw new Error("Actual-paid amounts must use a valid month.");
+    }
+    if (!isValidActualPaidAmount(amount)) {
+      throw new Error("Actual-paid amounts must be whole cents between -$1,000,000 and $1,000,000.");
+    }
+  }
+}
+
 /** Removes malformed legacy values rather than retaining settings that cannot be backed up. */
 function normalizeActualPaidByMonth(value: unknown): Record<string, number | null> {
   if (!value || typeof value !== "object") return {};
@@ -110,14 +144,31 @@ function normalizeActualPaidByMonth(value: unknown): Record<string, number | nul
     Object.entries(value)
       .filter(([monthKey, amount]) => (
         isMonthKey(monthKey)
-        && (amount === null || (
-          typeof amount === "number"
-          && Number.isSafeInteger(amount)
-          && Math.abs(amount) <= MAX_CURRENCY_CENTS
-        ))
+        && isValidActualPaidAmount(amount)
       ))
       .sort(([a], [b]) => a.localeCompare(b)),
   ) as Record<string, number | null>;
+}
+
+function assertPersistableSaleNumbers(sale: Sale): void {
+  if (
+    !Number.isSafeInteger(sale.unitCreditBasis)
+    || sale.unitCreditBasis < 0
+    || sale.unitCreditBasis > 2_000
+  ) {
+    throw new Error("Sale unit credit must be a whole number of thousandths between 0 and 2.");
+  }
+  for (const [label, amount] of [
+    ["Front gross", sale.frontGrossCents],
+    ["Total F&I gross", sale.fiGrossCents],
+  ] as const) {
+    if (
+      amount !== null
+      && (!Number.isSafeInteger(amount) || Math.abs(amount) > MAX_CURRENCY_CENTS)
+    ) {
+      throw new Error(`${label} must be whole cents between -$1,000,000 and $1,000,000.`);
+    }
+  }
 }
 
 class SalesTrackerDatabase extends Dexie {
@@ -149,6 +200,46 @@ async function getStoredPayPlanSchedule(): Promise<PayPlan[]> {
   const settings = await db.settings.get(PROFILE_ID);
   if (!settings) throw new Error("Sales settings are not initialized.");
   return getPayPlanSchedule(settings);
+}
+
+function isSameDemoPayload(existing: Sale, incoming: Sale): boolean {
+  const comparable = (sale: Sale) => {
+    const {
+      profileId: _profileId,
+      createdAt: _createdAt,
+      updatedAt: _updatedAt,
+      revision: _revision,
+      deletedAt: _deletedAt,
+      ...payload
+    } = sale;
+    return payload;
+  };
+  return JSON.stringify(comparable(existing)) === JSON.stringify(comparable(incoming));
+}
+
+function archiveLegacyVoidSales(sales: Sale[], timestamp: string): Sale[] {
+  return sales.map((sale) => (
+    sale.status === "void" && !sale.deletedAt
+      ? {
+          ...sale,
+          deletedAt: timestamp,
+          updatedAt: timestamp,
+          revision: sale.revision + 1,
+        }
+      : sale
+  ));
+}
+
+function withoutDemoHistoricPlan(settings: ProfileSettings): ProfileSettings {
+  const schedule = getPayPlanSchedule(settings)
+    .filter((plan) => plan.version !== DEMO_HISTORIC_PLAN_VERSION);
+  if (schedule.length === 0 || schedule.length === getPayPlanSchedule(settings).length) return settings;
+  return normalizeSettings({
+    ...settings,
+    payPlan: structuredClone(schedule.at(-1) ?? settings.payPlan),
+    payPlanHistory: structuredClone(schedule),
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export function createDefaultSettings(now = new Date()): ProfileSettings {
@@ -207,12 +298,68 @@ export async function initializeDatabase(): Promise<ProfileSettings> {
   const existing = await db.settings.get(PROFILE_ID);
   if (existing) {
     const normalized = normalizeSettings(existing);
-    if (JSON.stringify(existing) !== JSON.stringify(normalized)) await db.settings.put(normalized);
+    const legacyVoidSales = await db.sales
+      .where("profileId")
+      .equals(PROFILE_ID)
+      .filter((sale) => sale.status === "void" && !sale.deletedAt)
+      .toArray();
+    const settingsChanged = JSON.stringify(existing) !== JSON.stringify(normalized);
+    if (settingsChanged || legacyVoidSales.length > 0) {
+      const timestamp = new Date().toISOString();
+      await db.transaction("rw", db.settings, db.sales, db.auditEvents, async () => {
+        if (settingsChanged) await db.settings.put(normalized);
+        if (legacyVoidSales.length > 0) {
+          await db.sales.bulkPut(archiveLegacyVoidSales(legacyVoidSales, timestamp));
+          await db.auditEvents.add(
+            createAuditEvent(
+              "sale.deleted",
+              `Moved ${legacyVoidSales.length} older undelivered ${legacyVoidSales.length === 1 ? "sale" : "sales"} to Recently deleted.`,
+            ),
+          );
+        }
+      });
+    }
     return normalized;
   }
   const settings = createDefaultSettings();
   await db.settings.put(settings);
   return (await db.settings.get(PROFILE_ID)) ?? settings;
+}
+
+/**
+ * Gives a first-time visitor to the published demo a populated workspace.
+ * The public-build caller opts into this behavior. The check and load share
+ * one transaction so another tab cannot seed twice or slip a user write
+ * between the empty-workspace check and the demonstration import.
+ */
+export async function initializePublishedDemo(asOfDate = todayDateOnly()): Promise<boolean> {
+  return db.transaction("rw", db.settings, db.sales, db.auditEvents, async () => {
+    const settings = await initializeDatabase();
+    // Include deleted rows and all activity: an intentionally emptied or
+    // restored workspace must never be repopulated on the next page load.
+    if (await db.sales.count() || await db.auditEvents.count()) return false;
+
+    const defaults = createDefaultSettings();
+    if (
+      Object.keys(settings.actualPaidByMonth).length > 0
+      || settings.salespersonName !== defaults.salespersonName
+      || settings.storeName !== defaults.storeName
+      || settings.monthlyGoal !== defaults.monthlyGoal
+      || settings.monthlyCommissionGoalCents !== null
+      || Object.keys(settings.deliveryGoalsByMonth ?? {}).length > 0
+      || Object.keys(settings.commissionGoalsByMonth ?? {}).length > 0
+      || Object.keys(settings.daysOffByMonth).length > 0
+      || settings.onboardingDismissed
+      || settings.lastBackupAt !== null
+      || getPayPlanSchedule(settings).length !== 1
+      || payPlanCalculationFingerprint(settings.payPlan) !== payPlanCalculationFingerprint(defaults.payPlan)
+    ) return false;
+
+    await loadDemoSales(buildDemoSales(monthKeyFromDate(asOfDate), asOfDate, "two-year"), {
+      historicDemoPlan: createPublicDemoHistoricPlan(asOfDate),
+    });
+    return true;
+  });
 }
 
 export async function loadTrackerData(): Promise<{
@@ -279,7 +426,11 @@ export async function persistSale(
   isNew: boolean,
   expectedVersion?: SaleVersionToken,
 ): Promise<void> {
+  assertPersistableSaleNumbers(sale);
   await db.transaction("rw", db.sales, db.settings, db.auditEvents, async () => {
+    if (sale.status === "void") {
+      throw new Error("Undelivered sales are not saved. Delete the record instead.");
+    }
     assertSaleHasPayPlanCoverage(sale, await getStoredPayPlanSchedule());
     const existing = await db.sales.get(sale.id);
 
@@ -336,6 +487,7 @@ export async function restoreSale(sale: Sale): Promise<Sale> {
   const { deletedAt: _deletedAt, ...activeSale } = sale;
   const restored: Sale = {
     ...activeSale,
+    status: activeSale.status === "void" ? "pending" : activeSale.status,
     updatedAt: now,
     revision: sale.revision + 1,
   };
@@ -352,6 +504,7 @@ export async function restoreSale(sale: Sale): Promise<Sale> {
 }
 
 export async function persistSettings(settings: ProfileSettings): Promise<void> {
+  assertPersistableActualPaidByMonth(settings.actualPaidByMonth);
   const updated = normalizeSettings({ ...settings, updatedAt: new Date().toISOString() });
   await db.transaction("rw", db.settings, db.auditEvents, async () => {
     const previous = await db.settings.get(PROFILE_ID);
@@ -415,8 +568,12 @@ export async function importSales(
 ): Promise<{ added: number; alreadyPresent: number }> {
   let added = 0;
   let alreadyPresent = 0;
+  sales.forEach(assertPersistableSaleNumbers);
   await db.transaction("rw", db.sales, db.settings, db.auditEvents, async () => {
     const schedule = await getStoredPayPlanSchedule();
+    if (sales.some((sale) => sale.status === "void")) {
+      throw new Error("Undelivered sales are not imported. Remove those rows from the source file.");
+    }
     sales.forEach((sale) => assertSaleHasPayPlanCoverage(sale, schedule));
     for (const sale of sales) {
       const existing = await db.sales.get(sale.id);
@@ -447,21 +604,64 @@ export async function importSales(
  */
 export async function loadDemoSales(
   sales: Sale[],
+  options?: { historicDemoPlan?: PayPlan },
 ): Promise<{ added: number; restored: number; alreadyPresent: number }> {
   let added = 0;
   let restored = 0;
   let alreadyPresent = 0;
   const timestamp = new Date().toISOString();
+  const incomingIds = new Set(sales.map((sale) => sale.id));
+  if (incomingIds.size !== sales.length) throw new Error("Demonstration data contains duplicate record IDs.");
+  sales.forEach(assertPersistableSaleNumbers);
 
   await db.transaction("rw", db.sales, db.settings, db.auditEvents, async () => {
-    const schedule = await getStoredPayPlanSchedule();
+    const currentSettings = await db.settings.get(PROFILE_ID);
+    if (!currentSettings) throw new Error("Sales settings are not initialized.");
+    let schedule = getPayPlanSchedule(currentSettings);
+    const needsHistoricCoverage = sales.some((sale) => !hasPayPlanCoverage(schedule, monthKeyFromDate(sale.saleDate)));
+    if (needsHistoricCoverage && options?.historicDemoPlan) {
+      const nonDemoSales = await db.sales
+        .where("profileId")
+        .equals(PROFILE_ID)
+        .filter((sale) => sale.source !== "demo")
+        .toArray();
+      if (nonDemoSales.length > 0) {
+        throw new Error("Use a clean demo workspace before loading the two-year demonstration.");
+      }
+      const demoSchedule = upsertPayPlan(schedule, options.historicDemoPlan);
+      const updatedSettings = normalizeSettings({
+        ...currentSettings,
+        payPlan: structuredClone(demoSchedule.at(-1) ?? currentSettings.payPlan),
+        payPlanHistory: structuredClone(demoSchedule),
+        updatedAt: timestamp,
+      });
+      await db.settings.put(updatedSettings);
+      schedule = getPayPlanSchedule(updatedSettings);
+    }
     sales.forEach((sale) => assertSaleHasPayPlanCoverage(sale, schedule));
+
+    const existingDemoSales = await db.sales
+      .where("profileId")
+      .equals(PROFILE_ID)
+      .filter((sale) => sale.source === "demo")
+      .toArray();
+    const staleDemoSales = existingDemoSales.filter((sale) => !sale.deletedAt && !incomingIds.has(sale.id));
+    if (staleDemoSales.length > 0) {
+      await db.sales.bulkPut(
+        staleDemoSales.map((sale) => ({
+          ...sale,
+          deletedAt: timestamp,
+          updatedAt: timestamp,
+          revision: sale.revision + 1,
+        })),
+      );
+    }
 
     for (const sale of sales) {
       const existing = await db.sales.get(sale.id);
       if (!existing) {
         added += 1;
-        await db.sales.put(sale);
+        await db.sales.put({ ...sale, profileId: PROFILE_ID });
         continue;
       }
       if (existing.source === "demo" && existing.deletedAt) {
@@ -475,6 +675,16 @@ export async function loadDemoSales(
         });
         continue;
       }
+      if (existing.source === "demo" && !isSameDemoPayload(existing, sale)) {
+        alreadyPresent += 1;
+        await db.sales.put({
+          ...sale,
+          profileId: PROFILE_ID,
+          updatedAt: timestamp,
+          revision: existing.revision + 1,
+        });
+        continue;
+      }
       alreadyPresent += 1;
     }
 
@@ -483,7 +693,7 @@ export async function loadDemoSales(
         "demo.loaded",
         `Loaded ${added + restored} demonstration sales.`,
         undefined,
-        { added, restored, alreadyPresent },
+        { added, restored, alreadyPresent, archived: staleDemoSales.length },
       ),
     );
   });
@@ -494,7 +704,7 @@ export async function loadDemoSales(
 export async function removeDemoSales(): Promise<number> {
   let removed = 0;
   const timestamp = new Date().toISOString();
-  await db.transaction("rw", db.sales, db.auditEvents, async () => {
+  await db.transaction("rw", db.sales, db.settings, db.auditEvents, async () => {
     const demoSales = await db.sales
       .where("profileId")
       .equals(PROFILE_ID)
@@ -511,6 +721,16 @@ export async function removeDemoSales(): Promise<number> {
         })),
       );
     }
+    const nonDemoSales = await db.sales
+      .where("profileId")
+      .equals(PROFILE_ID)
+      .filter((sale) => sale.source !== "demo")
+      .toArray();
+    const settings = await db.settings.get(PROFILE_ID);
+    if (settings && nonDemoSales.length === 0) {
+      const withoutHistoricDemo = withoutDemoHistoricPlan(settings);
+      if (withoutHistoricDemo !== settings) await db.settings.put(withoutHistoricDemo);
+    }
     await db.auditEvents.add(
       createAuditEvent("demo.removed", `Removed ${removed} demonstration sales.`, undefined, { removed }),
     );
@@ -525,13 +745,22 @@ export async function replaceDatabaseFromBackup(
 ): Promise<void> {
   const normalizedSettings = normalizeSettings({ ...settings, id: PROFILE_ID });
   const restoredSchedule = getPayPlanSchedule(normalizedSettings);
-  sales.forEach((sale) => assertSaleHasPayPlanCoverage(sale, restoredSchedule));
+  const timestamp = new Date().toISOString();
+  const restoredSales = archiveLegacyVoidSales(sales, timestamp);
+  restoredSales
+    .filter((sale) => !sale.deletedAt)
+    .forEach((sale) => assertSaleHasPayPlanCoverage(sale, restoredSchedule));
+  const archivedLegacyVoidCount = restoredSales.filter(
+    (sale, index) => sale.status === "void" && !sales[index].deletedAt,
+  ).length;
   await db.transaction("rw", db.sales, db.settings, db.auditEvents, async () => {
     await db.sales.clear();
     await db.auditEvents.clear();
     await db.settings.clear();
-    await db.settings.add({ ...normalizedSettings, updatedAt: new Date().toISOString() });
-    if (sales.length) await db.sales.bulkAdd(sales.map((sale) => ({ ...sale, profileId: PROFILE_ID })));
+    await db.settings.add({ ...normalizedSettings, updatedAt: timestamp });
+    if (restoredSales.length) {
+      await db.sales.bulkAdd(restoredSales.map((sale) => ({ ...sale, profileId: PROFILE_ID })));
+    }
     if (auditEvents.length) {
       await db.auditEvents.bulkAdd(
         auditEvents.map(({ id: _id, ...event }) => ({ ...event, profileId: PROFILE_ID })),
@@ -540,6 +769,14 @@ export async function replaceDatabaseFromBackup(
     await db.auditEvents.add(
       createAuditEvent("restore.completed", `Restored ${sales.length} sales from a backup.`),
     );
+    if (archivedLegacyVoidCount > 0) {
+      await db.auditEvents.add(
+        createAuditEvent(
+          "sale.deleted",
+          `Moved ${archivedLegacyVoidCount} older undelivered ${archivedLegacyVoidCount === 1 ? "sale" : "sales"} to Recently deleted during backup restore.`,
+        ),
+      );
+    }
   });
 }
 

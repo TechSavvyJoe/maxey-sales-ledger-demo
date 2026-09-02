@@ -72,6 +72,8 @@ const saleSchema = z.object({
   customerLastName: z.string().max(60),
   stockNumber: z.string().max(40),
   vehicleDescription: z.string().max(120),
+  // Void stays accepted here so an older recovery file is never stranded.
+  // Initialization moves those legacy records into Recently deleted.
   status: z.enum(["delivered", "pending", "void"]),
   unitCreditBasis: z.number().int().min(0).max(2_000),
   frontGrossCents: z.number().int().min(-100_000_000).max(100_000_000).nullable(),
@@ -591,7 +593,6 @@ export function buildReportAnalyticsExportTables(
     { Section: "Population", Metric: "Valid delivered deals", Value: analytics.population.deliveredDealCount, Interpretation: "Denominator for product and financing penetration." },
     { Section: "Population", Metric: "Credited units", Value: analytics.population.creditedUnits, Interpretation: "Separate from delivered-deal penetration denominators." },
     { Section: "Population", Metric: "Pending records", Value: analytics.population.pendingRecordCount, Interpretation: "Not included in delivered-deal penetration." },
-    { Section: "Population", Metric: "Void records", Value: analytics.population.voidRecordCount, Interpretation: "Not included in delivered-deal penetration." },
     { Section: "Population", Metric: "Excluded delivered records", Value: analytics.population.excludedDeliveredRecordCount, Interpretation: "Delivered rows excluded by commission-engine validity rules." },
     { Section: "Population", Metric: "Deleted records supplied", Value: analytics.population.deletedRecordCount, Interpretation: "Visible only when the caller includes deleted records." },
     { Section: "Outcome tracking", Metric: "Deals with all product outcomes marked", Value: analytics.quality.fullyTrackedProductDealCount, Interpretation: "Service contract, Tire & Wheel, and GAP are each Yes or No." },

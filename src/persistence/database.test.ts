@@ -1,11 +1,14 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_PAY_PLAN } from "@/domain/commission";
+import { buildDemoSales, createPublicDemoHistoricPlan } from "@/domain/demo";
+import { getPayPlanSchedule } from "@/domain/payPlan";
 import type { Sale } from "@/domain/types";
 import {
   db,
   importSales,
   initializeDatabase,
+  initializePublishedDemo,
   loadBackupSnapshot,
   loadDemoSales,
   loadTrackerData,
@@ -222,9 +225,9 @@ describe("local database", () => {
     });
   });
 
-  it("removes malformed actual-paid values so the workspace remains backup-safe", async () => {
+  it("repairs malformed legacy actual-paid values so the workspace remains backup-safe", async () => {
     const settings = await initializeDatabase();
-    await persistSettings({
+    await db.settings.put({
       ...settings,
       actualPaidByMonth: {
         "2026-08": 123_456,
@@ -232,9 +235,47 @@ describe("local database", () => {
         "2026-10": -100_000_001,
         invalid: 100,
       },
-    });
+    } as unknown as typeof settings);
 
     expect((await initializeDatabase()).actualPaidByMonth).toEqual({ "2026-08": 123_456 });
+  });
+
+  it("rejects invalid actual-paid values before they reach browser storage", async () => {
+    const settings = await initializeDatabase();
+    for (const actualPaidByMonth of [
+      { "2026-08": 12.5 },
+      { "2026-08": Number.POSITIVE_INFINITY },
+      { "2026-08": 100_000_001 },
+      { invalid: 100 },
+    ]) {
+      await expect(persistSettings({
+        ...settings,
+        actualPaidByMonth,
+      } as unknown as typeof settings)).rejects.toThrow(/Actual-paid amounts/);
+    }
+
+    expect((await db.settings.get("primary"))?.actualPaidByMonth).toEqual({});
+    expect(await db.auditEvents.where("action").equals("settings.updated").count()).toBe(0);
+  });
+
+  it("rejects unsafe direct sale numbers while preserving an explicit zero unit credit", async () => {
+    await initializeDatabase();
+
+    await expect(persistSale({ ...sampleSale, unitCreditBasis: 0 }, true)).resolves.toBeUndefined();
+    await expect(persistSale({
+      ...sampleSale,
+      id: "fractional-credit",
+      unitCreditBasis: 500.5,
+    }, true)).rejects.toThrow(/Sale unit credit/);
+    await expect(persistSale({
+      ...sampleSale,
+      id: "non-finite-gross",
+      frontGrossCents: Number.POSITIVE_INFINITY,
+    }, true)).rejects.toThrow(/Front gross/);
+
+    expect(await db.sales.get(sampleSale.id)).toMatchObject({ unitCreditBasis: 0 });
+    expect(await db.sales.get("fractional-credit")).toBeUndefined();
+    expect(await db.sales.get("non-finite-gross")).toBeUndefined();
   });
 
   it("records the before-and-after pay-plan rules in local activity", async () => {
@@ -390,6 +431,64 @@ describe("local database", () => {
     expect((await db.sales.get(sampleSale.id))?.revision).toBe(3);
   });
 
+  it("moves active legacy void records to Recently deleted during initialization", async () => {
+    await initializeDatabase();
+    const legacyVoid = {
+      ...sampleSale,
+      id: "legacy-void-active",
+      stockNumber: "VOID-ARCHIVE",
+      status: "void" as const,
+      source: "json-restore" as const,
+    };
+    await db.sales.put(legacyVoid);
+
+    await initializeDatabase();
+
+    const archived = await db.sales.get(legacyVoid.id);
+    expect(archived).toMatchObject({ status: "void", deletedAt: expect.any(String), revision: 2 });
+    expect((await db.auditEvents.where("action").equals("sale.deleted").toArray()).at(-1)?.summary)
+      .toMatch(/Moved 1 older undelivered sale to Recently deleted/);
+  });
+
+  it("restores a legacy void record as Pending and rejects new void sales", async () => {
+    await initializeDatabase();
+    const legacyVoid = {
+      ...sampleSale,
+      id: "legacy-void-restore",
+      stockNumber: "VOID-RESTORE",
+      status: "void" as const,
+      deletedAt: "2026-08-21T12:00:00.000Z",
+      source: "json-restore" as const,
+    };
+    await db.sales.put(legacyVoid);
+
+    const restored = await restoreSale(legacyVoid);
+    expect(restored).toMatchObject({ status: "pending", revision: 2 });
+    expect(restored.deletedAt).toBeUndefined();
+    await expect(persistSale({ ...sampleSale, id: "new-void", status: "void" }, true))
+      .rejects.toThrow("Undelivered sales are not saved. Delete the record instead.");
+  });
+
+  it("archives legacy void records while restoring a backup", async () => {
+    const settings = await initializeDatabase();
+    const legacyVoid = {
+      ...sampleSale,
+      id: "backup-void",
+      stockNumber: "VOID-BACKUP",
+      status: "void" as const,
+      source: "json-restore" as const,
+    };
+
+    await replaceDatabaseFromBackup(settings, [legacyVoid], []);
+
+    expect(await db.sales.get(legacyVoid.id)).toMatchObject({
+      status: "void",
+      deletedAt: expect.any(String),
+    });
+    expect((await db.auditEvents.where("action").equals("sale.deleted").toArray()).at(-1)?.summary)
+      .toMatch(/Moved 1 older undelivered sale to Recently deleted during backup restore/);
+  });
+
   it("restores a full workspace without changing each sale's original source", async () => {
     const settings = await initializeDatabase();
     settings.salespersonName = "Restored User";
@@ -497,6 +596,149 @@ describe("local database", () => {
     expect(await db.sales.get(manual.id)).toMatchObject({ source: "manual", stockNumber: "MANUAL-KEEP" });
     expect(await loadDemoSales([demo])).toEqual({ added: 0, restored: 0, alreadyPresent: 1 });
     expect((await loadTrackerData()).auditEvents.some((event) => event.action === "demo.loaded")).toBe(true);
+  });
+
+  it("automatically populates a fresh published demo with the two-year history", async () => {
+    expect(await initializePublishedDemo("2026-09-02")).toBe(true);
+
+    const data = await loadTrackerData();
+    expect(data.sales).toHaveLength(481);
+    expect(data.sales.every((sale) => sale.source === "demo" && !sale.deletedAt)).toBe(true);
+    expect(data.sales.map((sale) => sale.saleDate).sort()[0]).toMatch(/^2024-09-/);
+    expect(data.sales.every((sale) => sale.saleDate <= "2026-09-02")).toBe(true);
+    expect(getPayPlanSchedule(data.settings).map((plan) => plan.version)).toContain("Sample 2024–26 plan");
+    expect(data.auditEvents.filter((event) => event.action === "demo.loaded")).toHaveLength(1);
+  });
+
+  it("seeds once when two tabs initialize together and preserves later demo edits on reload", async () => {
+    const initializations = await Promise.all([
+      initializePublishedDemo("2026-09-02"),
+      initializePublishedDemo("2026-09-02"),
+    ]);
+    expect(initializations.sort()).toEqual([false, true]);
+    const before = await loadTrackerData();
+    expect(before.sales).toHaveLength(481);
+    expect(before.auditEvents.filter((event) => event.action === "demo.loaded")).toHaveLength(1);
+
+    const edited = { ...before.sales[0], notes: "My walkthrough example", revision: 2 };
+    await persistSale(edited, false);
+    const snapshot = await loadBackupSnapshot();
+
+    expect(await initializePublishedDemo("2026-10-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it("populates an untouched workspace after simple period or page navigation", async () => {
+    const settings = await initializeDatabase();
+    await updateSelectedContext(settings, { selectedMonth: "2026-08", selectedView: "sales" });
+
+    expect(await initializePublishedDemo("2026-09-02")).toBe(true);
+    expect(await db.settings.get("primary")).toMatchObject({
+      selectedMonth: "2026-08",
+      selectedView: "sales",
+    });
+    expect(await db.sales.count()).toBe(481);
+  });
+
+  it.each([undefined, "2026-08-21T12:00:00.000Z"])(
+    "keeps existing manual sales out of automatic demo initialization (deletedAt: %s)",
+    async (deletedAt) => {
+      await initializeDatabase();
+      const manual = { ...sampleSale, source: "manual" as const, deletedAt };
+      await db.sales.put(manual);
+      const snapshot = await loadBackupSnapshot();
+
+      expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+      expect(await loadBackupSnapshot()).toEqual(snapshot);
+    },
+  );
+
+  it("preserves an empty workspace with personalized settings even without activity history", async () => {
+    const defaults = await initializeDatabase();
+    await db.settings.put({
+      ...defaults,
+      salespersonName: "Sample User",
+      monthlyGoal: 22,
+      daysOffByMonth: { "2026-09": ["2026-09-04"] },
+      payPlan: { ...defaults.payPlan, version: "Personal plan", fiRateBps: 1_500 },
+      payPlanHistory: [{ ...defaults.payPlan, version: "Personal plan", fiRateBps: 1_500 }],
+    });
+    const snapshot = await loadBackupSnapshot();
+
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it.each([null, 0, 123_456])(
+    "preserves payroll entries in an otherwise empty workspace (amount: %s)",
+    async (amount) => {
+      const defaults = await initializeDatabase();
+      await db.settings.put({ ...defaults, actualPaidByMonth: { "2026-08": amount } });
+      const snapshot = await loadBackupSnapshot();
+
+      expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+      expect(await loadBackupSnapshot()).toEqual(snapshot);
+    },
+  );
+
+  it("does not undo an explicit demo removal when no sale rows remain", async () => {
+    await initializeDatabase();
+    await removeDemoSales();
+    const snapshot = await loadBackupSnapshot();
+    expect(snapshot.sales).toHaveLength(0);
+    expect(snapshot.auditEvents[0]?.action).toBe("demo.removed");
+
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it("leaves removed demonstration sales in Recently deleted on reload", async () => {
+    await initializePublishedDemo("2026-09-02");
+    expect(await removeDemoSales()).toBe(481);
+    const snapshot = await loadBackupSnapshot();
+
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+    expect(snapshot.sales.every((sale) => Boolean(sale.deletedAt))).toBe(true);
+  });
+
+  it("synchronizes the two-year public demo without touching manual records", async () => {
+    await initializeDatabase();
+    const asOfDate = "2026-09-02";
+    const oldDemo = buildDemoSales("2026-09", asOfDate, "full-year");
+    const twoYearDemo = buildDemoSales("2026-09", asOfDate, "two-year");
+
+    expect(await loadDemoSales(oldDemo)).toEqual({ added: 235, restored: 0, alreadyPresent: 0 });
+    expect(await loadDemoSales(twoYearDemo, {
+      historicDemoPlan: createPublicDemoHistoricPlan(asOfDate),
+    })).toEqual({ added: 306, restored: 0, alreadyPresent: 175 });
+
+    const activeDemo = (await db.sales.where("profileId").equals("primary").toArray())
+      .filter((sale) => sale.source === "demo" && !sale.deletedAt);
+    expect(activeDemo).toHaveLength(481);
+    expect(activeDemo.every((sale) => sale.saleDate <= asOfDate)).toBe(true);
+    expect((await db.sales.where("profileId").equals("primary").toArray())
+      .filter((sale) => sale.source === "demo" && sale.deletedAt)).toHaveLength(60);
+
+    const settings = await initializeDatabase();
+    expect(getPayPlanSchedule(settings).some((plan) => plan.version === "Sample 2024–26 plan")).toBe(true);
+    expect(await removeDemoSales()).toBe(481);
+    const afterRemoval = await initializeDatabase();
+    expect(getPayPlanSchedule(afterRemoval).some((plan) => plan.version === "Sample 2024–26 plan")).toBe(false);
+  });
+
+  it("keeps a two-year fictional demo out of workspaces with real records", async () => {
+    await initializeDatabase();
+    await persistSale({ ...sampleSale, id: "manual-before-demo", source: "manual" }, true);
+    const asOfDate = "2026-09-02";
+
+    await expect(loadDemoSales(
+      buildDemoSales("2026-09", asOfDate, "two-year"),
+      { historicDemoPlan: createPublicDemoHistoricPlan(asOfDate) },
+    )).rejects.toThrow("Use a clean demo workspace before loading the two-year demonstration.");
+    const manualAfterRejectedDemo = await db.sales.get("manual-before-demo");
+    expect(manualAfterRejectedDemo).toMatchObject({ source: "manual" });
+    expect(manualAfterRejectedDemo).not.toHaveProperty("deletedAt");
   });
 
   it("rejects an entire demonstration batch when any year is outside pay-plan coverage", async () => {

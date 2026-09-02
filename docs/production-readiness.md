@@ -39,7 +39,7 @@ The app should remain labeled an estimate until these are complete.
 - Deploy the contents of `dist/` on an approved HTTPS static host.
 - Confirm the host applies equivalent CSP, frame, MIME, referrer, permissions, and cache headers from `public/_headers`.
 - Open the exact production URL in supported desktop and phone browsers.
-- Exercise add/edit/void/delete/undo/Recently Deleted restore, month switch, weekly checkpoint/drilldown, outcome tracking, Month/Week/Year/Payroll reports, Excel/CSV/PDF, and JSON backup.
+- Exercise add/edit/delete/undo/Recently Deleted restore, month switch, weekly checkpoint/drilldown, outcome tracking, Month/Week/Year/Payroll reports, Excel/CSV/PDF, and JSON backup.
 - Confirm Month uses the selected month, Week uses the selected Monday-through-Saturday window, Year YTD ends at the selected month, and Payroll remains isolated to the selected month.
 - With deals that have multiple recorded outcomes, confirm each cohort includes a matching deal's one total F&I gross once, cohort gross is labeled non-additive, and dealer financing is not presented as a product.
 - Compare the same populated report at wide and narrow widths; the table and cards must preserve the selected scope, row order, labels, values, states, and record-level action.

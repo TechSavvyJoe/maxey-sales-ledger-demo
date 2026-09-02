@@ -13,7 +13,7 @@ Automated scans do not replace assistive-technology and human usability testing.
 ## Findings addressed
 
 - The goal-scale caption initially used a low-contrast gray. It was changed to the darker neutral text color and the automated scan then passed.
-- Statuses pair color with explicit Delivered, Pending, Void, Ready, Warning, or Needs review text.
+- Statuses pair color with explicit Delivered, Pending, Ready, Warning, or Needs review text.
 - All sales-entry fields use persistent visible labels and field-level error text.
 - Focusable controls have a high-contrast visible focus outline and offset.
 - Dialog and sheet primitives provide focus containment, Escape close, accessible titles, and focus return.
