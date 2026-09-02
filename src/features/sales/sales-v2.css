@@ -111,6 +111,31 @@
   min-height: 44px;
 }
 
+@media screen {
+  .app-shell .filter-chip:not(.is-active),
+  .app-shell .sort-control {
+    border-color: var(--color-control-border);
+  }
+
+  .app-shell .sales-table th,
+  .app-shell .sales-table td {
+    border-bottom-color: var(--color-divider);
+  }
+
+  .app-shell .sales-table thead th {
+    border-bottom-color: var(--color-border);
+    background: var(--color-table-header);
+  }
+
+  .sale-sheet .status-choice:not(.is-selected) {
+    border-color: var(--color-control-border);
+  }
+
+  .sale-sheet .sale-fi-products > .grid > label {
+    border-color: var(--color-border);
+  }
+}
+
 /* A 1280px display has roughly 1024px of workspace after the product rail. */
 @media (min-width: 1121px) and (max-width: 1320px) {
   .app-shell .sales-toolbar {

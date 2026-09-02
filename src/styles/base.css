@@ -112,6 +112,21 @@ strong {
   font-weight: var(--font-weight-semibold);
 }
 
+@media screen {
+  /* Inputs need a real boundary, including when shadows are unavailable. */
+  .app-shell input:not([type="checkbox"]):not([type="radio"]):not([aria-invalid="true"]):not(:focus-visible),
+  .app-shell textarea:not([aria-invalid="true"]):not(:focus-visible),
+  .sale-sheet input:not([type="checkbox"]):not([type="radio"]):not([aria-invalid="true"]):not(:focus-visible),
+  .sale-sheet textarea:not([aria-invalid="true"]):not(:focus-visible) {
+    border-color: var(--color-control-border);
+  }
+
+  .app-shell .settings-category-content select,
+  .app-shell .fi-center-evidence-controls select {
+    border-color: var(--color-control-border);
+  }
+}
+
 @media (max-width: 720px) {
   body {
     font-size: 15px;

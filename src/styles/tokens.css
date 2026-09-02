@@ -35,6 +35,10 @@
   --color-text-muted: var(--slate-600);
   --color-border: var(--slate-200);
   --color-border-strong: var(--slate-300);
+  --color-divider: var(--slate-200);
+  --color-control-border: var(--slate-300);
+  --color-control-track: var(--slate-100);
+  --color-table-header: var(--slate-100);
   --color-action: var(--blue-600);
   --color-focus: #3d91e8;
   --color-positive: var(--green-700);
@@ -61,4 +65,19 @@
   font-synthesis: none;
   color: var(--color-text);
   background: var(--canvas);
+}
+
+/* Screen boundaries must remain visible on ordinary office displays. Keep
+   control edges distinct from decorative dividers; print keeps its own ink
+   treatment, and forced-color modes retain the browser's system colors. */
+@media screen {
+  :root:not(.dark) {
+    --canvas: #edf2f6;
+    --color-border: #a4b5c5;
+    --color-border-strong: #7b8fa2;
+    --color-divider: #b8c6d3;
+    --color-control-border: #7b8fa2;
+    --color-control-track: #e5edf4;
+    --color-table-header: #e9eff5;
+  }
 }

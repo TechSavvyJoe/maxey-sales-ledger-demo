@@ -6,6 +6,12 @@
   min-width: 0;
 }
 
+@media screen {
+  .reports-page {
+    --report-line: var(--color-border);
+  }
+}
+
 .reports-page [hidden],
 .reports-page .report-subject-panel[hidden],
 .reports-page .fi-center-view[hidden] {
@@ -123,6 +129,34 @@
 .fi-center-jump-nav button:focus-visible {
   outline: 3px solid rgb(19 93 172 / 25%);
   outline-offset: 1px;
+}
+
+@media screen {
+  .reports-page .report-command-bar [role="tablist"],
+  .report-subject-tabs,
+  .fi-center-jump-nav {
+    background: var(--color-control-track);
+  }
+
+  /* Reserve the edge on every tab, so selection is explicit without a
+     shadow dependency or a size change when moving between tabs. */
+  .reports-page .report-command-bar [role="tab"] {
+    border: 1px solid transparent;
+    padding-inline: 14px;
+  }
+
+  .report-subject-tabs button,
+  .fi-center-jump-nav button {
+    border: 1px solid transparent;
+    padding-inline: 13px;
+  }
+
+  .reports-page .report-command-bar [role="tab"][data-state="active"],
+  .report-subject-tabs button[aria-selected="true"],
+  .fi-center-jump-nav button[aria-selected="true"] {
+    border-color: var(--color-control-border);
+    box-shadow: none;
+  }
 }
 
 .report-subject-panel {

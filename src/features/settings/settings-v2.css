@@ -266,6 +266,16 @@
   font-size: 12px;
 }
 
+@media screen {
+  .settings-page .settings-category-nav {
+    border-color: var(--color-border);
+  }
+
+  .settings-page .settings-category-button.is-active {
+    border-color: var(--blue-700);
+  }
+}
+
 @media (max-width: 1180px) {
   .settings-page .settings-v2-layout {
     grid-template-columns: minmax(0, 1fr);
