@@ -17,6 +17,8 @@ export interface Sale {
   status: SaleStatus;
   unitCreditBasis: number;
   frontGrossCents: number | null;
+  /** Exact front commission paid to this salesperson. Null/omitted uses the plan; never split again. */
+  frontCommissionOverrideCents?: number | null;
   fiGrossCents: number | null;
   /** Tracked F&I outcomes. Omitted values on older records mean "Not marked," not "No." */
   serviceContractSold?: boolean;
@@ -48,6 +50,8 @@ export interface PayPlan {
   acceleratedFrontRateBps: number;
   acceleratedThresholdExclusive: number;
   fiRateBps: number;
+  /** Full-deal front mini. Older Howell plans default to $300 when omitted. */
+  minimumFrontCommissionCents?: number;
   bonusTiers: BonusTier[];
 }
 
@@ -117,6 +121,11 @@ export interface CalculatedSale {
   commissionReady: boolean;
   frontRateBps: number;
   frontCommissionCents: number;
+  frontCommissionMethod: "percentage" | "mini" | "manual" | "awaiting" | "excluded";
+  /** This sale's share of the full-deal mini; manual payouts do not use this floor. */
+  minimumFrontCommissionCents: number;
+  /** Recorded front gross with losses floored at zero, not an aggregate payout formula. */
+  commissionableFrontGrossCents: number;
   fiCommissionCents: number;
   estimatedCommissionCents: number;
   flags: SaleReviewFlag[];
@@ -131,6 +140,10 @@ export interface MonthSummary {
   pendingCount: number;
   frontRateBps: number;
   frontGrossCents: number;
+  commissionableFrontGrossCents: number;
+  minimumFrontCommissionCents: number;
+  miniDealCount: number;
+  manualFrontCommissionCount: number;
   fiGrossCents: number;
   frontCommissionCents: number;
   fiCommissionCents: number;

@@ -202,6 +202,9 @@ export interface ReportFinanceAnalytics {
 
 export interface ReportCommissionAnalytics {
   frontCommissionCents: number;
+  commissionableFrontGrossCents: number;
+  miniDealCount: number;
+  manualFrontCommissionCount: number;
   fiCommissionCents: number;
   coreCommissionCents: number;
   bonusIncludedCents: number;
@@ -228,6 +231,7 @@ export interface ReportDataQualityAnalytics {
   unmarkedFinanceOutcomeCount: number;
   frontGrossEnteredCount: number;
   frontGrossMissingCount: number;
+  frontCommissionMissingCount: number;
   fiGrossEnteredCount: number;
   fiGrossMissingCount: number;
 }
@@ -725,6 +729,9 @@ export function calculateReportAnalytics(
     },
     commission: {
       frontCommissionCents,
+      commissionableFrontGrossCents: deals.reduce((sum, item) => sum + item.commissionableFrontGrossCents, 0),
+      miniDealCount: deals.filter((item) => item.frontCommissionMethod === "mini").length,
+      manualFrontCommissionCount: deals.filter((item) => item.frontCommissionMethod === "manual").length,
       fiCommissionCents,
       coreCommissionCents,
       bonusIncludedCents,
@@ -770,6 +777,7 @@ export function calculateReportAnalytics(
       unmarkedFinanceOutcomeCount: dealerFinance.unmarkedCount,
       frontGrossEnteredCount: front.enteredCount,
       frontGrossMissingCount: front.missingCount,
+      frontCommissionMissingCount: deals.filter((item) => !item.commissionReady).length,
       fiGrossEnteredCount: fi.enteredCount,
       fiGrossMissingCount: fi.missingCount,
     },

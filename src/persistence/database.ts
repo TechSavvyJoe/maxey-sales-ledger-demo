@@ -9,6 +9,7 @@ import {
 import { normalizeDaysOffByMonth } from "@/domain/pacing";
 import {
   assertValidPayPlan,
+  getMinimumFrontCommissionCents,
   getEarliestPayPlanMonth,
   getPayPlanSchedule,
   hasPayPlanCoverage,
@@ -74,6 +75,7 @@ function payPlanCalculationFingerprint(payPlan: PayPlan): string {
     acceleratedFrontRateBps: payPlan.acceleratedFrontRateBps,
     acceleratedThresholdExclusive: payPlan.acceleratedThresholdExclusive,
     fiRateBps: payPlan.fiRateBps,
+    minimumFrontCommissionCents: getMinimumFrontCommissionCents(payPlan),
     bonusTiers: payPlan.bonusTiers,
   });
 }
@@ -154,6 +156,13 @@ function normalizeActualPaidByMonth(value: unknown): Record<string, number | nul
 }
 
 function assertPersistableSaleNumbers(sale: Sale): void {
+  if (sale.frontCommissionOverrideCents != null && (
+    !Number.isSafeInteger(sale.frontCommissionOverrideCents)
+    || sale.frontCommissionOverrideCents < 0
+    || sale.frontCommissionOverrideCents > MAX_CURRENCY_CENTS
+  )) {
+    throw new Error("Manual front commission must be whole cents between $0 and $1,000,000.");
+  }
   if (sale.paymentMethod !== undefined && !["dealer_financed", "cash", "outside_financing"].includes(sale.paymentMethod)) {
     throw new Error("Choose dealership financing, cash, or outside financing.");
   }
@@ -277,7 +286,12 @@ export function normalizeSettings(settings: ProfileSettings): ProfileSettings {
     payPlan: settings.payPlan,
     payPlanHistory: settings.payPlanHistory ?? [],
   });
-  const schedule = storedSchedule.map(migrateUnchangedLegacyDefaultPayPlan);
+  const schedule = storedSchedule.map((plan) => {
+    // Validate before legacy matching so a malformed Mini cannot masquerade
+    // as an omitted default and be silently replaced by the known plan.
+    assertValidPayPlan(plan);
+    return migrateUnchangedLegacyDefaultPayPlan(plan);
+  });
   schedule.forEach(assertValidPayPlan);
   const earliestMonth = getEarliestPayPlanMonth(schedule);
   return {
@@ -513,7 +527,18 @@ export async function persistSale(
         isNew ? "sale.created" : "sale.updated",
         `${isNew ? "Added" : "Updated"} stock ${sale.stockNumber || "(missing)"}.`,
         sale.id,
-        { status: persisted.status, saleDate: persisted.saleDate, revision: persisted.revision },
+        {
+          status: persisted.status,
+          saleDate: persisted.saleDate,
+          revision: persisted.revision,
+          ...(persisted.frontCommissionOverrideCents != null || existing?.frontCommissionOverrideCents != null
+            ? {
+                frontCommissionOverrideChanged: (existing?.frontCommissionOverrideCents ?? null) !== (persisted.frontCommissionOverrideCents ?? null),
+                priorFrontCommissionOverrideCents: existing?.frontCommissionOverrideCents ?? null,
+                newFrontCommissionOverrideCents: persisted.frontCommissionOverrideCents ?? null,
+              }
+            : {}),
+        },
       ),
     );
   });
@@ -577,6 +602,8 @@ export async function persistSettings(settings: ProfileSettings): Promise<void> 
           newThreshold: updated.payPlan.acceleratedThresholdExclusive,
           priorFiRateBps: previous.payPlan.fiRateBps,
           newFiRateBps: updated.payPlan.fiRateBps,
+          priorMinimumFrontCommissionCents: getMinimumFrontCommissionCents(previous.payPlan),
+          newMinimumFrontCommissionCents: getMinimumFrontCommissionCents(updated.payPlan),
         }
       : { payPlanChanged: false };
     await db.auditEvents.add(
@@ -794,6 +821,7 @@ export async function replaceDatabaseFromBackup(
   sales: Sale[],
   auditEvents: AuditEvent[],
 ): Promise<void> {
+  sales.forEach(assertPersistableSaleNumbers);
   const normalizedSettings = normalizeSettings({ ...settings, id: PROFILE_ID });
   const restoredSchedule = getPayPlanSchedule(normalizedSettings);
   const timestamp = new Date().toISOString();

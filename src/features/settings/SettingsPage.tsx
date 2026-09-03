@@ -83,6 +83,7 @@ import {
 } from "@/domain/pacing";
 import {
   getEarliestPayPlanMonth,
+  getMinimumFrontCommissionCents,
   getPayPlanSchedule,
   hasPayPlanCoverage,
   upsertPayPlan,
@@ -143,6 +144,7 @@ type SettingsFieldKey =
   | "acceleratedFrontRate"
   | "acceleratedThreshold"
   | "fiRate"
+  | "mini"
   | `bonusMinimum-${number}`
   | `bonusAmount-${number}`;
 
@@ -238,6 +240,7 @@ function categoryForValidationField(field: SettingsFieldKey): SettingsCategory {
     || field === "acceleratedFrontRate"
     || field === "acceleratedThreshold"
     || field === "fiRate"
+    || field === "mini"
   ) {
     return "pay-plan";
   }
@@ -275,6 +278,7 @@ function payPlanIssueField(
   if (issue.startsWith("Higher front rate")) return "acceleratedFrontRate";
   if (issue.startsWith("Higher-rate threshold")) return "acceleratedThreshold";
   if (issue.startsWith("F&I rate")) return "fiRate";
+  if (issue.startsWith("Mini")) return "mini";
 
   const tierMinimumMatch = issue.match(/^Bonus tier (\d+) delivery minimum/);
   if (tierMinimumMatch) return `bonusMinimum-${Number(tierMinimumMatch[1]) - 1}`;
@@ -645,6 +649,7 @@ export function SettingsPage({
             ? ["baseFrontRate", "acceleratedFrontRate"]
             : key === "acceleratedThresholdExclusive" ? ["acceleratedThreshold"]
               : key === "fiRateBps" ? ["fiRate"]
+                : key === "minimumFrontCommissionCents" ? ["mini"]
                 : key === "bonusTiers"
                   ? validationIssues
                     .map((issue) => issue.field)
@@ -1150,7 +1155,7 @@ export function SettingsPage({
           sectionRef={payPlanDetailsRef}
           className="pay-plan-settings"
           title="Pay plan"
-          description="Rates and the month this plan begins"
+          description="Rates, Mini, and the month this plan begins"
           summary={`${draft.payPlan.baseFrontRateBps / 100}% front · ${draft.payPlan.acceleratedFrontRateBps / 100}% above ${draft.payPlan.acceleratedThresholdExclusive} · ${draft.payPlan.fiRateBps / 100}% F&I`}
           icon={<CheckCircle2 />}
         >
@@ -1206,6 +1211,14 @@ export function SettingsPage({
               {fieldError("fiRate") ? <span id={settingsErrorId("fiRate")} className="field-error">{fieldError("fiRate")}</span> : null}
             </div>
           </div>
+          <div className="pay-plan-mini">
+            <div className="pay-plan-field">
+              <Label htmlFor="mini">Mini</Label>
+              <div><em aria-hidden="true">$</em><Input ref={(node) => { validationControlRefs.current.mini = node; }} id="mini" {...numberInputProps("mini")} aria-invalid={fieldError("mini") ? true : undefined} aria-describedby={fieldError("mini") ? `${settingsErrorId("mini")} mini-help` : "mini-help"} /></div>
+              {fieldError("mini") ? <span id={settingsErrorId("mini")} className="field-error">{fieldError("mini")}</span> : null}
+            </div>
+            <p id="mini-help">Minimum front commission per full deal. Split deals receive their share. A manual/spiff payout replaces the front calculation; F&amp;I stays separate.</p>
+          </div>
           <div className="pay-plan-impact" aria-live="polite">
             <div className="pay-plan-impact__heading">
               <strong role="heading" aria-level={3}>How this change affects saved months</strong>
@@ -1240,14 +1253,14 @@ export function SettingsPage({
             <CheckCircle2 aria-hidden="true" />
             <p>
               Sell more than {draft.payPlan.acceleratedThresholdExclusive} valid delivered vehicles in a month to apply
-              {` ${draft.payPlan.acceleratedFrontRateBps / 100}%`} front commission retroactively to every valid delivered sale that month.
+              {` ${draft.payPlan.acceleratedFrontRateBps / 100}%`} to each sale’s front gross retroactively. Each sale pays the higher of its percentage commission or Mini, unless a manual/spiff payout is entered.
               Pending, missing-stock, and duplicate delivered records do not trigger it.
             </p>
           </div>
           <div className="pay-plan-caveat">
             <AlertTriangle aria-hidden="true" />
             <p>
-              Choose when this plan begins. Earlier months stay on the plan that applied at that time.
+              Rates and Mini apply beginning with the month above, until the next saved plan. Earlier months keep their own plan. Manual/spiff payouts do not change.
             </p>
           </div>
           <div className="pay-plan-history">
@@ -1257,7 +1270,7 @@ export function SettingsPage({
                 <li key={`${plan.effectiveMonth}-${plan.version}`}>
                   <span>
                     <strong>{plan.version}</strong>
-                    <small>Begins {monthLabel(plan.effectiveMonth)}</small>
+                    <small>Begins {monthLabel(plan.effectiveMonth)} · Mini {formatCurrency(getMinimumFrontCommissionCents(plan))}</small>
                   </span>
                   {plan.effectiveMonth === settings.payPlan.effectiveMonth
                     && plan.version === settings.payPlan.version
@@ -1445,8 +1458,8 @@ export function SettingsPage({
             </button>
             <button type="button" disabled={isDirty} onClick={() => legacyInputRef.current?.click()}>
               <span><FileSpreadsheet aria-hidden="true" /></span>
-              <strong>Import from Excel</strong>
-              <small>Imports sale entries and recalculates every total.</small>
+              <strong>Import sales</strong>
+              <small>Excel tracker, Sales Detail export, or CSV. Totals are recalculated; explicit manual payouts are preserved.</small>
             </button>
             <button type="button" disabled={isDirty} onClick={() => backupInputRef.current?.click()}>
               <span><RotateCcw aria-hidden="true" /></span>
@@ -1459,7 +1472,7 @@ export function SettingsPage({
               <small>Creates a privacy-safe support file without customer details.</small>
             </button>
           </div>
-          <input ref={legacyInputRef} className="sr-only" type="file" tabIndex={-1} aria-label="Select an Excel tracker to import" accept=".xlsx,.xls" onChange={(event) => void handleLegacyFile(event)} />
+          <input ref={legacyInputRef} className="sr-only" type="file" tabIndex={-1} aria-label="Select an Excel or CSV sales file to import" accept=".xlsx,.xls,.csv" onChange={(event) => void handleLegacyFile(event)} />
           <input ref={backupInputRef} className="sr-only" type="file" tabIndex={-1} aria-label="Select a Sales Ledger backup file to restore" accept="application/json,.json" onChange={(event) => void handleBackupFile(event)} />
 
           {activeSales.length === 0 || demoSalesCount > 0 ? (
@@ -1549,9 +1562,9 @@ export function SettingsPage({
       <Dialog open={Boolean(importPreview)} onOpenChange={(open) => !open && setImportPreview(null)}>
         <DialogContent className="import-dialog">
           <DialogHeader>
-            <DialogTitle>Review Excel import</DialogTitle>
+            <DialogTitle>Review sales import</DialogTitle>
             <DialogDescription>
-              Sales Ledger imports the sales details and recalculates every total.
+              Sales Ledger imports the sale details and explicit manual/spiff payouts, then recalculates every total using your pay plan.
             </DialogDescription>
           </DialogHeader>
           {importPreview ? (

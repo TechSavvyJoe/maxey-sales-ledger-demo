@@ -11,6 +11,8 @@ export interface SaleFormValues {
   unitCredit: string;
   frontGross: string;
   fiGross: string;
+  manualFrontCommissionEnabled: boolean;
+  frontCommissionOverride: string;
   notes: string;
 }
 
@@ -59,6 +61,17 @@ export function validateSaleForm(values: SaleFormValues): SaleFormErrors {
   if (Number.isNaN(fiGross)) errors.fiGross = "Enter dollars, such as 600 or 600.00.";
   if (fiGross !== null && Math.abs(fiGross) > 100_000_000) {
     errors.fiGross = "Enter an amount between -$1,000,000 and $1,000,000.";
+  }
+
+  if (values.manualFrontCommissionEnabled) {
+    const frontCommissionOverride = parseCurrencyToCents(values.frontCommissionOverride);
+    if (frontCommissionOverride === null) {
+      errors.frontCommissionOverride = "Enter your front commission, or turn off manual payout.";
+    } else if (Number.isNaN(frontCommissionOverride)) {
+      errors.frontCommissionOverride = "Enter dollars, such as 500 or 500.00.";
+    } else if (frontCommissionOverride < 0 || frontCommissionOverride > 100_000_000) {
+      errors.frontCommissionOverride = "Enter an amount from $0 to $1,000,000.";
+    }
   }
 
   return errors;

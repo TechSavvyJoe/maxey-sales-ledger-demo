@@ -8,13 +8,57 @@ async function openWorkspace(page: Page) {
   await expect(page.getByText("Opening your sales workspace")).toBeHidden();
 }
 
-async function loadDemoData(page: Page) {
-  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
-  await page.getByRole("button", { name: /^Data & backups/ }).click();
-  const dataSettings = page.locator(".data-settings");
-  await expect(dataSettings).toBeVisible();
-  await dataSettings.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+async function loadReportFixtures(page: Page) {
+  // Reconciliation assertions need a fixed, fully entered population. The
+  // public demo deliberately evolves by date and leaves current F&I pending;
+  // its loading behavior is covered separately by the demo-data tests.
+  await page.evaluate(async () => {
+    const modulePath = "/src/persistence/database.ts";
+    const { db, createDefaultSettings } = await import(modulePath);
+    if (await db.sales.count()) throw new Error("Report fixtures require an empty isolated test workspace.");
+    const now = "2026-08-31T16:00:00.000Z";
+    const settings = createDefaultSettings(new Date(now));
+    const payPlan = { ...settings.payPlan, effectiveMonth: "2026-05" };
+    await db.settings.put({
+      ...settings, salespersonName: "Report Test", selectedMonth: "2026-08",
+      payPlan, payPlanHistory: [payPlan], onboardingDismissed: true,
+    });
+    const base = {
+      profileId: "primary", customerLastName: "Example", vehicleDescription: "2024 Ford Escape",
+      status: "delivered", unitCreditBasis: 1_000, frontGrossCents: 230_000,
+      notes: "", createdAt: now, updatedAt: now, revision: 1, source: "manual",
+    };
+    // [delivery day, service contract, tire & wheel, GAP, payment, F&I dollars]
+    // 6 service / 3 T&W / 4 GAP; 4 multi-product / 1 all-three; all 4 GAP sales
+    // are financed. Finance totals $6,100; all 12 sales total $9,150.
+    const august = [
+      ["01", true, true, true, "dealer_financed", 1_800],
+      ["03", true, false, true, "dealer_financed", 1_000],
+      ["04", true, true, false, "dealer_financed", 1_200],
+      ["05", true, false, true, "dealer_financed", 1_000],
+      ["06", true, false, false, "cash", 1_700],
+      ["07", true, false, false, "dealer_financed", 700],
+      ["08", false, true, false, "outside_financing", 1_350],
+      ["10", false, false, true, "dealer_financed", 400],
+      ["11", false, false, false, "dealer_financed", 0],
+      ["12", false, false, false, "dealer_financed", 0],
+      ["13", false, false, false, "cash", 0],
+      ["14", false, false, false, "outside_financing", 0],
+    ] as const;
+    await db.sales.bulkAdd([
+      ...august.map(([day, serviceContractSold, tireWheelSold, gapSold, paymentMethod, fiDollars], index) => ({
+        ...base, id: `reports-august-${index}`, stockNumber: `REPORT-AUG-${index}`,
+        saleDate: `2026-08-${day}`, serviceContractSold, tireWheelSold, gapSold,
+        paymentMethod, fiGrossCents: fiDollars * 100,
+      })),
+      ...["05", "06", "07"].map((month) => ({
+        ...base, id: `reports-baseline-${month}`, stockNumber: `REPORT-BASE-${month}`,
+        saleDate: `2026-${month}-01`, serviceContractSold: true, tireWheelSold: false,
+        gapSold: true, paymentMethod: "dealer_financed", fiGrossCents: 120_000,
+      })),
+    ]);
+  });
+  await page.reload();
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
 }
@@ -46,7 +90,7 @@ test.beforeEach(async ({ page }) => {
 test("reports center reconciles product, financing, and one total F&I gross source", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "Dense table evidence is covered once on desktop.");
   await openWorkspace(page);
-  await loadDemoData(page);
+  await loadReportFixtures(page);
   await page
     .getByRole("tablist", { name: "Monthly report subject" })
     .getByRole("tab", { name: "F&I", exact: true })
@@ -150,7 +194,7 @@ test("phone reports use disclosures and cards without page-level sideways scroll
   test.skip(testInfo.project.name !== "mobile-chrome", "Phone-specific report layout.");
   await page.setViewportSize({ width: 390, height: 844 });
   await openWorkspace(page);
-  await loadDemoData(page);
+  await loadReportFixtures(page);
 
   const monthSubjects = page.getByRole("tablist", { name: "Monthly report subject" });
   await expectResponsiveSubjectTabs(monthSubjects, 4);
@@ -206,7 +250,7 @@ test("tablet reports keep all overflow inside named report regions", async ({ pa
   test.skip(testInfo.project.name !== "tablet-chrome", "Tablet-specific report layout.");
   await page.setViewportSize({ width: 1024, height: 768 });
   await openWorkspace(page);
-  await loadDemoData(page);
+  await loadReportFixtures(page);
   await page
     .getByRole("tablist", { name: "Monthly report subject" })
     .getByRole("tab", { name: "F&I", exact: true })

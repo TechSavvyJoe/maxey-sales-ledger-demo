@@ -1,7 +1,8 @@
 import { format, isValid, parse } from "date-fns";
 import { isValidDateOnly, todayDateOnly } from "@/domain/date";
+import { normalizeSaleFinancing } from "@/domain/financing";
 import { parseCurrencyToCents } from "@/domain/money";
-import type { EditableSaleStatus, ImportPreview, Sale } from "@/domain/types";
+import type { EditableSaleStatus, ImportPreview, PaymentMethod, Sale } from "@/domain/types";
 import { sha256 } from "@/lib/files";
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -45,6 +46,14 @@ function parseImportedMoney(value: unknown): number | null {
   const text = String(value).trim();
   const normalized = /^\(.*\)$/.test(text) ? `-${text.slice(1, -1)}` : text;
   return parseCurrencyToCents(normalized);
+}
+
+function parseImportedPaymentMethod(value: unknown): PaymentMethod | undefined {
+  const normalized = normalizeHeader(value);
+  if (["finance", "financed", "dealer financed", "dealer financing"].includes(normalized)) return "dealer_financed";
+  if (normalized === "cash") return "cash";
+  if (["outside finance", "outside financing", "outside financed"].includes(normalized)) return "outside_financing";
+  return undefined;
 }
 
 /**
@@ -100,8 +109,10 @@ export async function previewLegacyWorkbook(
   });
   const sheetName = workbook.SheetNames.find(
     (name) => name.trim().toLocaleLowerCase("en-US") === "enter sales",
-  ) ?? workbook.SheetNames.find((name) => name.toLocaleLowerCase("en-US").includes("export"));
-  if (!sheetName) throw new Error("Could not find an Enter Sales or Export Report sheet.");
+  ) ?? workbook.SheetNames.find((name) => name.toLocaleLowerCase("en-US").includes("export"))
+    ?? workbook.SheetNames.find((name) => name.trim().toLocaleLowerCase("en-US") === "sales detail")
+    ?? (/\.csv$/i.test(file.name) ? workbook.SheetNames[0] : undefined);
+  if (!sheetName) throw new Error("Could not find an Enter Sales, Sales Detail, or Export Report sheet.");
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) throw new Error("The selected workbook sheet could not be read.");
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
@@ -128,6 +139,12 @@ export async function previewLegacyWorkbook(
     tireWheel: headerIndex(headers, ["t&w", "tire & wheel", "tire wheel"]),
     gap: headerIndex(headers, ["gap"]),
     dealerFinanced: headerIndex(headers, ["dealer financed", "dealer financing", "financed through dealer"]),
+    paymentMethod: headerIndex(headers, ["payment method"]),
+    // Only an explicitly manual payout is authoritative. Never import a
+    // calculated Front Commission, Sale Commission, or month total as an override.
+    manualFront: headers.findIndex((header) => [
+      "manual front commission personal", "manual front commission", "front commission override",
+    ].includes(header)),
   };
   if (indexes.date < 0 || indexes.stock < 0 || indexes.status < 0) {
     throw new Error("The workbook is missing date, stock, or status columns.");
@@ -181,11 +198,22 @@ export async function previewLegacyWorkbook(
     }
     const frontGrossCents = indexes.front >= 0 ? parseImportedMoney(row[indexes.front]) : null;
     const fiGrossCents = indexes.fi >= 0 ? parseImportedMoney(row[indexes.fi]) : null;
+    const frontCommissionOverrideCents = indexes.manualFront >= 0
+      ? parseImportedMoney(row[indexes.manualFront])
+      : undefined;
     const invalidMoney = (value: number | null) =>
       value !== null &&
       (!Number.isSafeInteger(value) || Math.abs(value) > 100_000_000);
     if (invalidMoney(frontGrossCents) || invalidMoney(fiGrossCents)) {
       rejectedRows.push({ row: rowNumber, reason: "Gross must be valid and between -$1,000,000 and $1,000,000." });
+      continue;
+    }
+    if (frontCommissionOverrideCents != null && (
+      !Number.isSafeInteger(frontCommissionOverrideCents)
+      || frontCommissionOverrideCents < 0
+      || frontCommissionOverrideCents > 100_000_000
+    )) {
+      rejectedRows.push({ row: rowNumber, reason: "Manual front commission must be a valid personal amount between $0 and $1,000,000." });
       continue;
     }
     const rawUnit = indexes.unit >= 0 ? String(row[indexes.unit] ?? "").trim() : "";
@@ -205,7 +233,7 @@ export async function previewLegacyWorkbook(
       continue;
     }
     const timestamp = new Date().toISOString();
-    validSales.push({
+    validSales.push(normalizeSaleFinancing({
       id: `legacy-${sourceHash.slice(0, 16)}-${rowNumber}`,
       profileId: "primary",
       saleDate,
@@ -216,6 +244,7 @@ export async function previewLegacyWorkbook(
       unitCreditBasis: Math.round(unitCredit * 1_000),
       frontGrossCents: frontGrossCents ?? null,
       fiGrossCents: fiGrossCents ?? null,
+      ...(frontCommissionOverrideCents !== undefined ? { frontCommissionOverrideCents } : {}),
       serviceContractSold: indexes.serviceContract >= 0
         ? parseImportedBoolean(row[indexes.serviceContract])
         : undefined,
@@ -228,13 +257,14 @@ export async function previewLegacyWorkbook(
       dealerFinanced: indexes.dealerFinanced >= 0
         ? parseImportedBoolean(row[indexes.dealerFinanced])
         : undefined,
+      paymentMethod: indexes.paymentMethod >= 0 ? parseImportedPaymentMethod(row[indexes.paymentMethod]) : undefined,
       notes: "",
       createdAt: timestamp,
       updatedAt: timestamp,
       revision: 1,
       source: "legacy-xlsx",
       sourceReference: `${file.name.slice(0, 180)} · ${sheetName.slice(0, 40)}!${rowNumber}`,
-    });
+    }));
   }
 
   if (skippedUndeliveredRows.length) {

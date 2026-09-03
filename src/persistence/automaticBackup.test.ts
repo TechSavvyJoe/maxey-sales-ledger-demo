@@ -1,6 +1,6 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { BackupEnvelope } from "@/domain/types";
+import type { BackupEnvelope, Sale } from "@/domain/types";
 import { createBackupEnvelope, parseBackupFile } from "@/lib/files";
 import {
   AUTOMATIC_BACKUP_CURRENT_FILE_NAME,
@@ -207,6 +207,34 @@ describe("automatic backup folder service", () => {
     expect(result.recoveryFileName).toBeNull();
     expect(current.createWritableCalls).toBe(1);
     expect(snapshot.createWritableCalls).toBe(1);
+  });
+
+  it("retains personal spiffs and Mini settings in verified recovery history when the override is cleared", async () => {
+    const root = new MemoryDirectoryHandle("Personal backups");
+    const settings = createDefaultSettings(new Date("2026-08-31T16:00:00Z"));
+    settings.payPlan.minimumFrontCommissionCents = 45_000;
+    settings.payPlanHistory[0].minimumFrontCommissionCents = 45_000;
+    const sale: Sale = {
+      id: "backup-spiff", profileId: "primary", saleDate: "2026-08-10",
+      customerLastName: "Example", stockNumber: "SPIFF", vehicleDescription: "Example vehicle",
+      status: "delivered", unitCreditBasis: 500, frontGrossCents: -31_661, fiGrossCents: null,
+      frontCommissionOverrideCents: 50_000, notes: "", revision: 1,
+      createdAt: "2026-08-10T12:00:00Z", updatedAt: "2026-08-10T12:00:00Z",
+    };
+    const first = await createBackupEnvelope(settings, [sale], []);
+    await writeVerifiedBackupToDirectory(root.asHandle(), first, { now: new Date("2026-08-31T16:00:00Z") });
+    const second = await createBackupEnvelope(settings, [{ ...sale, revision: 2, frontCommissionOverrideCents: null }], []);
+    expect(second.checksum).not.toBe(first.checksum);
+    await writeVerifiedBackupToDirectory(root.asHandle(), second, {
+      now: new Date("2026-09-01T16:00:00Z"), expectedPreviousChecksum: first.checksum,
+    });
+    const current = (await readCurrentBackup(bindingFor(root, second.checksum)))!.envelope;
+    expect(current.data.sales[0]).toMatchObject({ frontCommissionOverrideCents: null, frontGrossCents: -31_661, revision: 2 });
+    expect(current.data.profile.payPlan.minimumFrontCommissionCents).toBe(45_000);
+    const olderFile = historyDirectory(root).files.get("Sales Ledger Backup 2026-08-31.json")!;
+    const older = await parseBackupFile(await olderFile.getFile());
+    expect(older.checksum).toBe(first.checksum);
+    expect(older.data.sales[0].frontCommissionOverrideCents).toBe(50_000);
   });
 
   it.each([

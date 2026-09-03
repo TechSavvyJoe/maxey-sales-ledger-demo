@@ -27,6 +27,7 @@ import { getPaymentMethod } from "@/domain/financing";
 import { formatCurrency, formatCurrencyInput, formatPercent, parseCurrencyToCents } from "@/domain/money";
 import {
   getEarliestPayPlanMonth,
+  getMinimumFrontCommissionCents,
   getPayPlanForMonth,
   getPayPlanSchedule,
   hasPayPlanCoverage,
@@ -91,6 +92,8 @@ function valuesForSale(sale: Sale | null, monthKey: string): SaleFormValues {
         unitCredit: String(sale.unitCreditBasis / 1_000),
         frontGross: formatCurrencyInput(sale.frontGrossCents),
         fiGross: formatCurrencyInput(sale.fiGrossCents),
+        manualFrontCommissionEnabled: sale.frontCommissionOverrideCents != null,
+        frontCommissionOverride: formatCurrencyInput(sale.frontCommissionOverrideCents ?? null),
         notes: sale.notes,
       }
     : {
@@ -102,6 +105,8 @@ function valuesForSale(sale: Sale | null, monthKey: string): SaleFormValues {
         unitCredit: "1",
         frontGross: "",
         fiGross: "",
+        manualFrontCommissionEnabled: false,
+        frontCommissionOverride: "",
         notes: "",
       };
 }
@@ -141,6 +146,10 @@ function comparableFormValues(values: SaleFormValues): string {
     unitCredit: Number.isFinite(unitCredit) ? unitCredit : values.unitCredit.trim(),
     frontGross: normalizedCurrencyValue(values.frontGross),
     fiGross: normalizedCurrencyValue(values.fiGross),
+    manualFrontCommissionEnabled: values.manualFrontCommissionEnabled,
+    frontCommissionOverride: values.manualFrontCommissionEnabled
+      ? normalizedCurrencyValue(values.frontCommissionOverride)
+      : null,
     notes: values.notes.trim(),
   });
 }
@@ -184,6 +193,7 @@ export function SaleFormSheet({
   const unitRef = useRef<HTMLButtonElement>(null);
   const frontRef = useRef<HTMLInputElement>(null);
   const fiRef = useRef<HTMLInputElement>(null);
+  const manualFrontRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const payPlanSchedule = useMemo(
     () => getPayPlanSchedule(settings),
@@ -195,6 +205,10 @@ export function SaleFormSheet({
   );
   const previewMonthKey = monthKeyFromDate(values.saleDate) || settings.selectedMonth;
   const previewHasPayPlan = hasPayPlanCoverage(payPlanSchedule, previewMonthKey);
+  const enteredManualFront = parseCurrencyToCents(values.frontCommissionOverride);
+  const hasManualFront = values.manualFrontCommissionEnabled && enteredManualFront !== null
+    && Number.isSafeInteger(enteredManualFront) && enteredManualFront >= 0 && enteredManualFront <= 100_000_000;
+  const isManualFrontIncomplete = values.manualFrontCommissionEnabled && !hasManualFront;
   const isDirty =
     comparableFormValues(values) !== comparableFormValues(initialValues) ||
     JSON.stringify(fiProducts) !== JSON.stringify(initialFiProducts);
@@ -216,6 +230,9 @@ export function SaleFormSheet({
     if (!hasPayPlanCoverage(payPlanSchedule, monthKey)) return null;
     const frontGrossCents = parseCurrencyToCents(values.frontGross);
     const fiGrossCents = parseCurrencyToCents(values.fiGross);
+    const frontCommissionOverrideCents = values.manualFrontCommissionEnabled
+      ? parseCurrencyToCents(values.frontCommissionOverride)
+      : null;
     const draftId = saleToEdit?.id ?? "__draft__";
     const timestamp = saleToEdit?.createdAt ?? new Date().toISOString();
     const draft: Sale = {
@@ -229,6 +246,10 @@ export function SaleFormSheet({
       unitCreditBasis: Math.round((Number(values.unitCredit) || 0) * 1_000),
       frontGrossCents: Number.isNaN(frontGrossCents) ? null : frontGrossCents,
       fiGrossCents: Number.isNaN(fiGrossCents) ? null : fiGrossCents,
+      frontCommissionOverrideCents: frontCommissionOverrideCents !== null
+        && Number.isSafeInteger(frontCommissionOverrideCents)
+        && frontCommissionOverrideCents >= 0 && frontCommissionOverrideCents <= 100_000_000
+        ? frontCommissionOverrideCents : null,
       notes: values.notes.trim(),
       createdAt: timestamp,
       updatedAt: new Date().toISOString(),
@@ -251,13 +272,15 @@ export function SaleFormSheet({
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setCommissionAnnouncement(
-        preview
+        isManualFrontIncomplete
+          ? "Enter your manual front commission to calculate this sale’s total."
+          : preview
           ? `Estimated commission on this sale ${formatCurrency(preview.sale?.estimatedCommissionCents ?? 0, true)}.`
           : payPlanCoverageMessage(payPlanSchedule, previewMonthKey),
       );
     }, 700);
     return () => window.clearTimeout(timeout);
-  }, [payPlanSchedule, preview, previewMonthKey]);
+  }, [isManualFrontIncomplete, payPlanSchedule, preview, previewMonthKey]);
 
   function updateValue<Key extends keyof SaleFormValues>(key: Key, value: SaleFormValues[Key]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -269,6 +292,17 @@ export function SaleFormSheet({
   function updateFiProduct(key: "serviceContractSold" | "tireWheelSold" | "gapSold", checked: boolean) {
     setFiProducts((current) => ({ ...current, [key]: checked }));
     if (!conflictSaleId) setSaveError(null);
+  }
+
+  function toggleManualFrontCommission(enabled: boolean) {
+    setValues((current) => ({
+      ...current,
+      manualFrontCommissionEnabled: enabled,
+      frontCommissionOverride: enabled ? current.frontCommissionOverride : "",
+    }));
+    setErrors((current) => ({ ...current, frontCommissionOverride: undefined }));
+    if (!conflictSaleId) setSaveError(null);
+    if (enabled) window.requestAnimationFrame(() => manualFrontRef.current?.focus());
   }
 
   function updatePaymentMethod(paymentMethod: PaymentMethod | undefined) {
@@ -332,6 +366,7 @@ export function SaleFormSheet({
         unitCredit: unitRef,
         frontGross: frontRef,
         fiGross: fiRef,
+        frontCommissionOverride: manualFrontRef,
         notes: notesRef,
       };
       const firstInvalid = (Object.keys(nextErrors) as Array<keyof SaleFormValues>)
@@ -355,6 +390,9 @@ export function SaleFormSheet({
       unitCreditBasis: Math.round(Number(values.unitCredit) * 1_000),
       frontGrossCents,
       fiGrossCents,
+      frontCommissionOverrideCents: values.manualFrontCommissionEnabled
+        ? parseCurrencyToCents(values.frontCommissionOverride)
+        : null,
       ...fiProducts,
       notes: values.notes.trim(),
       createdAt: saleToEdit?.createdAt ?? now,
@@ -404,15 +442,27 @@ export function SaleFormSheet({
     Boolean(preview && previewPayPlan && preview.month.frontRateBps === previewPayPlan.acceleratedFrontRateBps);
   const selectedStatus = statusOptions.find((option) => option.value === values.status) ?? statusOptions[0];
   const hasNonstandardCredit = Number(values.unitCredit) !== 1 && Number(values.unitCredit) !== 0.5;
-  const footerEstimate = preview
+  const footerEstimate = isManualFrontIncomplete ? "—" : preview
     ? formatCurrency(preview.sale?.estimatedCommissionCents ?? 0, true)
     : "Not calculated";
   const enteredFrontGross = parseCurrencyToCents(values.frontGross);
   const enteredFiGross = parseCurrencyToCents(values.fiGross);
   const hasFrontGross = enteredFrontGross !== null && !Number.isNaN(enteredFrontGross);
   const hasFiGross = enteredFiGross !== null && !Number.isNaN(enteredFiGross);
-  const frontEstimate = preview && hasFrontGross ? formatCurrency(preview.sale?.frontCommissionCents ?? 0, true) : "—";
+  const hasFrontPay = hasManualFront || (!values.manualFrontCommissionEnabled && hasFrontGross);
+  const frontEstimate = preview && hasFrontPay ? formatCurrency(preview.sale?.frontCommissionCents ?? 0, true) : "—";
   const fiEstimate = preview && hasFiGross ? formatCurrency(preview.sale?.fiCommissionCents ?? 0, true) : "—";
+  const frontMethod = preview?.sale?.frontCommissionMethod;
+  const frontMethodLabel = isManualFrontIncomplete ? "Enter amount"
+    : frontMethod === "mini" ? "Mini"
+    : frontMethod === "manual" ? "Manual"
+    : frontMethod === "percentage" && preview ? formatPercent(preview.month.frontRateBps)
+    : null;
+  const frontExplanation = isManualFrontIncomplete ? "Enter your front payout"
+    : frontMethod === "manual" ? "Your entered front payout; not split again"
+    : frontMethod === "mini" ? `${formatCurrency(preview?.sale?.minimumFrontCommissionCents ?? 0, true)} mini${Number(values.unitCredit) === 0.5 ? " · half-deal share" : ""}`
+    : hasFrontGross && preview ? `${formatPercent(preview.month.frontRateBps)} of ${formatCurrency(enteredFrontGross!, true)} front gross`
+    : "Awaiting front gross";
 
   return (
     <>
@@ -505,7 +555,7 @@ export function SaleFormSheet({
                 </div>
               </div>
               <p className="status-choice-help">{selectedStatus.description}</p>
-              <span id="unit-credit-help" className="sr-only">Check for half a unit of credit. Unchecked is a full unit. An existing custom credit is kept unless you change this option. Unit credit does not change the gross-based commission estimate.</span>
+              <span id="unit-credit-help" className="sr-only">Check for half a unit of credit and half the mini{previewPayPlan ? ` (${formatCurrency(getMinimumFrontCommissionCents(previewPayPlan) / 2)})` : ""}. Percentage commission uses your entered gross; enter your share of gross on a split deal. A manual front payout is never split again. An existing custom credit is kept unless you change this option.</span>
               {errors.unitCredit ? <span id="unit-credit-error" className="field-error">{errors.unitCredit}</span> : null}
             </fieldset>
 
@@ -599,6 +649,15 @@ export function SaleFormSheet({
                   />
                 </div>
                 {errors.frontGross ? <span id="front-gross-error" className="field-error">{errors.frontGross}</span> : null}
+                <label htmlFor="manual-front-commission" className="sale-manual-payout-toggle">
+                  <Checkbox
+                    id="manual-front-commission"
+                    checked={values.manualFrontCommissionEnabled}
+                    aria-controls={values.manualFrontCommissionEnabled ? "manual-front-commission-fields" : undefined}
+                    onCheckedChange={(checked) => toggleManualFrontCommission(checked === true)}
+                  />
+                  <span>Spiff / manual front commission</span>
+                </label>
               </div>
               <div className="field-group">
                 <Label htmlFor="fi-gross">Total F&amp;I gross</Label>
@@ -623,6 +682,36 @@ export function SaleFormSheet({
                 <span id="fi-gross-help" className="field-help">Add the total when F&amp;I provides it. Blank means not received yet.</span>
                 {errors.fiGross ? <span id="fi-gross-error" className="field-error">{errors.fiGross}</span> : null}
               </div>
+              {values.manualFrontCommissionEnabled ? (
+                <div id="manual-front-commission-fields" className="sale-manual-payout-fields">
+                  <div className="field-group">
+                    <Label htmlFor="front-commission-override">Your front commission</Label>
+                    <div className="money-input">
+                      <span aria-hidden="true">$</span>
+                      <Input
+                        ref={manualFrontRef}
+                        id="front-commission-override"
+                        inputMode="decimal"
+                        autoComplete="off"
+                        value={values.frontCommissionOverride}
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.frontCommissionOverride)}
+                        aria-describedby={`front-commission-override-help${errors.frontCommissionOverride ? " front-commission-override-error" : ""}`}
+                        onChange={(event) => updateValue("frontCommissionOverride", event.target.value)}
+                        onBlur={() => {
+                          const cents = parseCurrencyToCents(values.frontCommissionOverride);
+                          if (cents !== null && Number.isSafeInteger(cents) && cents >= 0 && cents <= 100_000_000) {
+                            updateValue("frontCommissionOverride", formatCurrencyInput(cents));
+                          }
+                        }}
+                        placeholder="500.00"
+                      />
+                    </div>
+                    {errors.frontCommissionOverride ? <span id="front-commission-override-error" className="field-error">{errors.frontCommissionOverride}</span> : null}
+                  </div>
+                  <p id="front-commission-override-help" className="field-help">Replaces calculated front pay—not added to it. Enter your share; F&amp;I stays separate.</p>
+                </div>
+              ) : null}
             </div>
 
             <fieldset className="form-section sale-fi-products">
@@ -732,7 +821,7 @@ export function SaleFormSheet({
                   <dl className="sale-commission-components">
                     <div>
                       <dt>Front commission</dt>
-                      <dd><strong>{frontEstimate}</strong><small>{hasFrontGross ? `${formatPercent(preview.month.frontRateBps)} of ${formatCurrency(enteredFrontGross!, true)} front gross` : "Awaiting front gross"}</small></dd>
+                      <dd><strong>{frontEstimate}</strong><small>{frontExplanation}</small></dd>
                     </div>
                     <div>
                       <dt>F&amp;I commission</dt>
@@ -740,12 +829,16 @@ export function SaleFormSheet({
                     </div>
                     <div className="sale-commission-total">
                       <dt>Sale total</dt>
-                      <dd><strong>{footerEstimate}</strong><small>{hasFrontGross && hasFiGross ? "Estimated from this sale’s gross" : "From gross entered so far"}</small></dd>
+                      <dd><strong>{footerEstimate}</strong><small>{isManualFrontIncomplete ? "Enter your front payout" : hasManualFront ? (hasFiGross ? "Manual front + F&I commission" : "Manual front; awaiting F&I gross") : hasFrontGross && hasFiGross ? "Estimated from this sale’s gross" : "From gross entered so far"}</small></dd>
                     </div>
                   </dl>
                   <p>
                     {values.status !== "delivered"
                       ? "Pending delivery — this sale does not count toward commission yet."
+                      : values.manualFrontCommissionEnabled
+                        ? "Manual payout replaces the rate and mini for this sale. Gross reporting and monthly bonuses stay unchanged."
+                      : frontMethod === "mini"
+                        ? `${formatCurrency(preview.sale?.minimumFrontCommissionCents ?? 0, true)} mini applies because percentage commission is lower.${hasFrontGross && enteredFrontGross! < 0 ? " Negative front gross affects gross reporting, not this payout." : ""}`
                       : isAccelerated
                         ? `${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front rate includes the retroactive increase for selling over ${previewPayPlan.acceleratedThresholdExclusive} vehicles in ${monthLabel(preview.month.monthKey)}.`
                         : `This sale’s front rate becomes ${formatPercent(previewPayPlan.acceleratedFrontRateBps)} retroactively when the month finishes with over ${previewPayPlan.acceleratedThresholdExclusive} delivered vehicles.`}
@@ -759,7 +852,7 @@ export function SaleFormSheet({
 
           <div className="sale-form__footer">
             <div className="sale-form__footer-estimate sale-footer-breakdown" role="group" aria-label="This sale’s estimated commission">
-              <span><small>Front</small><strong>{frontEstimate}</strong></span>
+              <span><small>Front</small><strong>{frontEstimate}</strong>{frontMethodLabel ? <span className="sale-footer-method">{frontMethodLabel}</span> : null}</span>
               <span><small>F&amp;I</small><strong>{fiEstimate}</strong></span>
               <span className="sale-footer-total"><small>Sale total</small><strong>{footerEstimate}</strong></span>
             </div>

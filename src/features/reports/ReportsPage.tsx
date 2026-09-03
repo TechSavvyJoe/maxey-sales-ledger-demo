@@ -350,9 +350,21 @@ export function ReportsPage({
     [monthlyAnalytics, previousAnalytics],
   );
   const awaitingFiGrossCount = monthlyAnalytics.gross.fi.missingCount;
-  const payrollEstimateIncomplete = awaitingFiGrossCount > 0 || monthlyAnalytics.gross.front.missingCount > 0;
+  const awaitingFrontCommissionCount = monthlyAnalytics.quality.frontCommissionMissingCount;
+  const payrollEstimateIncomplete = awaitingFiGrossCount > 0 || awaitingFrontCommissionCount > 0;
+  const projectionIncomplete = awaitingFiGrossCount > 0 || monthlyAnalytics.gross.front.missingCount > 0;
+  const pendingEarningsLabel = awaitingFrontCommissionCount > 0
+    ? awaitingFiGrossCount > 0 ? "Awaiting gross amounts" : "Awaiting front gross"
+    : "Awaiting F&I gross";
+  const pendingEarningsDescription = [
+    awaitingFrontCommissionCount > 0 ? `Front gross is missing on ${awaitingFrontCommissionCount} ${awaitingFrontCommissionCount === 1 ? "sale" : "sales"}.` : "",
+    awaitingFiGrossCount > 0 ? `Awaiting F&I gross on ${awaitingFiGrossCount} ${awaitingFiGrossCount === 1 ? "sale" : "sales"}.` : "",
+  ].filter(Boolean).join(" ");
   const fiComparisonIncomplete = awaitingFiGrossCount > 0 || (previousAnalytics?.gross.fi.missingCount ?? 0) > 0;
   const frontComparisonIncomplete = monthlyAnalytics.gross.front.missingCount > 0 || (previousAnalytics?.gross.front.missingCount ?? 0) > 0;
+  const commissionComparisonIncomplete = payrollEstimateIncomplete
+    || (previousAnalytics?.quality.frontCommissionMissingCount ?? 0) > 0
+    || (previousAnalytics?.gross.fi.missingCount ?? 0) > 0;
   const attentionRecords = useMemo(
     () => getAttentionRecords(summary.calculatedSales, todayDate),
     [summary.calculatedSales, todayDate],
@@ -641,7 +653,7 @@ export function ReportsPage({
             >
             <section id="month-overview" className="report-metric-grid" aria-label="Monthly report summary">
               <ReportMetric label="Delivered" value={String(summary.deliveredCount)} note={`${summary.creditedUnitsBasis / 1_000} credited units`} />
-              <ReportMetric label="Front rate" value={formatPercent(summary.frontRateBps)} note="Applied month-wide" />
+              <ReportMetric label="Front rate" value={formatPercent(summary.frontRateBps)} note="Mini or manual payout may apply" />
               <ReportMetric label="Front gross" value={formatCurrency(summary.frontGrossCents)} />
               <ReportMetric
                 label="Total F&I gross"
@@ -670,7 +682,7 @@ export function ReportsPage({
                   <div><dt>Valid deliveries</dt><dd><strong>{summary.deliveredCount}</strong><small>{comparisonChange(monthComparison.deliveredDeals, (value) => value.toLocaleString())}</small></dd></div>
                   <div><dt>Front gross</dt><dd><strong>{monthlyAnalytics.gross.front.enteredCount ? formatCurrency(summary.frontGrossCents) : "—"}</strong><small>{frontComparisonIncomplete ? "Awaiting front gross" : comparisonChange(monthComparison.frontGrossCents, formatCurrency)}</small></dd></div>
                   <div><dt>Total F&amp;I gross</dt><dd><strong>{monthlyAnalytics.gross.fi.enteredCount ? formatCurrency(summary.fiGrossCents) : "—"}</strong><small>{fiComparisonIncomplete ? "Awaiting F&I gross" : comparisonChange(monthComparison.fiGrossCents, formatCurrency)}</small></dd></div>
-                  <div><dt>Monthly estimate</dt><dd><strong>{formatCurrency(summary.estimatedCommissionCents)}</strong><small>{fiComparisonIncomplete || frontComparisonIncomplete ? "Comparison waits for gross amounts" : comparisonChange(monthComparison.estimatedCommissionCents, formatCurrency)}</small></dd></div>
+                  <div><dt>Monthly estimate</dt><dd><strong>{formatCurrency(summary.estimatedCommissionCents)}</strong><small>{commissionComparisonIncomplete ? "Comparison waits for commission amounts" : comparisonChange(monthComparison.estimatedCommissionCents, formatCurrency)}</small></dd></div>
                   <div><dt>Any product</dt><dd><strong>{monthlyAnalytics.products.anyProduct.penetrationRate === null ? "—" : `${Math.round(monthlyAnalytics.products.anyProduct.penetrationRate * 100)}%`}</strong><small>{rateComparisonChange(monthComparison.anyProductPenetrationRate)}</small></dd></div>
                   <div><dt>Finance Penetration</dt><dd><strong>{monthlyAnalytics.finance.dealerFinance.penetrationRate === null ? "—" : `${Math.round(monthlyAnalytics.finance.dealerFinance.penetrationRate * 100)}%`}</strong><small>{rateComparisonChange(monthComparison.dealerFinancePenetrationRate)}</small></dd></div>
                 </dl>
@@ -720,9 +732,9 @@ export function ReportsPage({
                 <small>Includes {formatCurrency(summary.bonusIncludedCents)} bonus</small>
               </div>
               <div>
-                <span>{monthIsComplete ? "Month deliveries" : awaitingFiGrossCount > 0 ? "Projection from entered gross" : "Projected month end"}</span>
+                <span>{monthIsComplete ? "Month deliveries" : projectionIncomplete ? "Projection from entered gross" : "Projected month end"}</span>
                 <strong>{monthIsComplete ? `${summary.deliveredCount} ${summary.deliveredCount === 1 ? "delivery" : "deliveries"}` : projectedCommission}</strong>
-                <small>{monthIsComplete ? `${formatCurrency(summary.estimatedCommissionCents)} ${awaitingFiGrossCount > 0 ? "recorded so far" : "final recorded estimate"}` : projectedUnits}</small>
+                <small>{monthIsComplete ? `${formatCurrency(summary.estimatedCommissionCents)} ${payrollEstimateIncomplete ? "recorded so far" : "final recorded estimate"}` : projectedUnits}</small>
               </div>
               <div>
                 <span>Commission goal</span>
@@ -730,21 +742,21 @@ export function ReportsPage({
                 <small>{earningsGoal ? `${Math.round(earningsGoal.progressPercent)}% reached` : "Optional personal target"}</small>
               </div>
               <div>
-                <span>{earningsGoal ? awaitingFiGrossCount > 0 ? "Goal gap so far" : "Still needed" : monthIsComplete ? "Month status" : "Projection basis"}</span>
+                <span>{earningsGoal ? payrollEstimateIncomplete ? "Goal gap so far" : "Still needed" : monthIsComplete ? "Month status" : "Projection basis"}</span>
                 <strong>{earningsGoal ? formatCurrency(earningsGoal.remainingCents) : monthIsComplete ? "Closed" : "Current pace"}</strong>
-                <small>{awaitingFiGrossCount > 0 ? "Awaiting F&I gross" : monthIsComplete
+                <small>{payrollEstimateIncomplete ? pendingEarningsLabel : monthIsComplete
                   ? earningsGoal
                     ? earningsGoal.remainingCents === 0
                       ? "Commission goal reached"
                       : "No scheduled workdays remain"
                     : "Final recorded results"
                   : earningsGoal?.requiredPerRemainingWorkdayCents === null || earningsGoal?.requiredPerRemainingWorkdayCents === undefined
-                    ? "Based on scheduled workdays and average recorded gross"
+                    ? "Based on scheduled workdays and your deal mix"
                     : `${formatCurrency(earningsGoal.requiredPerRemainingWorkdayCents)} needed per remaining workday`}</small>
               </div>
-              <p>{awaitingFiGrossCount > 0 ? `Awaiting F&I gross on ${awaitingFiGrossCount} ${awaitingFiGrossCount === 1 ? "sale" : "sales"}. Earnings shown use only gross entered so far. Add the amounts to these deliveries when your F&I manager provides them.` : monthIsComplete
+              <p>{payrollEstimateIncomplete ? `${pendingEarningsDescription} Earnings shown use recorded amounts so far.` : monthIsComplete
                 ? "This closed month shows final recorded results. Commission remains a personal estimate until reconciled with payroll."
-                : "Projection is a planning scenario based on current pace and average recorded gross, not guaranteed payroll."}</p>
+                : "Projection is a planning scenario, not guaranteed payroll."}{!monthIsComplete && projectionIncomplete && !payrollEstimateIncomplete ? " Some front gross is still missing, so projected new earnings use only entered gross." : ""}{!monthIsComplete ? " It uses your deal mix and Mini; one-off manual amounts are not repeated." : ""}</p>
             </section>
             </div>
 
@@ -786,7 +798,7 @@ export function ReportsPage({
                 </summary>
                 <section className="report-earnings report-disclosure__body" aria-label="Estimated earnings calculation">
                   <dl>
-                    <div><dt>Front commission</dt><dd>{formatCurrency(summary.frontCommissionCents, true)}</dd></div>
+                    <div><dt>Front commission<small>Calculated per sale · {summary.miniDealCount} Mini · {summary.manualFrontCommissionCount} manual/spiff</small></dt><dd>{formatCurrency(summary.frontCommissionCents, true)}</dd></div>
                     <div><dt>F&amp;I commission</dt><dd>{formatCurrency(summary.fiCommissionCents, true)}</dd></div>
                     <div className="subtotal"><dt>Sales commission</dt><dd>{formatCurrency(summary.coreCommissionCents, true)}</dd></div>
                     <div className="bonus-row">
@@ -842,6 +854,7 @@ export function ReportsPage({
                                   <td>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</td>
                                   <td>
                                     {formatCurrency(item.estimatedCommissionCents)}
+                                    {item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}
                                     {attention
                                       ? <small className="report-warning">{attentionSummary(attention)}</small>
                                       : !item.countsTowardVolume
@@ -868,7 +881,7 @@ export function ReportsPage({
                               <dl>
                                 <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                                 <div><dt>Total F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
-                                <div><dt>Sale commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
+                                <div><dt>Sale commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}{item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}</dd></div>
                               </dl>
                               {attention
                                 ? <small className="report-sale-card__flag">{attentionSummary(attention)}</small>
@@ -1043,7 +1056,7 @@ export function ReportsPage({
                             <dl>
                               <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                               <div><dt>Total F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
-                              <div><dt>Sale commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
+                              <div><dt>Sale commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}{item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}</dd></div>
                             </dl>
                             {attention ? <small className="weekly-deal-row__attention">{attentionSummary(attention)}</small> : null}
                           </article>
@@ -1299,7 +1312,7 @@ export function ReportsPage({
               </dl>
               <p>
                 {payrollEstimateIncomplete
-                  ? `Estimate incomplete — awaiting ${awaitingFiGrossCount > 0 ? monthlyAnalytics.gross.front.missingCount > 0 ? "front and F&I" : "F&I" : "front"} gross.`
+                  ? `Estimate incomplete — awaiting ${awaitingFiGrossCount > 0 ? awaitingFrontCommissionCount > 0 ? "front and F&I" : "F&I" : "front"} gross.`
                   : "If the amounts differ, review missing sales, duplicate stock numbers, reversals, rounding, bonuses, and the pay plan used for the month."}
               </p>
             </section>

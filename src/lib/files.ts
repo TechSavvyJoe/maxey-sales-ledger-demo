@@ -16,7 +16,7 @@ import {
   calculateReportAnalytics,
 } from "@/domain/reportAnalytics";
 import { calculateFiPenetration, calculateWeeklyPerformance } from "@/domain/weeklyPerformance";
-import { getPayPlanForMonth, getPayPlanSchedule, validatePayPlan } from "@/domain/payPlan";
+import { DEFAULT_MINIMUM_FRONT_COMMISSION_CENTS, getMinimumFrontCommissionCents, getPayPlanForMonth, getPayPlanSchedule, validatePayPlan } from "@/domain/payPlan";
 import type {
   AuditEvent,
   BackupEnvelope,
@@ -81,6 +81,7 @@ const saleSchema = z.object({
   unitCreditBasis: z.number().int().min(0).max(2_000),
   frontGrossCents: z.number().int().min(-100_000_000).max(100_000_000).nullable(),
   fiGrossCents: z.number().int().min(-100_000_000).max(100_000_000).nullable(),
+  frontCommissionOverrideCents: z.number().int().min(0).max(100_000_000).nullable().optional(),
   serviceContractSold: z.boolean().optional(),
   tireWheelSold: z.boolean().optional(),
   gapSold: z.boolean().optional(),
@@ -102,6 +103,7 @@ const payPlanSchema: z.ZodType<PayPlan> = z.object({
   acceleratedFrontRateBps: z.number().int().min(0).max(10_000),
   acceleratedThresholdExclusive: z.number().int().min(0).max(100),
   fiRateBps: z.number().int().min(0).max(10_000),
+  minimumFrontCommissionCents: z.number().int().min(0).max(100_000_000).default(DEFAULT_MINIMUM_FRONT_COMMISSION_CENTS),
   bonusTiers: z.array(
     z.object({
       minimumDelivered: z.number().int().min(1).max(100),
@@ -395,6 +397,9 @@ function monthlyCsvRows(
     "Dealer Financed",
     "Payment Method",
     "Front Rate",
+    "Commissionable Front Gross",
+    "Manual Front Commission (Personal)",
+    "Front Commission Method",
     "Front Commission",
     "F&I Commission",
     "Sale Commission (Monthly Bonus Excluded)",
@@ -416,6 +421,9 @@ function monthlyCsvRows(
     csvText(trackedOutcomeLabel(dealerFinancingOutcome(item.sale))),
     csvText(paymentMethodLabel(item.sale)),
     (item.frontRateBps / 100).toFixed(2),
+    (item.commissionableFrontGrossCents / 100).toFixed(2),
+    item.sale.frontCommissionOverrideCents == null ? "" : (item.sale.frontCommissionOverrideCents / 100).toFixed(2),
+    csvText(frontCommissionMethodLabel(item)),
     (item.frontCommissionCents / 100).toFixed(2),
     (item.fiCommissionCents / 100).toFixed(2),
     (item.estimatedCommissionCents / 100).toFixed(2),
@@ -472,6 +480,9 @@ const CURRENCY_REPORT_METRICS = new Set([
   "recorded f&i gross per group deal (pvr)",
   "estimated f&i commission per delivered sale",
   "front commission",
+  "commissionable front gross",
+  "manual front commission (personal)",
+  "mini (full deal)",
   "f&i commission",
   "sale commission",
   "sales commission",
@@ -707,6 +718,14 @@ export function buildReportAnalyticsExportTables(
   };
 }
 
+function frontCommissionMethodLabel(item: CalculatedSale): string {
+  if (!item.countsTowardVolume) return "Not included";
+  if (item.frontCommissionMethod === "manual") return "Manual / spiff (personal amount)";
+  if (item.frontCommissionMethod === "mini") return "Mini";
+  if (!item.commissionReady) return "Awaiting front gross";
+  return "Gross percentage";
+}
+
 /** Builds the identifier-bearing workbook table under the report privacy choice. */
 export function buildSalesDetailExportRows(
   calculatedSales: CalculatedSale[],
@@ -733,6 +752,9 @@ export function buildSalesDetailExportRows(
     "Dealer Financed": trackedOutcomeLabel(dealerFinancingOutcome(item.sale)),
     "Payment Method": paymentMethodLabel(item.sale),
     "Front Rate": item.frontRateBps / 10_000,
+    "Commissionable Front Gross": item.commissionableFrontGrossCents / 100,
+    "Manual Front Commission (Personal)": dollarsOrBlank(item.sale.frontCommissionOverrideCents),
+    "Front Commission Method": frontCommissionMethodLabel(item),
     "Front Commission": item.frontCommissionCents / 100,
     "F&I Commission": item.fiCommissionCents / 100,
     "Sale Commission": item.estimatedCommissionCents / 100,
@@ -807,6 +829,10 @@ export async function exportSalesWorkbook(
     ["Plan name", selectedPayPlan.version],
     ["Pay plan effective month", selectedPayPlan.effectiveMonth],
     ["Bonus method", "Cumulative milestone add-ons"],
+    ["Mini (full deal)", getMinimumFrontCommissionCents(selectedPayPlan) / 100],
+    ["Front commission calculation", "Per sale: the higher of nonnegative entered front gross × month rate or Mini × deal credit. Entered gross already represents your share. A manual front amount replaces that payout and is not split again."],
+    ["Reported gross", "Actual signed gross is retained in gross totals. A negative front gross never offsets another sale’s commission."],
+    ["Manual / spiff amount", "Personal front commission, not an extra bonus. F&I commission and monthly volume bonuses remain separate."],
     [],
     ["Metric", "Value"],
     ["Delivered", selected.deliveredCount],
@@ -832,6 +858,7 @@ export async function exportSalesWorkbook(
       roundUpVehiclePace(pace.requiredPerRemainingWorkday) ?? "—",
     ],
     ["Front gross", selected.frontGrossCents / 100],
+    ["Commissionable front gross", selected.commissionableFrontGrossCents / 100],
     ["Total F&I gross", selected.fiGrossCents / 100],
     ["Recorded front gross per delivered sale", dollarsOrBlank(selectedAnalytics.gross.front.averagePerDeliveredDealCents)],
     ["Recorded F&I gross per delivered sale (PVR)", dollarsOrBlank(selectedAnalytics.gross.fi.averagePerDeliveredDealCents)],
@@ -865,6 +892,8 @@ export async function exportSalesWorkbook(
     ["Deals with incomplete product tracking", selectedAnalytics.products.incompletelyTrackedDealCount],
     ["Front rate", selected.frontRateBps / 10_000],
     ["Front commission", selected.frontCommissionCents / 100],
+    ["Mini deals", selected.miniDealCount],
+    ["Manual / spiff deals", selected.manualFrontCommissionCount],
     ["F&I commission", selected.fiCommissionCents / 100],
     ["Sales commission", selected.coreCommissionCents / 100],
     ["Qualifying bonus milestone", selectedMilestone?.minimumDelivered ?? "None"],
@@ -914,6 +943,11 @@ export async function exportSalesWorkbook(
       "Expected by Now": week.state === "future" ? "" : roundUpVehiclePace(week.goal.expectedDeliveriesToDate),
       "Pace Difference": week.state === "future" ? "" : Math.sign(week.goal.paceDeltaToDate) * Math.ceil(Math.abs(week.goal.paceDeltaToDate)),
       "Front Gross": week.frontGrossCents / 100,
+      "Commissionable Front Gross": weekAnalytics.commission.commissionableFrontGrossCents / 100,
+      "Front Commission": weekAnalytics.commission.frontCommissionCents / 100,
+      "F&I Commission": weekAnalytics.commission.fiCommissionCents / 100,
+      "Mini Deals": weekAnalytics.commission.miniDealCount,
+      "Manual / Spiff Deals": weekAnalytics.commission.manualFrontCommissionCount,
       "Total F&I Gross": week.fiGrossCents / 100,
       "Recorded F&I Gross per Delivered Sale (PVR)": dollarsOrBlank(weekAnalytics.gross.fi.averagePerDeliveredDealCents),
       "Estimated F&I Commission per Delivered Sale": dollarsOrBlank(weekAnalytics.commission.averageFiCommissionPerDeliveredDealCents),
@@ -951,6 +985,12 @@ export async function exportSalesWorkbook(
       Delivered: month.deliveredCount,
       "Credited Units": month.creditedUnitsBasis / 1_000,
       "Front Gross": month.frontGrossCents / 100,
+      "Commissionable Front Gross": month.commissionableFrontGrossCents / 100,
+      "Front Commission": month.frontCommissionCents / 100,
+      "F&I Commission": month.fiCommissionCents / 100,
+      "Mini (Full Deal)": month.minimumFrontCommissionCents / 100,
+      "Mini Deals": month.miniDealCount,
+      "Manual / Spiff Deals": month.manualFrontCommissionCount,
       "Total F&I Gross": month.fiGrossCents / 100,
       "Recorded Front Gross per Delivered Sale": dollarsOrBlank(report.gross.front.averagePerDeliveredDealCents),
       "Recorded F&I Gross per Delivered Sale (PVR)": dollarsOrBlank(report.gross.fi.averagePerDeliveredDealCents),
@@ -1086,5 +1126,6 @@ export function reportRowForSale(sale: Sale): string[] {
     trackedOutcomeLabel(dealerFinancingOutcome(sale)),
     paymentMethodLabel(sale),
     monthKeyFromDate(sale.saleDate),
+    sale.frontCommissionOverrideCents == null ? "" : formatCurrency(sale.frontCommissionOverrideCents, true),
   ];
 }

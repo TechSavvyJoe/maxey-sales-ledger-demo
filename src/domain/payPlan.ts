@@ -2,6 +2,12 @@ import type { PayPlan, ProfileSettings } from "@/domain/types";
 
 const MONTH_KEY_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+export const DEFAULT_MINIMUM_FRONT_COMMISSION_CENTS = 30_000;
+
+export function getMinimumFrontCommissionCents(payPlan: PayPlan): number {
+  return payPlan.minimumFrontCommissionCents ?? DEFAULT_MINIMUM_FRONT_COMMISSION_CENTS;
+}
+
 export interface PayPlanValidationResult {
   valid: boolean;
   issues: string[];
@@ -32,6 +38,10 @@ export function validatePayPlan(payPlan: PayPlan): PayPlanValidationResult {
   }
   if (!validInteger(payPlan.fiRateBps, 0, 10_000)) {
     issues.push("F&I rate must be between 0% and 100%.");
+  }
+  if (!validInteger(payPlan.minimumFrontCommissionCents === undefined
+    ? DEFAULT_MINIMUM_FRONT_COMMISSION_CENTS : payPlan.minimumFrontCommissionCents, 0, 100_000_000)) {
+    issues.push("Mini must be between $0 and $1,000,000, with no more than two decimal places.");
   }
   if (payPlan.bonusTiers.length > 20) {
     issues.push("Use no more than 20 bonus tiers.");
@@ -126,6 +136,7 @@ export function payPlanStructureChanged(previous: PayPlan, next: PayPlan): boole
     acceleratedFrontRateBps: previous.acceleratedFrontRateBps,
     acceleratedThresholdExclusive: previous.acceleratedThresholdExclusive,
     fiRateBps: previous.fiRateBps,
+    minimumFrontCommissionCents: getMinimumFrontCommissionCents(previous),
     bonusTiers: previous.bonusTiers,
   }) !== JSON.stringify({
     version: next.version,
@@ -134,6 +145,7 @@ export function payPlanStructureChanged(previous: PayPlan, next: PayPlan): boole
     acceleratedFrontRateBps: next.acceleratedFrontRateBps,
     acceleratedThresholdExclusive: next.acceleratedThresholdExclusive,
     fiRateBps: next.fiRateBps,
+    minimumFrontCommissionCents: getMinimumFrontCommissionCents(next),
     bonusTiers: next.bonusTiers,
   });
 }

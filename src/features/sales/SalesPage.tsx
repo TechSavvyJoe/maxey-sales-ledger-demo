@@ -483,6 +483,7 @@ export function SalesPage({
                       <td><SaleProductBadges sale={item.sale} /></td>
                       <td className="numeric estimate-cell">
                         <strong>{formatCurrency(item.estimatedCommissionCents)}</strong>
+                        {item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}
                         {attentionBySaleId.has(item.sale.id) ? (
                           <span
                             className="table-review"
@@ -526,7 +527,7 @@ export function SalesPage({
                       >
                         <CircleAlert aria-hidden="true" /> {reviewReason(item)}
                       </span>
-                    ) : <span />}
+                    ) : item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : <span />}
                     <SaleActions item={item} />
                   </div>
                 </article>

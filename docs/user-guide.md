@@ -27,11 +27,13 @@ Select **Add sale** from any page. The form opens on customer last name and keep
 1. Choose Delivered or Pending. If the deal does not deliver, delete it from the log.
 2. Enter the delivery/expected date.
 3. Enter customer last name, stock number, credited front gross, and total eligible F&I gross.
-4. Record the three product outcomes—**Service contract / warranty**, **Tire & Wheel**, and **GAP**—plus the separate **Dealer financed** outcome. Dealer financing is not a product. Each outcome can be reported as **Yes**, **No**, or **Not marked**; Not marked means no answer was saved and is not the same as No.
-5. Open **More details** only when you need a vehicle description, deal-credit adjustment, or notes.
-6. Review the live core-commission preview and select **Save sale** or **Save & add another**. The second option immediately focuses a clean last-name field for the next deal.
+4. Check the products sold—**Service contract / warranty**, **Tire & Wheel**, and **GAP**—and select **Finance**, **Cash**, or **Outside Finance**. Payment method is separate from product sales. Leave F&I gross blank until your F&I manager supplies it.
+5. Vehicle and Notes stay visible. Use the small **Split deal** checkbox for a half deal. If a manager sets a specific payout, enable **Spiff / manual front commission** and enter your personal front payout, not an add-on or the whole shared deal's payout.
+6. Review **Front**, **F&I**, and **Sale total**, then select **Save sale** or **Save & add another**. The second option focuses a clean last-name field and resets the manual payout option for the next deal.
 
 Currency fields accept values such as `2500`, `$2,500`, or `2500.00`. Stock numbers are preserved as entered, including leading zeroes.
+
+**Settings → Pay plan → Mini** controls the automatic minimum, initially $300 ($150 for half deals). The plan's effective-month range applies. Manual/spiff payouts stay as entered regardless of Mini changes. Negative front gross still appears in gross totals, but does not create negative front commission or reduce pay on other sales.
 
 Only one total F&I gross amount is stored for the deal. Do not estimate or invent a dollar amount for any individual product or financing outcome. An older record whose outcome was never entered can remain **Not marked** until reviewed.
 
@@ -53,7 +55,7 @@ The picker will not move before the earliest configured pay-plan month. To enter
 
 Open **Sales** to search by last name, stock number, or vehicle and filter by status, **Needs attention**, or **Deleted**. Sort by date, customer, attention status, pending status, front gross, F&I gross, or core commission. A filtered view shows its matching totals and one **Clear** action. Product badges show recorded deal outcomes. Select a row to edit it.
 
-Records may need attention for duplicate delivered stock, missing stock, invalid/future date, missing or zero front gross, negative correction, or a Pending date that has passed. Dashboard, Sales, and Reports use the same record-based count: one sale counts once even when it has more than one reason. Duplicate delivered records are visible but excluded from delivered count and commission until corrected. Normally edit an existing Pending record to Delivered instead of creating a second record.
+Records may need attention for duplicate delivered stock, missing stock, invalid/future date, missing front gross without a manual payout, a negative F&I correction, or a Pending date that has passed. Zero/negative front gross with a Mini is not an error. Dashboard, Sales, and Reports use the same record-based count. Duplicate delivered records are excluded from delivered count and commission until corrected. Normally edit an existing Pending record to Delivered instead of creating a second record.
 
 Delete is a soft delete and first offers **Undo**. If that message is gone, open **Deleted** for the selected month and restore the record there. Deleted rows remain in full backups and Sales Ledger does not permanently erase them.
 
@@ -67,7 +69,7 @@ If the same sale changed in another tab after you opened it, Sales Ledger refuse
 - **Front rate** shows 30% at exactly 10 and 35% after the month exceeds 10, retroactive to the first qualifying sale.
 - **Workday pace** uses valid delivered vehicles divided by scheduled workdays completed, then projects that rate across the month's remaining Monday–Saturday workdays. Personal days off saved for that month are excluded.
 - **This week** converts the monthly delivery goal into a cumulative, workday-weighted checkpoint and shows how many more valid deliveries are needed by the current Saturday. It does not pretend future sales have already happened.
-- **Commission pace and projection** uses the same workday pace plus average recorded front/F&I gross, the effective front rate, and cumulative bonus levels. It shows low/high integer-delivery scenarios and is a planning estimate, not guaranteed payroll.
+- **Commission pace and projection** uses workday pace, the observed automatic-pay mix, the effective front rate, Mini, and cumulative bonuses. Existing manual payouts are included once, not repeated on future sales. It shows low/high whole-delivery scenarios and is a planning estimate, not guaranteed payroll.
 - When a month closes, the commission panel switches to **Final recorded commission** and stops describing the saved result as an active projection.
 - **F&I outcomes** shows product results for service contract/warranty, Tire & Wheel, and GAP, plus dealer financing as a separate operational outcome. Each valid delivered deal is one denominator deal, including a half deal; credited units remain separate. Yes, No, and Not marked remain distinct so incomplete entries do not look like confirmed No results.
 - **Performance insights** shows front and F&I gross per valid delivery, F&I entry coverage, the previous-three-covered-month average, selected-year totals, and progress to the higher front rate.

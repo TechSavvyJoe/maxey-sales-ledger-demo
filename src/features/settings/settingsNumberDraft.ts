@@ -1,4 +1,5 @@
 import { getCommissionGoalForMonth, getDeliveryGoalForMonth } from "@/domain/goals";
+import { getMinimumFrontCommissionCents } from "@/domain/payPlan";
 import type { ProfileSettings } from "@/domain/types";
 
 export type SettingsNumberField =
@@ -8,6 +9,7 @@ export type SettingsNumberField =
   | "acceleratedFrontRate"
   | "acceleratedThreshold"
   | "fiRate"
+  | "mini"
   | `bonusMinimum-${number}`
   | `bonusAmount-${number}`;
 
@@ -30,6 +32,9 @@ function numberRule(field: SettingsNumberField): NumberRule {
   }
   if (field === "acceleratedThreshold") {
     return { scale: 1, minimum: 0, maximum: 100, message: "Higher-rate threshold must be a whole number from 0 to 100." };
+  }
+  if (field === "mini") {
+    return { scale: 100, minimum: 0, maximum: 100_000_000, message: "Mini must be between $0 and $1,000,000, with up to two decimal places." };
   }
   if (field.startsWith("bonusMinimum-")) {
     return { scale: 1, minimum: 1, maximum: 100, message: "Bonus delivery minimum must be a whole number from 1 to 100." };
@@ -82,6 +87,7 @@ export function settingsNumberText(
   if (field === "baseFrontRate") return String(settings.payPlan.baseFrontRateBps / 100);
   if (field === "acceleratedFrontRate") return String(settings.payPlan.acceleratedFrontRateBps / 100);
   if (field === "fiRate") return String(settings.payPlan.fiRateBps / 100);
+  if (field === "mini") return String(getMinimumFrontCommissionCents(settings.payPlan) / 100);
   if (field === "acceleratedThreshold") return String(settings.payPlan.acceleratedThresholdExclusive);
   const index = Number(field.split("-")[1]);
   const tier = settings.payPlan.bonusTiers[index];
@@ -117,7 +123,8 @@ export function applySettingsNumber(
   const planField = field === "baseFrontRate" ? "baseFrontRateBps"
     : field === "acceleratedFrontRate" ? "acceleratedFrontRateBps"
       : field === "acceleratedThreshold" ? "acceleratedThresholdExclusive"
-        : field === "fiRate" ? "fiRateBps" : null;
+        : field === "fiRate" ? "fiRateBps"
+          : field === "mini" ? "minimumFrontCommissionCents" : null;
   if (planField) return { ...settings, payPlan: { ...settings.payPlan, [planField]: value } };
   const index = Number(field.split("-")[1]);
   const tiers = settings.payPlan.bonusTiers;

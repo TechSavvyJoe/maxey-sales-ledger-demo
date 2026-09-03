@@ -35,7 +35,7 @@ function profile(): ProfileSettings {
 describe("settings numeric editing", () => {
   it.each<SettingsNumberField>([
     "monthlyGoal", "baseFrontRate", "acceleratedFrontRate", "acceleratedThreshold",
-    "fiRate", "bonusMinimum-0", "bonusAmount-0",
+    "fiRate", "mini", "bonusMinimum-0", "bonusAmount-0",
   ])("does not coerce an empty required %s field to zero", (field) => {
     expect(parseSettingsNumber(field, "").valid).toBe(false);
     expect(parseSettingsNumber(field, " ").valid).toBe(false);
@@ -51,6 +51,7 @@ describe("settings numeric editing", () => {
     ["baseFrontRate", "030.50", 3050, "30.5"],
     ["acceleratedFrontRate", "035.", 3500, "35"],
     ["fiRate", ".50", 50, "0.5"],
+    ["mini", "00300.50", 30050, "300.5"],
     ["acceleratedThreshold", "00010", 10, "10"],
     ["bonusMinimum-0", "011.0", 11, "11"],
     ["bonusAmount-0", "00375.50", 37550, "375.5"],
@@ -66,6 +67,7 @@ describe("settings numeric editing", () => {
     expect(parseSettingsNumber("bonusAmount-0", "0")).toEqual({ valid: true, value: 0, text: "0" });
     expect(parseSettingsNumber("baseFrontRate", "0")).toEqual({ valid: true, value: 0, text: "0" });
     expect(parseSettingsNumber("acceleratedThreshold", "0")).toEqual({ valid: true, value: 0, text: "0" });
+    expect(parseSettingsNumber("mini", "0")).toEqual({ valid: true, value: 0, text: "0" });
   });
 
   it.each<[SettingsNumberField, string]>([
@@ -75,6 +77,7 @@ describe("settings numeric editing", () => {
     ["monthlyCommissionGoal", "1000000.01"], ["bonusAmount-0", "100000.01"],
     ["bonusMinimum-0", "0"], ["acceleratedThreshold", "-1"],
     ["bonusAmount-0", "99999999999999999999999"],
+    ["mini", "-1"], ["mini", "1000000.01"], ["mini", "300.001"],
   ])("rejects invalid range or precision for %s %s", (field, text) => {
     expect(parseSettingsNumber(field, text).valid).toBe(false);
   });
@@ -128,6 +131,21 @@ describe("settings numeric editing", () => {
     expect(updated.payPlan.acceleratedThresholdExclusive).toBe(10);
     expect(updated.payPlan.bonusTiers).toEqual(original.payPlan.bonusTiers);
     expect(JSON.parse(JSON.stringify(updated))).toEqual(updated);
+  });
+
+  it("edits Mini in cents without changing rates, history, or other settings", () => {
+    const original = profile();
+    delete original.payPlan.minimumFrontCommissionCents;
+    expect(settingsNumberText(original, "mini", "2026-09")).toBe("300");
+    const updated = applySettingsNumber(original, "mini", 45_050, "2026-09");
+    expect(updated.payPlan.minimumFrontCommissionCents).toBe(45_050);
+    expect(settingsNumberText(updated, "mini", "2026-09")).toBe("450.5");
+    expect(updated.payPlanHistory).toEqual(original.payPlanHistory);
+    expect(updated.payPlan.baseFrontRateBps).toBe(original.payPlan.baseFrontRateBps);
+    expect(updated.payPlan.fiRateBps).toBe(original.payPlan.fiRateBps);
+    expect(original.payPlan.minimumFrontCommissionCents).toBeUndefined();
+    expect(hasUnfinishedSettingsNumbers(updated, { mini: "" }, "2026-09")).toBe(true);
+    expect(hasUnfinishedSettingsNumbers(updated, { mini: "450.5" }, "2026-09")).toBe(false);
   });
 
   it("preserves row identity through edited values, insertion, removal, and reordering", () => {

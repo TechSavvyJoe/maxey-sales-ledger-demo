@@ -1,4 +1,4 @@
-import { getPotentialBonus } from "@/domain/commission";
+import { calculateFrontCommission, getPotentialBonus } from "@/domain/commission";
 import { multiplyCentsByBps } from "@/domain/money";
 import type { WorkdayPace } from "@/domain/pacing";
 import type { MonthSummary, PayPlan } from "@/domain/types";
@@ -13,6 +13,7 @@ export interface MonthlyPerformance {
   fiAmountEnteredCount: number;
   positiveFiGrossCount: number;
   missingFrontGrossCount: number;
+  missingFrontCommissionCount: number;
 }
 
 export interface PeriodPerformance extends MonthlyPerformance {
@@ -91,6 +92,7 @@ export function calculateMonthlyPerformance(summary: MonthSummary): MonthlyPerfo
     fiAmountEnteredCount: validSales.filter((item) => item.sale.fiGrossCents !== null).length,
     positiveFiGrossCount: validSales.filter((item) => (item.sale.fiGrossCents ?? 0) > 0).length,
     missingFrontGrossCount: validSales.filter((item) => item.sale.frontGrossCents === null).length,
+    missingFrontCommissionCount: validSales.filter((item) => !item.commissionReady).length,
   };
 }
 
@@ -115,6 +117,9 @@ export function calculatePeriodPerformance(
       totals.missingFrontGrossCount += month.calculatedSales.filter(
         (item) => item.countsTowardVolume && item.sale.frontGrossCents === null,
       ).length;
+      totals.missingFrontCommissionCount += month.calculatedSales.filter(
+        (item) => item.countsTowardVolume && !item.commissionReady,
+      ).length;
       if (month.actualPaidCents !== null) {
         totals.actualPaidCents += month.actualPaidCents;
         totals.actualPaidMonthCount += 1;
@@ -131,6 +136,7 @@ export function calculatePeriodPerformance(
       fiAmountEnteredCount: 0,
       positiveFiGrossCount: 0,
       missingFrontGrossCount: 0,
+      missingFrontCommissionCount: 0,
       actualPaidCents: 0,
       actualPaidMonthCount: 0,
       reconciledEstimateCents: 0,
@@ -195,7 +201,15 @@ function scenarioForDeliveredCount(
   const frontRateBps = safeCount > payPlan.acceleratedThresholdExclusive
     ? payPlan.acceleratedFrontRateBps
     : payPlan.baseFrontRateBps;
-  const frontCommissionCents = multiplyCentsByBps(frontGrossCents, frontRateBps);
+  const deliveredSales = summary.calculatedSales.filter((item) => item.countsTowardVolume);
+  // Re-rate each existing sale with its Mini and fixed manual payout intact.
+  // Future sales use the observed automatic pay mix, never repeat one-off spiffs.
+  const existingFrontCommissionCents = deliveredSales.reduce((sum, item) => sum
+    + calculateFrontCommission(item.sale, frontRateBps, payPlan).frontCommissionCents, 0);
+  const automaticFrontPayCents = deliveredSales.reduce((sum, item) => sum
+    + calculateFrontCommission({ ...item.sale, frontCommissionOverrideCents: null }, frontRateBps, payPlan).frontCommissionCents, 0);
+  const frontCommissionCents = existingFrontCommissionCents
+    + Math.round(automaticFrontPayCents / summary.deliveredCount * additionalDeliveries);
   const fiCommissionCents = multiplyCentsByBps(fiGrossCents, payPlan.fiRateBps);
   const bonusCents = getPotentialBonus(safeCount, payPlan.bonusTiers);
   return {
@@ -246,10 +260,10 @@ export function calculateHigherRateOpportunity(
     ),
     recordedGrossUpliftCents: isEarned
       ? summary.retroactiveUpliftCents
-      : multiplyCentsByBps(
-          summary.frontGrossCents,
-          Math.max(payPlan.acceleratedFrontRateBps - payPlan.baseFrontRateBps, 0),
-        ),
+      : summary.calculatedSales.filter((item) => item.countsTowardVolume)
+        .reduce((sum, item) => sum
+          + calculateFrontCommission(item.sale, payPlan.acceleratedFrontRateBps, payPlan).frontCommissionCents
+          - calculateFrontCommission(item.sale, payPlan.baseFrontRateBps, payPlan).frontCommissionCents, 0),
     isEarned,
   };
 }

@@ -741,6 +741,7 @@ export function FiReportCenter({
             </header>
             <dl className="fi-center-row-list">
               <div><dt>Recorded front gross</dt><dd>{amountLabel(analytics.gross.front.totalCents, analytics.gross.front.enteredCount > 0)}</dd></div>
+              <div><dt>Commissionable front gross<small>Negative gross excluded; payouts calculated per sale</small></dt><dd>{amountLabel(analytics.commission.commissionableFrontGrossCents, analytics.gross.front.enteredCount > 0)}</dd></div>
               <div><dt>Recorded total F&amp;I gross</dt><dd>{amountLabel(analytics.gross.fi.totalCents, analytics.gross.fi.enteredCount > 0)}</dd></div>
               <div className="is-total"><dt>Combined recorded gross</dt><dd>{formatCurrency(analytics.gross.totalGrossCents)}</dd></div>
               <div><dt>Front gross per sale</dt><dd>{amountLabel(analytics.gross.front.averagePerDeliveredDealCents)}</dd></div>
@@ -756,7 +757,7 @@ export function FiReportCenter({
               <span>{formatCurrency(analytics.commission.estimatedCommissionCents)}</span>
             </header>
             <dl className="fi-center-row-list">
-              <div><dt>Front commission</dt><dd>{formatCurrency(analytics.commission.frontCommissionCents)}</dd></div>
+              <div><dt>Front commission<small>{analytics.commission.miniDealCount} Mini · {analytics.commission.manualFrontCommissionCount} manual/spiff</small></dt><dd>{formatCurrency(analytics.commission.frontCommissionCents)}</dd></div>
               <div><dt>F&amp;I commission</dt><dd>{formatCurrency(analytics.commission.fiCommissionCents)}</dd></div>
               <div><dt>Sales commission</dt><dd>{formatCurrency(analytics.commission.coreCommissionCents)}</dd></div>
               <div><dt>Bonus included</dt><dd>{formatCurrency(analytics.commission.bonusIncludedCents)}</dd></div>

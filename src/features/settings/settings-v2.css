@@ -211,6 +211,40 @@
   font-size: 13px;
 }
 
+.settings-page .pay-plan-mini {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.settings-page .pay-plan-mini input {
+  min-height: 44px;
+  width: 100%;
+  font-size: 16px;
+}
+
+.settings-page .pay-plan-mini em {
+  color: var(--slate-600);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.settings-page .pay-plan-mini p {
+  margin: 0;
+  color: var(--slate-600);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+  .settings-page .pay-plan-mini {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
 .settings-page .profile-sharing-note,
 .settings-page .storage-card,
 .settings-page .automatic-backup-card,

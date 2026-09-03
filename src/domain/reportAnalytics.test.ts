@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateMonth, DEFAULT_PAY_PLAN } from "@/domain/commission";
+import { calculateFrontCommission, calculateMonth, DEFAULT_PAY_PLAN } from "@/domain/commission";
 import {
   calculateBundleReportRows,
   calculateFinancingGroupRows,
@@ -33,21 +33,25 @@ function calculatedSale(
     revision: 1,
     ...overrides,
   };
+  const front = calculateFrontCommission(sale, 3_000, DEFAULT_PAY_PLAN);
   return {
     sale,
     normalizedStock: sale.stockNumber,
     monthKey: sale.saleDate.slice(0, 7),
     countsTowardVolume,
-    commissionReady: countsTowardVolume,
+    commissionReady: countsTowardVolume && front.frontCommissionMethod !== "awaiting",
     frontRateBps: 3_000,
+    frontCommissionMethod: countsTowardVolume ? front.frontCommissionMethod : "excluded",
+    minimumFrontCommissionCents: front.minimumFrontCommissionCents,
+    commissionableFrontGrossCents: countsTowardVolume ? front.commissionableFrontGrossCents : 0,
     frontCommissionCents: countsTowardVolume
-      ? Math.round((sale.frontGrossCents ?? 0) * 0.3)
+      ? front.frontCommissionCents
       : 0,
     fiCommissionCents: countsTowardVolume
       ? Math.round((sale.fiGrossCents ?? 0) * 0.2)
       : 0,
     estimatedCommissionCents: countsTowardVolume
-      ? Math.round((sale.frontGrossCents ?? 0) * 0.3)
+      ? front.frontCommissionCents
         + Math.round((sale.fiGrossCents ?? 0) * 0.2)
       : 0,
     flags: [],
@@ -339,6 +343,7 @@ describe("product, bundle, and financing analytics", () => {
       unmarkedFinanceOutcomeCount: 1,
       frontGrossEnteredCount: 5,
       frontGrossMissingCount: 0,
+      frontCommissionMissingCount: 0,
       fiGrossEnteredCount: 4,
       fiGrossMissingCount: 1,
     });

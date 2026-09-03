@@ -255,6 +255,7 @@
 .fi-center-row-list > div:last-child { border-bottom: 0; }
 .fi-center-row-list > .is-total { border-top: 1px solid var(--slate-300); color: var(--navy-900); font-weight: 800; }
 .fi-center-row-list dt { color: var(--slate-600); font-size: 11px; }
+.fi-center-row-list dt small { display: block; margin-top: 3px; font-size: 11px; line-height: 1.4; }
 .fi-center-row-list dd { margin: 0; color: var(--navy-900); font-size: 11px; font-weight: 750; text-align: right; font-variant-numeric: tabular-nums; }
 .fi-center-panel-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 

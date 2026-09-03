@@ -1,6 +1,6 @@
 import { isValidDateOnly, monthKeyFromDate, todayDateOnly } from "@/domain/date";
 import { multiplyCentsByBps } from "@/domain/money";
-import { getPayPlanForMonth, hasPayPlanCoverage } from "@/domain/payPlan";
+import { getMinimumFrontCommissionCents, getPayPlanForMonth, hasPayPlanCoverage } from "@/domain/payPlan";
 import type {
   BonusTier,
   CalculatedSale,
@@ -17,6 +17,7 @@ export const DEFAULT_PAY_PLAN: PayPlan = {
   acceleratedFrontRateBps: 3_500,
   acceleratedThresholdExclusive: 10,
   fiRateBps: 2_000,
+  minimumFrontCommissionCents: 30_000,
   bonusTiers: [
     { minimumDelivered: 11, amountCents: 30_000 },
     { minimumDelivered: 15, amountCents: 110_000 },
@@ -109,6 +110,37 @@ function allocateRateAcrossSales(
   return allocation;
 }
 
+/**
+ * Pay is resolved per sale before summing the month: losses never offset another
+ * sale's pay, and a mini or manual amount is not percentage-bearing gross.
+ * Entered gross already represents this salesperson's gross share. Only the
+ * full-deal mini is prorated by deal credit; a manual amount is personal pay.
+ */
+export function calculateFrontCommission(
+  sale: Pick<Sale, "frontGrossCents" | "frontCommissionOverrideCents" | "unitCreditBasis">,
+  frontRateBps: number,
+  payPlan: PayPlan,
+): Pick<CalculatedSale, "frontCommissionCents" | "frontCommissionMethod" | "minimumFrontCommissionCents" | "commissionableFrontGrossCents"> {
+  const minimumFrontCommissionCents = multiplyCentsByBps(
+    getMinimumFrontCommissionCents(payPlan), sale.unitCreditBasis * 10,
+  );
+  const commissionableFrontGrossCents = Math.max(sale.frontGrossCents ?? 0, 0);
+  const shared = { minimumFrontCommissionCents, commissionableFrontGrossCents };
+  if (sale.frontCommissionOverrideCents !== null && sale.frontCommissionOverrideCents !== undefined) {
+    return { ...shared, frontCommissionCents: sale.frontCommissionOverrideCents, frontCommissionMethod: "manual" };
+  }
+  if (sale.frontGrossCents === null) {
+    return { ...shared, frontCommissionCents: 0, frontCommissionMethod: "awaiting" };
+  }
+  const percentageCents = multiplyCentsByBps(commissionableFrontGrossCents, frontRateBps);
+  const isMini = minimumFrontCommissionCents > 0 && percentageCents <= minimumFrontCommissionCents;
+  return {
+    ...shared,
+    frontCommissionCents: Math.max(minimumFrontCommissionCents, percentageCents),
+    frontCommissionMethod: isMini ? "mini" : "percentage",
+  };
+}
+
 function reviewFlagsForSale(
   sale: Sale,
   deliveredStockCounts: Map<string, number>,
@@ -130,22 +162,17 @@ function reviewFlagsForSale(
       severity: "error",
     });
   }
-  if (sale.status === "delivered" && sale.frontGrossCents === null) {
+  if (sale.status === "delivered" && sale.frontGrossCents === null
+    && sale.frontCommissionOverrideCents == null) {
     flags.push({
       code: "missing-front-gross",
       label: "Front gross not entered",
       severity: "warning",
     });
   }
-  if (sale.status === "delivered" && sale.frontGrossCents === 0) {
-    flags.push({
-      code: "zero-front-gross",
-      label: "Front gross is zero",
-      severity: "warning",
-    });
-  }
-  if ((sale.frontGrossCents ?? 0) < 0 || (sale.fiGrossCents ?? 0) < 0) {
-    flags.push({ code: "negative-gross", label: "Negative correction", severity: "warning" });
+  // Zero/negative front gross is an ordinary Mini deal, not a correction or error.
+  if ((sale.fiGrossCents ?? 0) < 0) {
+    flags.push({ code: "negative-gross", label: "Negative F&I correction", severity: "warning" });
   }
   if (sale.status === "delivered" && sale.saleDate > today) {
     flags.push({
@@ -212,11 +239,6 @@ function calculatePreparedMonth(
       ? payPlan.acceleratedFrontRateBps
       : payPlan.baseFrontRateBps;
 
-  const frontAllocations = allocateRateAcrossSales(
-    countableDelivered,
-    (sale) => sale.frontGrossCents ?? 0,
-    frontRateBps,
-  );
   const fiAllocations = allocateRateAcrossSales(
     countableDelivered,
     (sale) => sale.fiGrossCents ?? 0,
@@ -227,16 +249,20 @@ function calculatePreparedMonth(
     const key = normalizeStock(sale.stockNumber);
     const flags = reviewFlagsForSale(sale, deliveredStockCounts, today);
     const countsTowardVolume = countableDeliveredIds.has(sale.id);
-    const frontCommissionCents = countsTowardVolume ? (frontAllocations.get(sale.id) ?? 0) : 0;
+    const front = calculateFrontCommission(sale, frontRateBps, payPlan);
+    const frontCommissionCents = countsTowardVolume ? front.frontCommissionCents : 0;
     const fiCommissionCents = countsTowardVolume ? (fiAllocations.get(sale.id) ?? 0) : 0;
     return {
       sale,
       normalizedStock: key,
       monthKey,
       countsTowardVolume,
-      commissionReady: countsTowardVolume && sale.frontGrossCents !== null,
+      commissionReady: countsTowardVolume && front.frontCommissionMethod !== "awaiting",
       frontRateBps,
       frontCommissionCents,
+      frontCommissionMethod: countsTowardVolume ? front.frontCommissionMethod : "excluded",
+      minimumFrontCommissionCents: front.minimumFrontCommissionCents,
+      commissionableFrontGrossCents: countsTowardVolume ? front.commissionableFrontGrossCents : 0,
       fiCommissionCents,
       estimatedCommissionCents: frontCommissionCents + fiCommissionCents,
       flags,
@@ -251,7 +277,8 @@ function calculatePreparedMonth(
     (sum, sale) => sum + (sale.fiGrossCents ?? 0),
     0,
   );
-  const frontCommissionCents = multiplyCentsByBps(frontGrossCents, frontRateBps);
+  const frontCommissionCents = calculatedSales.reduce((sum, item) => sum + item.frontCommissionCents, 0);
+  const commissionableFrontGrossCents = calculatedSales.reduce((sum, item) => sum + item.commissionableFrontGrossCents, 0);
   const fiCommissionCents = multiplyCentsByBps(fiGrossCents, payPlan.fiRateBps);
   const coreCommissionCents = frontCommissionCents + fiCommissionCents;
   const potentialBonusCents = getPotentialBonus(deliveredCount, payPlan.bonusTiers);
@@ -275,7 +302,9 @@ function calculatePreparedMonth(
   );
   const retroactiveUpliftCents =
     frontRateBps === payPlan.acceleratedFrontRateBps
-      ? frontCommissionCents - multiplyCentsByBps(frontGrossCents, payPlan.baseFrontRateBps)
+      ? countableDelivered.reduce((sum, sale) => sum
+        + calculateFrontCommission(sale, frontRateBps, payPlan).frontCommissionCents
+        - calculateFrontCommission(sale, payPlan.baseFrontRateBps, payPlan).frontCommissionCents, 0)
       : 0;
 
   return {
@@ -287,6 +316,10 @@ function calculatePreparedMonth(
     pendingCount,
     frontRateBps,
     frontGrossCents,
+    commissionableFrontGrossCents,
+    minimumFrontCommissionCents: getMinimumFrontCommissionCents(payPlan),
+    miniDealCount: calculatedSales.filter((item) => item.frontCommissionMethod === "mini").length,
+    manualFrontCommissionCount: calculatedSales.filter((item) => item.frontCommissionMethod === "manual").length,
     fiGrossCents,
     frontCommissionCents,
     fiCommissionCents,
