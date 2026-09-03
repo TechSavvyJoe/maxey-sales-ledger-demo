@@ -220,24 +220,15 @@ test("retyping the same numeric settings leaves a clean draft that accepts anoth
   await expect(page.locator(".settings-dirty-state")).toBeHidden();
 });
 
-test("sale gross and custom credit allow ordinary decimal typing and preserve required blanks", async ({ page }) => {
+test("sale gross fields allow ordinary decimal typing and retain split credit on save", async ({ page }) => {
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
   await page.getByLabel(/Customer last name/).fill("Numeric");
   await page.getByLabel(/Stock number/).fill("NUMERIC-001");
   await typeNumber(page.getByLabel("Front gross", { exact: true }), "0002500.75", "2500.75");
   await typeNumber(page.getByLabel("Total F&I gross", { exact: true }), ".50", "0.50");
-  await page.locator("details.sale-more-details > summary").click();
-  const credit = page.getByLabel("Custom", { exact: true });
-  await clearWithKeyboard(credit);
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
-  await expect(credit).toHaveValue("");
-  await expect(credit).toHaveAttribute("aria-invalid", "true");
-  await expect(credit).toBeFocused();
-  await credit.pressSequentially("0.1234");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
-  await expect(credit).toHaveAttribute("aria-invalid", "true");
-  await expect(credit).toBeFocused();
-  await typeNumber(credit, ".5", "0.5");
+  await expect(page.getByLabel("Custom", { exact: true })).toHaveCount(0);
+  const splitDeal = page.getByRole("checkbox", { name: "Split deal", exact: true });
+  await splitDeal.check();
   await page.getByRole("button", { name: "Save sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
 
@@ -247,8 +238,8 @@ test("sale gross and custom credit allow ordinary decimal typing and preserve re
   await page.getByRole("menuitem", { name: "Edit sale", exact: true }).click();
   await expect(page.getByLabel("Front gross", { exact: true })).toHaveValue("2500.75");
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("0.50");
-  await expect(credit).toBeVisible();
-  await expect(credit).toHaveValue("0.5");
+  await expect(splitDeal).toBeVisible();
+  await expect(splitDeal).toBeChecked();
 });
 
 test("payroll normalizes typed money, validates in place, and keeps blank distinct from zero across months", async ({ page }) => {

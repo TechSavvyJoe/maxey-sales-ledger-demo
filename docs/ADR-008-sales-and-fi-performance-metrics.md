@@ -27,7 +27,7 @@ The positive-F&I-gross count adds little decision value and has been removed fro
 
 ## Payment methods and compatibility
 
-The salesperson can select Dealership financing, Cash, or Outside financing on Add/Edit sale, or leave the method unmarked to enter later. `Sale.paymentMethod` is optional and authoritative when present. The legacy `dealerFinanced` boolean remains compatible and is normalized on write/import/restore. Existing real/imported No records cannot establish cash versus an outside loan and remain a separate "Cash / outside not specified" cohort until edited. Explicit methods, legacy-unresolved No, and wholly-unmarked methods form mutually exclusive report groups; totals reconcile to all delivered sales. Finance Penetration remains dealership financing / all delivered sales, including cash and outside financing in the denominator.
+The salesperson can select Finance, Cash, or Outside Finance on Add/Edit sale, or leave the method unmarked to enter later. Finance means dealership-arranged financing. `Sale.paymentMethod` is optional and authoritative when present. The legacy `dealerFinanced` boolean remains compatible and is normalized on write/import/restore. Existing real/imported No records cannot establish cash versus an outside loan and remain a separate "Cash / outside not specified" cohort until edited. Explicit methods, legacy-unresolved No, and wholly-unmarked methods form mutually exclusive report groups; totals reconcile to all delivered sales. Finance Penetration remains dealership financing / all delivered sales, including cash and outside financing in the denominator.
 
 At the user's request, generated fictional demo records receive stable sample payment choices. New demo data includes all three methods; existing active generated-demo records missing a method are enriched once on published-demo initialization. Explicit choices, real/imported data, and deleted rows are not overwritten. Stable sample choices prevent report totals from shuffling on refresh.
 
@@ -41,6 +41,8 @@ Month and Week F&I comparisons pool deals from the prior three completed calenda
 
 The dashboard's full-prior-month total comparison uses a neutral label rather than a pace judgment. Week-end goal labels show the actual selected week end, including a month-ending partial week. Existing workday projections retain Sundays/days off and the configured nonlinear commission/bonus model.
 
+Vehicle pacing and vehicles needed per workday are displayed as whole cars, rounded up at the user's request. Keep precise calculation values internally, including the earnings projection range; this display rule does not apply to money, percentages, products per sale, or split-deal credit.
+
 ## Research and benchmark boundaries
 
 - [StoneEagle, first-half/Q2 2026 results, released August 31, 2026](https://www.se-fi.com/post/stoneeagle-first-half-highs-for-f-i-pvr-f-i-income-per-dealer): first-half provider-sample references are $1,989 F&I PVR, 1.55 PPD, 45% service contract and 10% Tire & Wheel penetration. Its product menu and dealer population are broader than this ledger. The public GAP denominator is not specified, so its GAP percentage is not presented as a comparable target.
@@ -50,11 +52,19 @@ The dashboard's full-prior-month total comparison uses a neutral label rather th
 
 Research figures appear in an optional dated guide with source links. They do not create pass/fail grades, change personal goals, or imply that a customer should purchase an unsuitable product. No closing ratio, product profitability, reserve split, lost-revenue estimate, or eligibility score is inferred from unavailable inputs.
 
+The fictional demonstration uses the user-selected $2,300 front and $1,200 commissionable F&I averages, with 12–18 deliveries in quieter months and 18–25 in summer. These are scenario assumptions, not verified Michigan or Detroit averages. Seasonality affects generated records only; it never modifies real goals, workday pacing, forecasts, or commission rules. See [Synthetic demo profile](DEMO-PROFILE.md) for dated comparisons and scope limits.
+
 ## Responsive report contract
 
 Choose a table or cards using the report's available width. Every card needs a styled expanded body at every width where it can appear. Keep the same numbers, labels, missing states, and drill-down actions on desktop and phone. Expanded financing-group product detail is available to both. Month arrows use fixed 44-pixel targets and the full selector has a bounded width.
 
 Gross details and Commission details remain visible together without independent collapse controls. They sit side by side when space allows and stack on phones. Report sales open the existing sale editor directly; saving returns to the same report context, and keyboard users can open a sale from its stock-number button. Sale commission means front plus F&I commission, excluding the separate monthly volume bonus.
+
+Sale entry keeps Vehicle and Notes visible rather than inside a disclosure. Full credit is the default; a small Split deal checkbox near delivery details selects half credit. The custom unit-credit input is removed from routine entry. Existing nonstandard credited amounts remain intact when editing an older sale unless its credit is explicitly changed.
+
+The sale editor's commission preview and save footer show Front, F&I, and Sale total separately. The preview explains each component's rate and gross, distinguishes missing gross from entered zero, and excludes the monthly volume bonus from the individual sale total. Monthly-wide delivered counts and total commission no longer dominate that sale's preview.
+
+Report sale identity puts the customer's last name and vehicle before the stock number and other metadata. When names are hidden, the vehicle leads. Sale dates display as MM/DD/YYYY; storage and native date input values remain date-only ISO strings. Normal product/payment and Delivered labels use compact neutral styling shared across Sales, Reports, and recent sales. Warning states retain their distinct appearance.
 
 ## Verification targets
 

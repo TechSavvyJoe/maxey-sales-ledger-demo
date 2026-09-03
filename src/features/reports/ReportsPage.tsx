@@ -49,7 +49,8 @@ import {
 } from "@/domain/weeklyPerformance";
 import { exportMonthlyCsv, exportSalesWorkbook } from "@/lib/files";
 import { cn } from "@/lib/utils";
-import { FiReportCenter, ReportSaleButton } from "./FiReportCenter";
+import { formatVehiclePace } from "@/lib/vehiclePace";
+import { FiReportCenter, ReportSaleIdentity, ReportSaleMetadata } from "./FiReportCenter";
 import "./reports-density.css";
 import "./reports-v2.css";
 
@@ -234,7 +235,7 @@ function paceDeltaLabel(week: StoreWeekPerformance): string {
   if (week.goal.paceStatus === "no-workdays") return "No workdays";
   const delta = week.goal.paceDeltaToDate;
   if (Math.abs(delta) < 0.05) return "On expected pace";
-  return `${Math.abs(delta).toFixed(1)} ${delta > 0 ? "ahead" : "behind"}`;
+  return `${formatVehiclePace(Math.abs(delta))} ${delta > 0 ? "ahead" : "behind"}`;
 }
 
 function checkpointMessage(week: StoreWeekPerformance): string {
@@ -688,7 +689,7 @@ export function ReportsPage({
                       ? "No workdays"
                       : pace.projectedDeliveries === null
                         ? "Not started"
-                        : `Pacing ${pace.projectedDeliveries}`}
+                        : `Pacing ${formatVehiclePace(pace.projectedDeliveries)}`}
                 </strong>
               </div>
               <dl className="report-pace-stats">
@@ -708,7 +709,7 @@ export function ReportsPage({
                         ? "No scheduled workdays remain."
                         : pace.deliveriesToGoal === 0
                           ? "Monthly delivery goal reached."
-                          : `${pace.deliveriesToGoal} to the ${monthlyDeliveryGoal}-delivery goal · ${pace.requiredPerRemainingWorkday.toFixed(1)} needed per remaining workday.`}
+                          : `${pace.deliveriesToGoal} to the ${monthlyDeliveryGoal}-delivery goal · ${formatVehiclePace(pace.requiredPerRemainingWorkday)} needed per remaining workday.`}
               </p>
             </section>
 
@@ -827,14 +828,14 @@ export function ReportsPage({
                     <>
                       <div className="report-table-wrap" role="region" aria-label={`${monthLabel(settings.selectedMonth)} sales detail table`} tabIndex={0}>
                         <table>
-                          <thead><tr><th>Deal</th><th>Stock / vehicle</th><th>Status</th><th>F&amp;I / financing</th><th>Front gross</th><th>Total F&amp;I gross</th><th>Sale commission</th></tr></thead>
+                          <thead><tr><th>{includeLastNames ? "Customer / vehicle" : "Vehicle"}</th><th>Stock / date</th><th>Status</th><th>F&amp;I / financing</th><th>Front gross</th><th>Total F&amp;I gross</th><th>Sale commission</th></tr></thead>
                           <tbody>
                             {summary.calculatedSales.map((item) => {
                               const attention = attentionBySale.get(item.sale.id);
                               return (
                                 <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                                  <td><span className="report-deal-cell"><time dateTime={item.sale.saleDate}>{shortDate(item.sale.saleDate)}</time>{includeLastNames ? <small>{item.sale.customerLastName || "Customer not entered"}</small> : null}</span></td>
-                                  <td><span className="report-deal-cell"><ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} /><small>{item.sale.vehicleDescription || "Vehicle not entered"}</small></span></td>
+                                  <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /></th>
+                                  <td><ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} stacked /></td>
                                   <td><StatusBadge status={item.sale.status} /></td>
                                   <td><ProductBadges sale={item.sale} /></td>
                                   <td>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</td>
@@ -859,13 +860,10 @@ export function ReportsPage({
                           return (
                             <article className={cn("report-sale-card report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                               <header>
-                                <span>
-                                  <ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} />
-                                  <small>{item.sale.saleDate}{includeLastNames && item.sale.customerLastName ? ` · ${item.sale.customerLastName}` : ""}</small>
-                                  <small>{item.sale.vehicleDescription || "Vehicle not entered"}</small>
-                                </span>
+                                <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
                                 <StatusBadge status={item.sale.status} />
                               </header>
+                              <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
                               <ProductBadges sale={item.sale} />
                               <dl>
                                 <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
@@ -988,7 +986,7 @@ export function ReportsPage({
                     <div><dt>Remaining</dt><dd>{selectedWeek.remainingWorkdays}</dd></div>
                     <div><dt>Days off</dt><dd>{selectedWeek.daysOff.length}</dd></div>
                     <div><dt>Pace vs expected to date</dt><dd>{paceDeltaLabel(selectedWeek)}</dd></div>
-                    <div><dt>Expected cumulative by now</dt><dd>{selectedWeek.state === "future" ? "—" : selectedWeek.goal.expectedDeliveriesToDate.toFixed(1)}</dd></div>
+                    <div><dt>Expected cumulative by now</dt><dd>{selectedWeek.state === "future" ? "—" : formatVehiclePace(selectedWeek.goal.expectedDeliveriesToDate)}</dd></div>
                     <div><dt>This-week target share</dt><dd>{selectedWeek.goal.targetShareForWeek ?? "—"}</dd></div>
                     <div><dt>Cumulative month checkpoint</dt><dd>{selectedWeek.goal.targetByWeekEnd ?? "—"}</dd></div>
                   </dl>
@@ -1036,10 +1034,10 @@ export function ReportsPage({
                         const attention = attentionBySale.get(item.sale.id);
                         return (
                           <article className={cn("weekly-deal-row report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                            <span className="weekly-deal-row__identity">
-                              <ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} />
-                              <small>{shortDate(item.sale.saleDate)}{includeLastNames && item.sale.customerLastName ? ` · ${item.sale.customerLastName}` : ""} · {item.sale.vehicleDescription || "Vehicle not entered"}</small>
-                            </span>
+                            <div className="weekly-deal-row__identity">
+                              <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
+                              <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
+                            </div>
                             <StatusBadge status={item.sale.status} />
                             <ProductBadges sale={item.sale} />
                             <dl>

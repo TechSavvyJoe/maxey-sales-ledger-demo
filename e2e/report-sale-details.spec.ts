@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const STOCK = "REPORT-OPEN-001";
+const VEHICLE = "2024 Ford Escape";
 
 async function createAwaitingSale(page: Page) {
   await page.clock.setFixedTime(new Date("2026-09-02T16:00:00.000Z"));
@@ -11,9 +12,10 @@ async function createAwaitingSale(page: Page) {
   await page.getByLabel("Delivery date").fill("2026-08-20");
   await page.getByLabel("Customer last name", { exact: true }).fill("Example");
   await page.getByLabel(/Stock number/).fill(STOCK);
+  await page.getByLabel("Vehicle optional").fill(VEHICLE);
   await page.getByLabel("Front gross", { exact: true }).fill("1000");
   await page.getByRole("checkbox", { name: "Service contract / warranty", exact: true }).check();
-  await page.getByRole("radio", { name: "Outside financing", exact: true }).check();
+  await page.getByRole("radio", { name: "Outside Finance", exact: true }).check();
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("");
   await page.getByRole("button", { name: "Save sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
@@ -38,10 +40,37 @@ async function visibleMonthlySale(panel: Locator) {
     : panel.locator(".report-sale-card").filter({ hasText: STOCK });
 }
 
+async function visibleEvidenceSale(evidence: Locator) {
+  const table = evidence.locator(".fi-center-evidence-table");
+  return await table.isVisible()
+    ? table.locator("tbody tr").filter({ hasText: STOCK })
+    : evidence.locator(".fi-evidence-card").filter({ hasText: STOCK });
+}
+
+async function expectReportIdentity(sale: Locator, includeLastName = true) {
+  await expect(sale.locator(".report-sale-identity__primary")).toHaveText(includeLastName ? "Example" : VEHICLE);
+  if (includeLastName) await expect(sale.locator(".report-sale-identity__vehicle")).toHaveText(VEHICLE);
+  else await expect(sale.getByText("Example", { exact: true })).toHaveCount(0);
+  await expect(sale.locator(".report-sale-meta time")).toHaveText("08/20/2026");
+  await expect(sale.locator(".report-sale-meta").getByRole("button", { name: `Open sale ${STOCK}`, exact: true })).toBeVisible();
+
+  const hierarchy = await sale.evaluate((element) => {
+    const identity = element.querySelector<HTMLElement>(".report-sale-identity__primary")!;
+    const metadata = element.querySelector<HTMLElement>(".report-sale-meta")!;
+    return {
+      identityFirst: Boolean(identity.compareDocumentPosition(metadata) & Node.DOCUMENT_POSITION_FOLLOWING),
+      identityFontSize: Number.parseFloat(getComputedStyle(identity).fontSize),
+      metadataFontSize: Number.parseFloat(getComputedStyle(metadata).fontSize),
+    };
+  });
+  expect(hierarchy.identityFirst).toBe(true);
+  expect(hierarchy.identityFontSize).toBeGreaterThanOrEqual(hierarchy.metadataFontSize);
+}
+
 async function expectSaleEditor(page: Page) {
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeVisible();
   await expect(page.getByLabel(/Stock number/)).toHaveValue(STOCK);
-  await expect(page.getByRole("radio", { name: "Outside financing", exact: true })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Outside Finance", exact: true })).toBeChecked();
 }
 
 test("monthly report rows and phone cards open a sale and retain report context after saving F&I gross", async ({ page }) => {
@@ -49,6 +78,7 @@ test("monthly report rows and phone cards open a sale and retain report context 
   const panel = await openMonthlySales(page);
   const sale = await visibleMonthlySale(panel);
   await expect(sale).toHaveClass(/report-openable-sale/);
+  await expectReportIdentity(sale);
 
   // Click ordinary row/card content, not the explicit stock button.
   if (await panel.locator(".report-table-wrap").isVisible()) await sale.locator("time").click();
@@ -64,6 +94,7 @@ test("monthly report rows and phone cards open a sale and retain report context 
   await expect(page.getByRole("button", { name: /Choose reporting month/ })).toHaveAccessibleName(/August 2026/);
   await expect(await visibleMonthlySale(panel)).toContainText("$600");
   await expect(await visibleMonthlySale(panel)).toContainText("$420");
+  await expectReportIdentity(await visibleMonthlySale(panel));
 
   await (await visibleMonthlySale(panel)).getByRole("button", { name: `Open sale ${STOCK}`, exact: true }).click();
   await expectSaleEditor(page);
@@ -95,12 +126,11 @@ test("filtered F&I evidence opens the same sale without losing filters or paymen
   await evidence.getByRole("combobox", { name: "Show", exact: true }).selectOption("serviceContract");
   await evidence.getByRole("searchbox", { name: "Find a deal", exact: true }).fill(STOCK);
   const table = evidence.locator(".fi-center-evidence-table");
-  const sale = await table.isVisible()
-    ? table.locator("tbody tr").filter({ hasText: STOCK })
-    : evidence.locator(".fi-evidence-card").filter({ hasText: STOCK });
+  const sale = await visibleEvidenceSale(evidence);
   await expect(sale).toHaveClass(/report-openable-sale/);
-  if (await table.isVisible()) await sale.locator("td").first().click();
-  else await sale.getByText("Total F&I gross", { exact: true }).click();
+  await expectReportIdentity(sale);
+  if (await table.isVisible()) await sale.locator(".report-sale-identity__primary").click();
+  else await sale.locator(".report-sale-identity__vehicle").click();
   await expectSaleEditor(page);
   await expect(page.getByRole("checkbox", { name: "Service contract / warranty", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
@@ -108,7 +138,36 @@ test("filtered F&I evidence opens the same sale without losing filters or paymen
   await expect(center.getByRole("tab", { name: "Deals", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(evidence.getByRole("combobox", { name: "Show", exact: true })).toHaveValue("serviceContract");
   await expect(evidence.getByRole("searchbox", { name: "Find a deal", exact: true })).toHaveValue(STOCK);
-  await expect(sale).toContainText("Outside financing");
+  await expect(sale).toContainText("Outside Finance");
+});
+
+test("report privacy hides last names while keeping vehicle identity, dates, and stock access", async ({ page }) => {
+  await createAwaitingSale(page);
+  const panel = await openMonthlySales(page);
+  await expectReportIdentity(await visibleMonthlySale(panel));
+
+  async function setNamesIncluded(included: boolean) {
+    await page.getByRole("button", { name: "Open report exports", exact: true }).click();
+    const exports = page.locator(".report-export-popover");
+    await exports.getByRole("checkbox", { name: /Include customer last names/ }).setChecked(included);
+    await page.keyboard.press("Escape");
+    await expect(exports).toBeHidden();
+  }
+
+  await setNamesIncluded(false);
+  await expectReportIdentity(await visibleMonthlySale(panel), false);
+  await page.getByRole("tablist", { name: "Monthly report subject" }).getByRole("tab", { name: "F&I", exact: true }).click();
+  const center = page.locator(".fi-report-center").first();
+  await center.getByRole("tab", { name: "Deals", exact: true }).click();
+  const evidence = center.locator(".fi-center-evidence");
+  await expectReportIdentity(await visibleEvidenceSale(evidence), false);
+  await (await visibleEvidenceSale(evidence)).getByRole("button", { name: `Open sale ${STOCK}`, exact: true }).click();
+  await expectSaleEditor(page);
+  await expect(page.getByLabel("Customer last name", { exact: true })).toHaveValue("Example");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+
+  await setNamesIncluded(true);
+  await expectReportIdentity(await visibleEvidenceSale(evidence));
 });
 
 test("a closed month awaiting F&I gross keeps its earnings provisional while product and payment metrics remain available", async ({ page }, testInfo) => {

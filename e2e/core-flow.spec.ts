@@ -55,7 +55,6 @@ test("adds a delivered sale, calculates commission, and exports CSV", async ({ p
   await page.getByLabel(/Stock number/).fill("QA-0001");
   await page.getByLabel("Front gross").fill("2500");
   await page.getByLabel(/Total F&I gross/).fill("600");
-  await page.locator("details.sale-more-details > summary").click();
   await page.getByLabel("Vehicle optional").fill("2023 Ford Escape Active");
   await expect(page.locator(".sale-form__footer-estimate")).toContainText("$870.00");
   await page.getByRole("button", { name: "Save sale", exact: true }).click();
@@ -160,9 +159,9 @@ test("Excel export carries the cumulative bonus schedule and included total", as
     workbook.Sheets.Financing,
   );
   expect(financingRows.map((row) => row["Financing Outcome"])).toEqual([
-    "Dealership financing",
+    "Finance",
     "Cash",
-    "Outside financing",
+    "Outside Finance",
     "Cash / outside not specified",
     "Not marked",
   ]);

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const FIXED_NOW = new Date("2026-08-31T16:00:00.000Z");
 
@@ -86,7 +86,7 @@ test("reports center reconciles product, financing, and one total F&I gross sour
   await center.getByRole("tab", { name: "Financing", exact: true }).click();
   await expect(center.locator(".fi-finance-highlight")).toContainText("4 of 8 sales");
   await expect(center.locator(".fi-finance-highlight")).toContainText("50.0%");
-  const financedRow = center.getByRole("row", { name: /^Dealership financing / });
+  const financedRow = center.getByRole("row", { name: /^Finance / });
   await expect(financedRow).toContainText("8");
   await expect(financedRow).toContainText("67%");
   await expect(financedRow).toContainText("$6,100");
@@ -132,7 +132,7 @@ test("sale entry has product outcomes and only one F&I dollar field", async ({ p
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
 
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toBeVisible();
-  await expect(page.getByText("Enter one combined F&I gross amount for the whole deal.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Add the total when F&I provides it. Blank means not received yet.", { exact: true })).toBeVisible();
   for (const outcome of [
     "Service contract / warranty",
     "Tire & Wheel",
@@ -140,7 +140,7 @@ test("sale entry has product outcomes and only one F&I dollar field", async ({ p
   ]) {
     await expect(page.getByRole("checkbox", { name: outcome, exact: true })).toBeVisible();
   }
-  for (const method of ["Dealership financing", "Cash", "Outside financing"]) {
+  for (const method of ["Finance", "Cash", "Outside Finance"]) {
     await expect(page.getByRole("radio", { name: method, exact: true })).toBeVisible();
   }
   await expect(page.getByText(/service contract gross|tire.*wheel gross|GAP gross|product credited gross/i)).toHaveCount(0);

@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState, PageHeading, ReviewState, StatusBadge } from "@/components/shared";
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
 import { calculateMonth } from "@/domain/commission";
-import { monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
+import { formatSaleDate, monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
 import { formatCurrency, formatUnitCredit } from "@/domain/money";
 import type { SalesDestinationFilter } from "@/domain/navigation";
 import { getPayPlanSchedule } from "@/domain/payPlan";
@@ -91,7 +91,7 @@ function SaleProductBadges({ sale }: { sale: Sale }) {
   const badges = [
     ...soldProducts.map(([short, label]) => [short, label] as const),
     ...(["dealer_financed", "cash", "outside_financing"].includes(paymentMethod)
-      ? [[paymentMethod === "dealer_financed" ? "Dealer financed" : paymentMethod === "cash" ? "Cash" : "Outside financed", paymentMethodLabel(sale)] as const] : []),
+      ? [[paymentMethod === "dealer_financed" ? "Finance" : paymentMethod === "cash" ? "Cash" : "Outside Finance", paymentMethodLabel(sale)] as const] : []),
   ];
   if (!badges.length) {
     const hasUnmarkedOutcome = unmarkedProducts.length > 0 || paymentMethod === "unmarked" || paymentMethod === "not_dealer_financed";
@@ -398,7 +398,7 @@ export function SalesPage({
                   <tbody>
                     {deletedSales.slice(0, visibleCount).map((sale) => (
                       <tr key={sale.id}>
-                        <td><time dateTime={sale.saleDate}>{sale.saleDate.slice(5).replace("-", "/")}</time></td>
+                        <td><time dateTime={sale.saleDate}>{formatSaleDate(sale.saleDate)}</time></td>
                         <td><strong>{sale.customerLastName || "No last name"}</strong><small>{sale.vehicleDescription || "Vehicle not entered"}</small></td>
                         <td><span className="stock-number">{sale.stockNumber || "—"}</span></td>
                         <td>{sale.deletedAt ? new Date(sale.deletedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</td>
@@ -417,7 +417,7 @@ export function SalesPage({
                   <article key={sale.id} className="sale-card sale-card--deleted">
                     <div className="sale-card__main">
                       <span className="sale-card__topline">
-                        <time dateTime={sale.saleDate}>{sale.saleDate.slice(5).replace("-", "/")}</time>
+                        <time dateTime={sale.saleDate}>{formatSaleDate(sale.saleDate)}</time>
                         <span className="status-badge status-badge--deleted">Deleted</span>
                       </span>
                       <strong>{sale.customerLastName || "No last name"}</strong>
@@ -467,7 +467,7 @@ export function SalesPage({
                   {filteredSales.slice(0, visibleCount).map((item) => (
                     <tr key={item.sale.id} className={cn(attentionBySaleId.has(item.sale.id) && "needs-review", item.sale.source === "demo" && "is-demo")}>
                       <td>
-                        <time dateTime={item.sale.saleDate}>{item.sale.saleDate.slice(5).replace("-", "/")}</time>
+                        <time dateTime={item.sale.saleDate}>{formatSaleDate(item.sale.saleDate)}</time>
                       </td>
                       <td>
                         <button type="button" className="row-primary-action" onClick={() => onEditSale(item.sale)}>
@@ -505,7 +505,7 @@ export function SalesPage({
                 <article key={item.sale.id} className={cn("sale-card", attentionBySaleId.has(item.sale.id) && "needs-review", item.sale.source === "demo" && "is-demo")}>
                   <button type="button" className="sale-card__main" onClick={() => onEditSale(item.sale)}>
                     <span className="sale-card__topline">
-                      <time dateTime={item.sale.saleDate}>{item.sale.saleDate.slice(5).replace("-", "/")}</time>
+                      <time dateTime={item.sale.saleDate}>{formatSaleDate(item.sale.saleDate)}</time>
                       <StatusBadge status={item.sale.status} />
                     </span>
                     <strong>{item.sale.customerLastName || "No last name"}</strong>

@@ -29,10 +29,10 @@ function sale(overrides: Partial<Sale>): Sale {
 
 describe("payment method compatibility", () => {
   it.each([
-    [{ paymentMethod: "dealer_financed", dealerFinanced: false }, "dealer_financed", true, "Dealership financing"],
+    [{ paymentMethod: "dealer_financed", dealerFinanced: false }, "dealer_financed", true, "Finance"],
     [{ paymentMethod: "cash", dealerFinanced: true }, "cash", false, "Cash"],
-    [{ paymentMethod: "outside_financing", dealerFinanced: true }, "outside_financing", false, "Outside financing"],
-    [{ dealerFinanced: true }, "dealer_financed", true, "Dealership financing"],
+    [{ paymentMethod: "outside_financing", dealerFinanced: true }, "outside_financing", false, "Outside Finance"],
+    [{ dealerFinanced: true }, "dealer_financed", true, "Finance"],
     [{ dealerFinanced: false }, "not_dealer_financed", false, "Cash / outside not specified"],
     [{}, "unmarked", undefined, "Not marked"],
   ] as const)("resolves %o without guessing a missing payment method", (input, method, financed, label) => {

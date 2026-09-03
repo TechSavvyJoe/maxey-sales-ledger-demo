@@ -394,10 +394,10 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: var(--blue-700);
+  color: #596d80;
   padding: 3px 0;
-  font-size: inherit;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 1.35;
   text-align: left;
   text-decoration: underline;
@@ -407,6 +407,60 @@
 }
 .reports-page .report-open-sale:hover { color: var(--navy-900); text-decoration-color: currentColor; }
 .reports-page .report-open-sale:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 3px; }
+
+.reports-page .report-sale-identity {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  text-align: left;
+}
+.reports-page .report-sale-identity__primary {
+  display: block;
+  color: #0b4d85;
+  font-size: 17px;
+  font-weight: 750;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.reports-page .report-sale-identity__vehicle {
+  display: block;
+  color: #334b63;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.reports-page .report-sale-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  color: #596d80;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+.reports-page .report-sale-meta time { white-space: nowrap; }
+.reports-page .report-sale-meta__stock { display: inline-flex; min-width: 0; align-items: center; gap: 4px; }
+.reports-page .report-sale-meta--stacked { display: grid; gap: 2px; }
+.reports-page .report-sales-detail .report-table-wrap th:nth-child(1) { width: 22%; }
+.reports-page .report-sales-detail .report-table-wrap th:nth-child(2) { width: 17%; }
+.reports-page .report-sales-detail .report-table-wrap th:nth-child(3) { width: 10%; }
+.reports-page .report-sales-detail .report-table-wrap th:nth-child(4) { width: 15%; }
+.reports-page .report-sales-detail .report-table-wrap th:nth-child(n + 5) { width: 12%; }
+.reports-page .fi-center-evidence-table .fi-center-table { min-width: 0; table-layout: fixed; }
+.reports-page .fi-center-evidence-table th:nth-child(1) { width: 27%; }
+.reports-page .fi-center-evidence-table th:nth-child(2) { width: 21%; }
+.reports-page .fi-center-evidence-table th:nth-child(3) { width: 18%; }
+.reports-page .fi-center-evidence-table th:nth-child(4) { width: 14%; }
+.reports-page .fi-center-evidence-table th:nth-child(5) { width: 12%; }
+.reports-page .fi-center-evidence-table th:nth-child(6) { width: 8%; }
+.reports-page .fi-evidence-card > header > span {
+  flex-shrink: 0;
+  border-radius: 4px;
+  font-weight: 500;
+}
 .reports-page .report-product-badges > span,
 .reports-page .fi-evidence-outcomes > span,
 .reports-page .fi-evidence-finance {

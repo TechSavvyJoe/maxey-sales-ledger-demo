@@ -58,7 +58,7 @@ test("product and finance reports fit their canvas and month arrows stay usable"
     const financeCards = financing.locator(".fi-center-phone-disclosures");
     await expect(financeCards).toBeVisible();
     await expect(financeCards.locator("details")).toHaveCount(3);
-    await expect(financeCards.locator("summary strong")).toHaveText(["Dealership financing", "Cash", "Outside financing"]);
+    await expect(financeCards.locator("summary strong")).toHaveText(["Finance", "Cash", "Outside Finance"]);
     const firstFinance = financeCards.locator("details").first();
     if (await firstFinance.getAttribute("open") === null) await firstFinance.locator("summary").click();
     await expect(firstFinance.locator("dl")).toBeVisible();
@@ -66,7 +66,7 @@ test("product and finance reports fit their canvas and month arrows stay usable"
     await financing.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`financing-${width}.png`), fullPage: false });
     if (width === 390) {
-      for (const label of ["Cash", "Outside financing"]) {
+      for (const label of ["Cash", "Outside Finance"]) {
         const group = financeCards.locator("details").filter({ has: page.locator("summary strong").getByText(label, { exact: true }) });
         if (await group.getAttribute("open") === null) await group.locator("summary").click();
         await group.getByRole("button", { name: `View deals for ${label}`, exact: true }).click();

@@ -30,6 +30,12 @@ export function isValidDateOnly(value: string): boolean {
   return isValid(parsed) && format(parsed, "yyyy-MM-dd") === value;
 }
 
+/** Display a delivery date without parsing it as a UTC timestamp. */
+export function formatSaleDate(value: string): string {
+  if (!isValidDateOnly(value)) return "—";
+  return `${value.slice(5, 7)}/${value.slice(8, 10)}/${value.slice(0, 4)}`;
+}
+
 export function shiftMonth(monthKey: string, amount: number): string {
   return format(addMonths(parseISO(`${monthKey}-01`), amount), "yyyy-MM");
 }

@@ -12,7 +12,7 @@ const plans = [createPublicDemoHistoricPlan("2026-09-02"), DEFAULT_PAY_PLAN];
 const month = calculateMonth(demoSales, "2026-08", plans);
 const year = calculateYear(demoSales, 2026, plans, {});
 
-describe("481-record public demo calculations", () => {
+describe("two-year public demo calculations", () => {
   bench("monthly commission", () => { calculateMonth(demoSales, "2026-08", plans); });
   bench("yearly commission", () => { calculateYear(demoSales, 2026, plans, {}); });
   bench("monthly report analytics", () => { calculateMonthReportAnalytics(month); });

@@ -1,5 +1,4 @@
 import { useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { format, parseISO } from "date-fns";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatSaleDate } from "@/domain/date";
 import { dealerFinancingOutcome, getPaymentMethod, paymentMethodLabel } from "@/domain/financing";
 import { formatCurrency, formatUnitCredit } from "@/domain/money";
 import type {
@@ -79,7 +79,7 @@ export function ReportSaleButton({ sale, onOpenSale }: { sale: Sale; onOpenSale:
     <button
       type="button"
       className="report-open-sale"
-      aria-label={`Open sale ${sale.stockNumber.trim() || sale.saleDate}`}
+      aria-label={sale.stockNumber.trim() ? `Open sale ${sale.stockNumber.trim()}` : `Open sale: No stock number, ${formatSaleDate(sale.saleDate)}`}
       onClick={(event) => {
         event.stopPropagation();
         event.currentTarget.focus({ preventScroll: true });
@@ -88,6 +88,28 @@ export function ReportSaleButton({ sale, onOpenSale }: { sale: Sale; onOpenSale:
     >
       {label}
     </button>
+  );
+}
+
+export function ReportSaleIdentity({ sale, includeLastNames }: { sale: Sale; includeLastNames: boolean }) {
+  const vehicle = sale.vehicleDescription.trim() || "Vehicle not entered";
+  return (
+    <div className="report-sale-identity">
+      <strong className="report-sale-identity__primary">{includeLastNames ? sale.customerLastName.trim() || "Customer not entered" : vehicle}</strong>
+      {includeLastNames ? <span className="report-sale-identity__vehicle">{vehicle}</span> : null}
+    </div>
+  );
+}
+
+export function ReportSaleMetadata({ sale, onOpenSale, stacked = false }: { sale: Sale; onOpenSale: (sale: Sale) => void; stacked?: boolean }) {
+  return (
+    <div className={cn("report-sale-meta", stacked && "report-sale-meta--stacked")}>
+      <span className="report-sale-meta__stock">
+        {sale.stockNumber.trim() ? <span>Stock</span> : null}
+        <ReportSaleButton sale={sale} onOpenSale={onOpenSale} />
+      </span>
+      <time dateTime={sale.saleDate}>{formatSaleDate(sale.saleDate)}</time>
+    </div>
   );
 }
 
@@ -112,7 +134,7 @@ const EVIDENCE_FILTERS: readonly EvidenceFilterOption[] = [
   { value: "gap", label: "GAP sold", matches: (sale) => sale.gapSold === true },
   {
     value: "dealerFinanced",
-    label: "Dealership financing",
+    label: "Finance",
     matches: (sale) => getPaymentMethod(sale) === "dealer_financed",
   },
   {
@@ -122,7 +144,7 @@ const EVIDENCE_FILTERS: readonly EvidenceFilterOption[] = [
   },
   {
     value: "outsideFinancing",
-    label: "Outside financing",
+    label: "Outside Finance",
     matches: (sale) => getPaymentMethod(sale) === "outside_financing",
   },
   {
@@ -845,10 +867,8 @@ export function FiReportCenter({
                 <caption className="sr-only">Filtered deal evidence for {scopeLabel}</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Date</th>
-                    {includeLastNames ? <th scope="col">Customer</th> : null}
-                    <th scope="col">Stock</th>
-                    <th scope="col">Vehicle</th>
+                    <th scope="col">{includeLastNames ? "Customer / vehicle" : "Vehicle"}</th>
+                    <th scope="col">Stock / date</th>
                     <th scope="col">Products</th>
                     <th scope="col">Financing</th>
                     <th scope="col">F&amp;I gross</th>
@@ -858,10 +878,8 @@ export function FiReportCenter({
                 <tbody>
                   {filteredDeals.map((item) => (
                     <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                      <td>{format(parseISO(item.sale.saleDate), "MMM d")}</td>
-                      {includeLastNames ? <td>{item.sale.customerLastName || "—"}</td> : null}
-                      <th scope="row"><ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} /></th>
-                      <td>{item.sale.vehicleDescription || "—"}</td>
+                      <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /></th>
+                      <td><ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} stacked /></td>
                       <td><ProductOutcomeBadges sale={item.sale} /></td>
                       <td><span className="fi-evidence-finance" data-state={outcomeLabel(dealerFinancingOutcome(item.sale))}>{paymentMethodLabel(item.sale)}</span></td>
                       <td>{item.sale.fiGrossCents === null ? "Not entered" : formatCurrency(item.sale.fiGrossCents)}</td>
@@ -876,11 +894,10 @@ export function FiReportCenter({
               {filteredDeals.map((item) => (
                 <article key={item.sale.id} className="fi-evidence-card report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                   <header>
-                    <div><ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} /><span>{format(parseISO(item.sale.saleDate), "MMM d")}</span></div>
+                    <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
                     <span>{formatUnitCredit(item.sale.unitCreditBasis)} units</span>
                   </header>
-                  <p>{item.sale.vehicleDescription || "Vehicle not entered"}</p>
-                  {includeLastNames ? <small>Customer: {item.sale.customerLastName || "Not entered"}</small> : null}
+                  <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
                   <ProductOutcomeBadges sale={item.sale} />
                   <dl>
                     <div><dt>Payment method</dt><dd>{paymentMethodLabel(item.sale)}</dd></div>

@@ -50,6 +50,7 @@ import {
 import type { ProfileSettings, Sale } from "@/domain/types";
 import { calculateWeeklyPerformance } from "@/domain/weeklyPerformance";
 import { cn } from "@/lib/utils";
+import { formatVehiclePace } from "@/lib/vehiclePace";
 import "./dashboard-density.css";
 import "./dashboard-v2.css";
 
@@ -227,7 +228,7 @@ export function Dashboard({
       ? "No workdays"
     : pace.status === "future" || pace.status === "not-started"
       ? "Not started"
-      : `Pacing ${pace.projectedDeliveries ?? current.deliveredCount}`;
+      : `Pacing ${formatVehiclePace(pace.projectedDeliveries ?? current.deliveredCount)}`;
   const workdayLine = pace.status === "future"
     ? `${pace.scheduledWorkdays} scheduled workdays · ${pace.daysOff.length} ${pace.daysOff.length === 1 ? "day" : "days"} off`
     : `${pace.elapsedWorkdays} of ${pace.scheduledWorkdays} scheduled workdays elapsed · ${pace.remainingWorkdays} left${pace.daysOff.length ? ` · ${pace.daysOff.length} off` : ""}`;
@@ -243,7 +244,7 @@ export function Dashboard({
           ? `Goal reached · ${pace.remainingWorkdays} scheduled workdays left`
           : pace.requiredPerRemainingWorkday === null
             ? `${pace.deliveriesToGoal} to goal · No scheduled workdays remain`
-            : `${pace.deliveriesToGoal} ${pace.deliveriesToGoal === 1 ? "delivery" : "deliveries"} to goal · Need ${pace.requiredPerRemainingWorkday.toFixed(1)} per remaining workday`;
+            : `${pace.deliveriesToGoal} ${pace.deliveriesToGoal === 1 ? "delivery" : "deliveries"} to goal · Need ${formatVehiclePace(pace.requiredPerRemainingWorkday)} per remaining workday`;
   const yearDelivered = yearPerformance.deliveredCount;
   const yearCommission = yearPerformance.estimatedCommissionCents;
   const yearAverage = yearDelivered > 0 ? Math.round(yearCommission / yearDelivered) : 0;

@@ -7,7 +7,41 @@ async function openNewSale(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: "Add sale" })).toBeVisible();
 }
 
-test("opens on the fast entry path with optional details collapsed", async ({ page }) => {
+async function openSavedSale(page: import("@playwright/test").Page, stockNumber: string) {
+  await page.reload();
+  await page.getByRole("button", { name: "Sales", exact: true }).first().click();
+  await page.getByRole("button", { name: `Actions for stock ${stockNumber}`, exact: true }).first().click();
+  await page.getByRole("menuitem", { name: "Edit sale", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeVisible();
+}
+
+// Inspect the isolated browser's persisted sale; the optional value creates a
+// legacy credit fixture that can no longer be entered in the simplified form.
+async function savedUnitCredit(page: import("@playwright/test").Page, stockNumber: string, legacyFixtureCredit?: number) {
+  return page.evaluate(({ stock, credit }) => new Promise<number>((resolve, reject) => {
+    const request = indexedDB.open("maxey-sales-command-center");
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("sales", credit === undefined ? "readonly" : "readwrite");
+      const store = transaction.objectStore("sales");
+      const lookup = store.index("stockNumber").get(stock);
+      let savedCredit: number;
+      lookup.onsuccess = () => {
+        if (!lookup.result) {
+          transaction.abort();
+          return;
+        }
+        savedCredit = credit ?? lookup.result.unitCreditBasis;
+        if (credit !== undefined) store.put({ ...lookup.result, unitCreditBasis: credit });
+      };
+      transaction.oncomplete = () => { database.close(); resolve(savedCredit); };
+      transaction.onabort = transaction.onerror = () => { database.close(); reject(transaction.error ?? new Error("Sale fixture was not found.")); };
+    };
+  }), { stock: stockNumber, credit: legacyFixtureCredit });
+}
+
+test("opens with vehicle, notes, and a simple split checkbox ready to use", async ({ page }) => {
   await openNewSale(page);
 
   const lastName = page.getByLabel("Customer last name");
@@ -20,12 +54,13 @@ test("opens on the fast entry path with optional details collapsed", async ({ pa
   await expect(page.getByLabel("Front gross")).toBeVisible();
   await expect(page.getByLabel(/Total F&I gross/)).toBeVisible();
 
-  const moreDetails = page.locator("details.sale-more-details");
-  const detailsSummary = moreDetails.locator("summary");
-  await expect(moreDetails).not.toHaveAttribute("open", "");
-  await expect(detailsSummary).toContainText("Full deal");
-  await expect(page.getByLabel("Vehicle optional")).toBeHidden();
-  await expect(page.getByLabel("Notes optional")).toBeHidden();
+  await expect(page.locator("details.sale-more-details")).toHaveCount(0);
+  await expect(page.getByLabel("Custom", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Vehicle optional")).toBeVisible();
+  await expect(page.getByLabel("Notes optional")).toBeVisible();
+  const splitDeal = page.getByRole("checkbox", { name: "Split deal", exact: true });
+  await expect(splitDeal).toBeVisible();
+  await expect(splitDeal).not.toBeChecked();
 
   const footerEstimate = page.locator(".sale-form__footer-estimate");
   await expect(footerEstimate).toContainText("$0.00");
@@ -34,14 +69,9 @@ test("opens on the fast entry path with optional details collapsed", async ({ pa
   await page.getByLabel(/Total F&I gross/).fill("600");
   await expect(footerEstimate).toContainText("$870.00");
 
-  await detailsSummary.click();
-  await expect(moreDetails).toHaveAttribute("open", "");
-  await expect(page.getByLabel("Vehicle optional")).toBeVisible();
-  const splitDeal = page.getByRole("checkbox", { name: "Split deal (½ credit)", exact: true });
-  await expect(splitDeal).toBeVisible();
-  await expect(splitDeal).not.toBeChecked();
   await splitDeal.check();
-  await expect(detailsSummary).toContainText("Half deal");
+  await expect(splitDeal).toBeChecked();
+  await expect(footerEstimate).toContainText("$870.00");
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
@@ -54,52 +84,67 @@ test("split credit saves as half a deal and can be restored to full credit after
   await openNewSale(page);
   await page.getByLabel("Customer last name").fill("Example");
   await page.getByLabel(/Stock number/).fill("SPLIT-CREDIT-1");
+  await page.getByLabel("Vehicle optional").fill("2024 Ford Escape");
+  await page.getByLabel("Notes optional").fill("Demonstration sale note");
   await page.getByLabel("Front gross", { exact: true }).fill("2500");
   await page.getByLabel("Total F&I gross", { exact: true }).fill("600");
 
-  const moreDetails = page.locator("details.sale-more-details");
-  const detailsSummary = moreDetails.locator("summary");
-  const splitDeal = page.getByRole("checkbox", { name: "Split deal (½ credit)", exact: true });
-  const unitCredit = page.getByLabel("Custom", { exact: true });
+  const splitDeal = page.getByRole("checkbox", { name: "Split deal", exact: true });
   const footerEstimate = page.locator(".sale-form__footer-estimate");
-  await detailsSummary.click();
   await expect(splitDeal).not.toBeChecked();
-  await expect(unitCredit).toHaveValue("1");
   await splitDeal.check();
-  await expect(unitCredit).toHaveValue("0.5");
-  await expect(detailsSummary).toContainText("Half deal");
+  await expect(splitDeal).toBeChecked();
   await expect(footerEstimate).toContainText("$870.00");
   await page.getByRole("button", { name: "Save sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
 
-  async function reopenSavedSale() {
-    await page.reload();
-    await page.getByRole("button", { name: "Sales", exact: true }).first().click();
-    await page.getByRole("button", { name: "Actions for stock SPLIT-CREDIT-1", exact: true }).first().click();
-    await page.getByRole("menuitem", { name: "Edit sale", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeVisible();
-  }
-
-  await reopenSavedSale();
-  await expect(moreDetails).toHaveAttribute("open", "");
+  expect(await savedUnitCredit(page, "SPLIT-CREDIT-1")).toBe(500);
+  await openSavedSale(page, "SPLIT-CREDIT-1");
   await expect(splitDeal).toBeChecked();
-  await expect(unitCredit).toHaveValue("0.5");
-  await expect(detailsSummary).toContainText("Half deal");
+  await expect(page.getByLabel("Vehicle optional")).toHaveValue("2024 Ford Escape");
+  await expect(page.getByLabel("Notes optional")).toHaveValue("Demonstration sale note");
   await expect(footerEstimate).toContainText("$870.00");
   await splitDeal.uncheck();
-  await expect(unitCredit).toHaveValue("1");
-  await expect(detailsSummary).toContainText("Full deal");
+  await expect(splitDeal).not.toBeChecked();
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
 
-  await reopenSavedSale();
-  await expect(detailsSummary).toContainText("Full deal");
-  await detailsSummary.click();
+  expect(await savedUnitCredit(page, "SPLIT-CREDIT-1")).toBe(1000);
+  await openSavedSale(page, "SPLIT-CREDIT-1");
   await expect(splitDeal).not.toBeChecked();
-  await expect(unitCredit).toHaveValue("1");
   await expect(page.getByLabel("Front gross", { exact: true })).toHaveValue("2500.00");
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("600.00");
   await expect(footerEstimate).toContainText("$870.00");
+});
+
+test("editing a legacy quarter-credit sale preserves its credit until split is explicitly changed", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-31T16:00:00.000Z"));
+  await openNewSale(page);
+  await page.getByLabel("Customer last name").fill("Example");
+  await page.getByLabel(/Stock number/).fill("LEGACY-CREDIT-1");
+  await page.getByLabel("Front gross", { exact: true }).fill("2500");
+  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
+  await savedUnitCredit(page, "LEGACY-CREDIT-1", 250);
+
+  await openSavedSale(page, "LEGACY-CREDIT-1");
+  const splitDeal = page.getByRole("checkbox", { name: "Split deal", exact: true });
+  await expect(splitDeal).not.toBeChecked();
+  await expect(page.getByText("Existing credit: 0.25", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Custom", { exact: true })).toHaveCount(0);
+  await page.getByLabel("Notes optional").fill("Updated demonstration note");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
+  expect(await savedUnitCredit(page, "LEGACY-CREDIT-1")).toBe(250);
+
+  await openSavedSale(page, "LEGACY-CREDIT-1");
+  await expect(page.getByText("Existing credit: 0.25", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Notes optional")).toHaveValue("Updated demonstration note");
+  await splitDeal.check();
+  await expect(page.getByText("Existing credit: 0.25", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
+  expect(await savedUnitCredit(page, "LEGACY-CREDIT-1")).toBe(500);
 });
 
 test("a pristine sale form closes immediately", async ({ page }) => {

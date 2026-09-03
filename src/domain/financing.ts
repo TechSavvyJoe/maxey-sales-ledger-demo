@@ -25,9 +25,9 @@ export function dealerFinancingOutcome(sale: FinancingFields): boolean | undefin
 
 export function paymentMethodLabel(sale: FinancingFields): string {
   const labels: Record<ResolvedPaymentMethod, string> = {
-    dealer_financed: "Dealership financing",
+    dealer_financed: "Finance",
     cash: "Cash",
-    outside_financing: "Outside financing",
+    outside_financing: "Outside Finance",
     not_dealer_financed: "Cash / outside not specified",
     unmarked: "Not marked",
   };

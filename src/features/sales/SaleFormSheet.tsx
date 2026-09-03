@@ -67,9 +67,9 @@ const fiProductOptions: Array<{ key: "serviceContractSold" | "tireWheelSold" | "
 ];
 
 const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
-  { value: "dealer_financed", label: "Dealership financing" },
+  { value: "dealer_financed", label: "Finance" },
   { value: "cash", label: "Cash" },
-  { value: "outside_financing", label: "Outside financing" },
+  { value: "outside_financing", label: "Outside Finance" },
 ];
 
 function defaultDateForMonth(monthKey: string): string {
@@ -168,10 +168,6 @@ export function SaleFormSheet({
     fiProductsForSale(saleToEdit),
   );
   const [fiProducts, setFiProducts] = useState<FiProductValues>(() => initialFiProducts);
-  const [moreDetailsOpen, setMoreDetailsOpen] = useState(() => Boolean(
-    saleToEdit &&
-    (initialValues.vehicleDescription.trim() || initialValues.notes.trim() || initialValues.unitCredit !== "1"),
-  ));
   const [errors, setErrors] = useState<SaleFormErrors>({});
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -185,11 +181,10 @@ export function SaleFormSheet({
   const customerRef = useRef<HTMLInputElement>(null);
   const stockRef = useRef<HTMLInputElement>(null);
   const vehicleRef = useRef<HTMLInputElement>(null);
-  const unitRef = useRef<HTMLInputElement>(null);
+  const unitRef = useRef<HTMLButtonElement>(null);
   const frontRef = useRef<HTMLInputElement>(null);
   const fiRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
-  const moreDetailsRef = useRef<HTMLDetailsElement>(null);
   const payPlanSchedule = useMemo(
     () => getPayPlanSchedule(settings),
     [settings],
@@ -341,13 +336,6 @@ export function SaleFormSheet({
       };
       const firstInvalid = (Object.keys(nextErrors) as Array<keyof SaleFormValues>)
         .find((key) => Boolean(nextErrors[key]));
-      if (
-        firstInvalid === "vehicleDescription" ||
-        firstInvalid === "unitCredit" ||
-        firstInvalid === "notes"
-      ) {
-        setMoreDetailsOpen(true);
-      }
       window.requestAnimationFrame(() => firstInvalid && refs[firstInvalid]?.current?.focus());
       return;
     }
@@ -392,7 +380,6 @@ export function SaleFormSheet({
         setFiProducts(nextFiProducts);
         setErrors({});
         setDuplicateConfirmed(false);
-        setMoreDetailsOpen(false);
         window.requestAnimationFrame(() => customerRef.current?.focus());
       } else {
         closeWithoutPrompt();
@@ -416,14 +403,16 @@ export function SaleFormSheet({
   const isAccelerated =
     Boolean(preview && previewPayPlan && preview.month.frontRateBps === previewPayPlan.acceleratedFrontRateBps);
   const selectedStatus = statusOptions.find((option) => option.value === values.status) ?? statusOptions[0];
-  const creditLabel = values.unitCredit === "1"
-    ? "Full deal"
-    : values.unitCredit === "0.5"
-      ? "Half deal"
-      : `${values.unitCredit || "Custom"} credit`;
+  const hasNonstandardCredit = Number(values.unitCredit) !== 1 && Number(values.unitCredit) !== 0.5;
   const footerEstimate = preview
     ? formatCurrency(preview.sale?.estimatedCommissionCents ?? 0, true)
     : "Not calculated";
+  const enteredFrontGross = parseCurrencyToCents(values.frontGross);
+  const enteredFiGross = parseCurrencyToCents(values.fiGross);
+  const hasFrontGross = enteredFrontGross !== null && !Number.isNaN(enteredFrontGross);
+  const hasFiGross = enteredFiGross !== null && !Number.isNaN(enteredFiGross);
+  const frontEstimate = preview && hasFrontGross ? formatCurrency(preview.sale?.frontCommissionCents ?? 0, true) : "—";
+  const fiEstimate = preview && hasFiGross ? formatCurrency(preview.sale?.fiCommissionCents ?? 0, true) : "—";
 
   return (
     <>
@@ -446,7 +435,7 @@ export function SaleFormSheet({
             <SheetHeader className="sale-form__header">
               <SheetTitle>{saleToEdit ? "Edit sale" : "Add sale"}</SheetTitle>
               <SheetDescription>
-                Enter the sale details. Your commission estimate updates as you type.
+                {saleToEdit ? "Update this sale and its commission." : "Log a delivery and estimate your commission."}
               </SheetDescription>
             </SheetHeader>
 
@@ -484,7 +473,8 @@ export function SaleFormSheet({
 
             <fieldset className="form-section sale-status-section">
               <legend>Sale status</legend>
-              <div className="status-choice-grid">
+              <div className="sale-status-controls">
+                <div className="status-choice-grid">
                 {statusOptions.map((option) => (
                   <button
                     type="button"
@@ -498,8 +488,25 @@ export function SaleFormSheet({
                     {values.status === option.value ? <Check aria-hidden="true" /> : null}
                   </button>
                 ))}
+                </div>
+                <div className="sale-credit-controls">
+                  <label htmlFor="split-deal-credit" className="sale-split-credit">
+                    <Checkbox
+                      ref={unitRef}
+                      id="split-deal-credit"
+                      checked={Number(values.unitCredit) === 0.5}
+                      aria-invalid={Boolean(errors.unitCredit)}
+                      aria-describedby={`unit-credit-help${errors.unitCredit ? " unit-credit-error" : ""}`}
+                      onCheckedChange={(checked) => updateValue("unitCredit", checked === true ? "0.5" : "1")}
+                    />
+                    <span>Split deal</span>
+                  </label>
+                  {hasNonstandardCredit ? <small className="sale-existing-credit">Existing credit: {values.unitCredit}</small> : null}
+                </div>
               </div>
               <p className="status-choice-help">{selectedStatus.description}</p>
+              <span id="unit-credit-help" className="sr-only">Check for half a unit of credit. Unchecked is a full unit. An existing custom credit is kept unless you change this option. Unit credit does not change the gross-based commission estimate.</span>
+              {errors.unitCredit ? <span id="unit-credit-error" className="field-error">{errors.unitCredit}</span> : null}
             </fieldset>
 
             <div className="form-section form-fields sale-fast-fields">
@@ -553,6 +560,21 @@ export function SaleFormSheet({
                 />
                 {errors.stockNumber ? <span id="stock-number-error" className="field-error">{errors.stockNumber}</span> : null}
               </div>
+
+              <div className="field-group sale-vehicle-field">
+                <Label htmlFor="vehicle-description">Vehicle <span className="optional-label">optional</span></Label>
+                <Input
+                  ref={vehicleRef}
+                  id="vehicle-description"
+                  autoComplete="off"
+                  value={values.vehicleDescription}
+                  aria-invalid={Boolean(errors.vehicleDescription)}
+                  aria-describedby={errors.vehicleDescription ? "vehicle-description-error" : undefined}
+                  onChange={(event) => updateValue("vehicleDescription", event.target.value)}
+                  placeholder="Example: 2023 Ford Escape Active"
+                />
+                {errors.vehicleDescription ? <span id="vehicle-description-error" className="field-error">{errors.vehicleDescription}</span> : null}
+              </div>
             </div>
 
             <div className="form-section form-fields sale-money-fields">
@@ -598,7 +620,7 @@ export function SaleFormSheet({
                     placeholder="600.00"
                   />
                 </div>
-                <span id="fi-gross-help" className="field-help">Enter one combined F&amp;I gross amount for the whole deal. Leave blank until your F&amp;I manager provides it; you can add it next month.</span>
+                <span id="fi-gross-help" className="field-help">Add the total when F&amp;I provides it. Blank means not received yet.</span>
                 {errors.fiGross ? <span id="fi-gross-error" className="field-error">{errors.fiGross}</span> : null}
               </div>
             </div>
@@ -631,7 +653,7 @@ export function SaleFormSheet({
                 })}
               </div>
               <p id="fi-products-help" className="field-help">
-                Check each product that was sold. Leave it unchecked if it was not sold.
+                Select each product sold.
               </p>
               <fieldset className="sale-payment-method">
                 <legend>Payment method</legend>
@@ -643,10 +665,11 @@ export function SaleFormSheet({
                     </label>
                   ))}
                 </div>
-                <p id="fi-financing-help" className="field-help">Cash means no loan. Choose outside financing when the customer uses their own bank or credit union.</p>
-                {fiProducts.paymentMethod === undefined
-                  ? <p className="field-help">{fiProducts.dealerFinanced === false ? "Previously marked not dealer financed. Choose Cash or Outside financing when known." : "Not marked yet. You can add this later."}</p>
-                  : <button type="button" className="sale-payment-clear" onClick={() => updatePaymentMethod(undefined)}>Mark as not known yet</button>}
+                <div className="sale-payment-footer">
+                  <p id="fi-financing-help" className="field-help">Finance: through us. Cash: no loan. Outside Finance: the customer’s lender.</p>
+                  {fiProducts.paymentMethod !== undefined ? <button type="button" className="sale-payment-clear" onClick={() => updatePaymentMethod(undefined)}>Clear choice</button> : null}
+                </div>
+                {fiProducts.paymentMethod === undefined && fiProducts.dealerFinanced === false ? <p className="field-help">Choose Cash or Outside Finance when known.</p> : null}
               </fieldset>
             </fieldset>
 
@@ -670,131 +693,62 @@ export function SaleFormSheet({
               </div>
             ) : null}
 
-            <details
-              ref={moreDetailsRef}
-              className="sale-more-details"
-              open={moreDetailsOpen}
-              onToggle={(event) => setMoreDetailsOpen(event.currentTarget.open)}
-            >
-              <summary>
-                <span>
-                  <strong>Vehicle &amp; notes</strong>
-                  <small>Vehicle, unit credit, notes, and privacy guidance</small>
-                </span>
-                <span className="sale-more-details__credit">{creditLabel}</span>
-              </summary>
-              <div className="sale-more-details__body">
-                <div className="field-group">
-                  <Label htmlFor="vehicle-description">Vehicle <span className="optional-label">optional</span></Label>
-                  <Input
-                    ref={vehicleRef}
-                    id="vehicle-description"
-                    autoComplete="off"
-                    value={values.vehicleDescription}
-                    aria-invalid={Boolean(errors.vehicleDescription)}
-                    aria-describedby={errors.vehicleDescription ? "vehicle-description-error" : undefined}
-                    onChange={(event) => updateValue("vehicleDescription", event.target.value)}
-                    placeholder="Example: 2023 Ford Escape Active"
-                  />
-                  {errors.vehicleDescription ? <span id="vehicle-description-error" className="field-error">{errors.vehicleDescription}</span> : null}
-                </div>
-
-                <fieldset className="sale-detail-group">
-                  <legend>Unit credit</legend>
-                  <div className="sale-credit-controls">
-                    <label htmlFor="split-deal-credit" className="sale-split-credit">
-                      <Checkbox
-                        id="split-deal-credit"
-                        checked={Number(values.unitCredit) === 0.5}
-                        aria-describedby="unit-credit-help"
-                        onCheckedChange={(checked) => updateValue("unitCredit", checked === true ? "0.5" : "1")}
-                      />
-                      <span>Split deal (½ credit)</span>
-                    </label>
-                    <div className="credit-custom">
-                      <Label htmlFor="unit-credit">Custom</Label>
-                      <Input
-                        ref={unitRef}
-                        id="unit-credit"
-                        inputMode="decimal"
-                        autoComplete="off"
-                        value={values.unitCredit}
-                        aria-invalid={Boolean(errors.unitCredit)}
-                        aria-describedby={`unit-credit-help${errors.unitCredit ? " unit-credit-error" : ""}`}
-                        onChange={(event) => updateValue("unitCredit", event.target.value)}
-                        onBlur={() => {
-                          if (!validateSaleForm(values).unitCredit) {
-                            updateValue("unitCredit", String(Number(values.unitCredit)));
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <p id="unit-credit-help" className="field-help">Choose the unit credit you receive. It does not change the gross-based commission estimate.</p>
-                  {errors.unitCredit ? <span id="unit-credit-error" className="field-error">{errors.unitCredit}</span> : null}
-                </fieldset>
-
-                <div className="field-group">
-                  <Label htmlFor="sale-notes">Notes <span className="optional-label">optional</span></Label>
-                  <Textarea
-                    ref={notesRef}
-                    id="sale-notes"
-                    value={values.notes}
-                    aria-invalid={Boolean(errors.notes)}
-                    aria-describedby={`notes-character-count${errors.notes ? " sale-notes-error" : ""}`}
-                    onChange={(event) => updateValue("notes", event.target.value)}
-                    placeholder="Use general sale notes only — never enter credit, banking, license, or insurance information."
-                  />
-                  <span id="notes-character-count" className="character-count">{values.notes.length}/500</span>
-                  {errors.notes ? <span id="sale-notes-error" className="field-error">{errors.notes}</span> : null}
-                </div>
-
-                <div className="privacy-note">
-                  <ShieldCheck aria-hidden="true" />
-                  <p>
-                    Customer last name and stock number are okay here. Do not enter Social Security numbers,
-                    credit applications, bank details, license images, insurance information, passwords, or deal-jacket files.
-                  </p>
-                </div>
+            <div className="form-section sale-notes-section">
+              <div className="field-group">
+                <Label htmlFor="sale-notes">Notes <span className="optional-label">optional</span></Label>
+                <Textarea
+                  ref={notesRef}
+                  id="sale-notes"
+                  rows={2}
+                  value={values.notes}
+                  aria-invalid={Boolean(errors.notes)}
+                  aria-describedby={`notes-character-count${errors.notes ? " sale-notes-error" : ""}`}
+                  onChange={(event) => updateValue("notes", event.target.value)}
+                  placeholder="Optional notes about this sale"
+                />
+                <span id="notes-character-count" className="character-count">{values.notes.length}/500</span>
+                {errors.notes ? <span id="sale-notes-error" className="field-error">{errors.notes}</span> : null}
               </div>
-            </details>
 
-            <section className="commission-preview">
+              <div className="privacy-note">
+                <ShieldCheck aria-hidden="true" />
+                <p>
+                  Keep credit, banking, ID, insurance details, and passwords out of this log.
+                </p>
+              </div>
+            </div>
+
+            <section className="commission-preview sale-commission-preview" aria-labelledby="sale-commission-heading">
               <span className="sr-only" role="status" aria-live="polite">{commissionAnnouncement}</span>
               <div className="commission-preview__heading">
                 <Calculator aria-hidden="true" />
                 <span>
-                  <small>{previewHasPayPlan ? "Estimated commission" : "Commission unavailable"}</small>
-                  <strong>{preview ? formatCurrency(preview.sale?.estimatedCommissionCents ?? 0, true) : "Not calculated"}</strong>
-                  {preview && !values.fiGross.trim() ? <small>Awaiting F&amp;I gross · not included yet</small> : null}
+                  <h3 id="sale-commission-heading">This sale’s commission</h3>
+                  <small>{previewHasPayPlan ? "Front + F&I · monthly volume bonus is separate" : "Commission unavailable"}</small>
                 </span>
               </div>
               {preview && previewPayPlan ? (
                 <>
-                  <dl>
+                  <dl className="sale-commission-components">
                     <div>
-                      <dt>Month</dt>
-                      <dd>{monthLabel(preview.month.monthKey)}</dd>
+                      <dt>Front commission</dt>
+                      <dd><strong>{frontEstimate}</strong><small>{hasFrontGross ? `${formatPercent(preview.month.frontRateBps)} of ${formatCurrency(enteredFrontGross!, true)} front gross` : "Awaiting front gross"}</small></dd>
                     </div>
                     <div>
-                      <dt>Delivered</dt>
-                      <dd>{preview.month.deliveredCount}</dd>
+                      <dt>F&amp;I commission</dt>
+                      <dd><strong>{fiEstimate}</strong><small>{hasFiGross ? `${formatPercent(previewPayPlan.fiRateBps)} of ${formatCurrency(enteredFiGross!, true)} F&I gross` : "Awaiting F&I gross"}</small></dd>
                     </div>
-                    <div>
-                      <dt>Front rate</dt>
-                      <dd>{formatPercent(preview.month.frontRateBps)}</dd>
-                    </div>
-                    <div>
-                      <dt>Estimated month total</dt>
-                      <dd>{formatCurrency(preview.month.estimatedCommissionCents)}</dd>
+                    <div className="sale-commission-total">
+                      <dt>Sale total</dt>
+                      <dd><strong>{footerEstimate}</strong><small>{hasFrontGross && hasFiGross ? "Estimated from this sale’s gross" : "From gross entered so far"}</small></dd>
                     </div>
                   </dl>
                   <p>
                     {values.status !== "delivered"
-                      ? "Pending sales stay saved but do not count toward volume or commission."
+                      ? "Pending delivery — this sale does not count toward commission yet."
                       : isAccelerated
-                        ? `${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front commission applies to every valid delivered sale this month because the month is above ${previewPayPlan.acceleratedThresholdExclusive} deliveries.`
-                        : `Sell more than ${previewPayPlan.acceleratedThresholdExclusive} valid delivered vehicles this month to apply ${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front commission to every valid delivered sale that month.`}
+                        ? `${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front rate includes the retroactive increase for selling over ${previewPayPlan.acceleratedThresholdExclusive} vehicles in ${monthLabel(preview.month.monthKey)}.`
+                        : `This sale’s front rate becomes ${formatPercent(previewPayPlan.acceleratedFrontRateBps)} retroactively when the month finishes with over ${previewPayPlan.acceleratedThresholdExclusive} delivered vehicles.`}
                   </p>
                 </>
               ) : (
@@ -804,12 +758,10 @@ export function SaleFormSheet({
           </div>
 
           <div className="sale-form__footer">
-            <div className="sale-form__footer-estimate">
-              <Calculator aria-hidden="true" />
-              <span>
-                <small>{previewHasPayPlan ? "Est. commission" : "Commission unavailable"}</small>
-                <strong>{footerEstimate}</strong>
-              </span>
+            <div className="sale-form__footer-estimate sale-footer-breakdown" role="group" aria-label="This sale’s estimated commission">
+              <span><small>Front</small><strong>{frontEstimate}</strong></span>
+              <span><small>F&amp;I</small><strong>{fiEstimate}</strong></span>
+              <span className="sale-footer-total"><small>Sale total</small><strong>{footerEstimate}</strong></span>
             </div>
             <div className="sale-form__footer-actions">
               <Button type="button" variant="outline" onClick={() => requestOpenChange(false)} disabled={isSaving}>

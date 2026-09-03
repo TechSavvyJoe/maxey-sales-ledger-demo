@@ -69,6 +69,15 @@ test("production sections and controls stay distinct on office monitors and phon
     const section = await boundary(page.locator(".dashboard-v2-scorecard"), 2);
     await boundary(page.locator(".dashboard-v2-planning"), 2);
     await boundary(page.locator(".dashboard-v2-commission-details"), 2);
+    const commissionPadding = await page.locator(".dashboard-v2-commission-details .breakdown-list > div").evaluateAll((rows) => rows.map((row) => {
+      const styles = getComputedStyle(row);
+      return { left: parseFloat(styles.paddingLeft), right: parseFloat(styles.paddingRight) };
+    }));
+    expect(commissionPadding).toHaveLength(3);
+    for (const inset of commissionPadding) {
+      expect(inset.left).toBeGreaterThanOrEqual(12);
+      expect(inset.right).toBeGreaterThanOrEqual(12);
+    }
     await boundary(page.locator(".period-switcher"), 3);
 
     await openView(page, "Sales");

@@ -35,7 +35,7 @@ async function addDeliveredFiSale(page: Page, stockNumber = "WEEK-FI-001") {
     await checkbox.click();
     await expect(checkbox).toHaveAttribute("aria-checked", "true");
   }
-  await page.getByRole("radio", { name: "Dealership financing", exact: true }).check();
+  await page.getByRole("radio", { name: "Finance", exact: true }).check();
 
   await page.getByRole("button", { name: "Save sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
@@ -67,7 +67,7 @@ test("tracks F&I products and carries the current-week requirement into the Week
   await expect(saleRow).toBeVisible();
   await expect(
     saleRow.getByRole("group", {
-      name: "F&I products sold: Service contract / warranty, GAP. F&I products marked No: Tire & Wheel. Payment method: Dealership financing",
+      name: "F&I products sold: Service contract / warranty, GAP. F&I products marked No: Tire & Wheel. Payment method: Finance",
       exact: true,
     }),
   ).toBeVisible();
@@ -99,7 +99,7 @@ test("tracks F&I products and carries the current-week requirement into the Week
   await expect(soldMetric.getByText("1", { exact: true })).toBeVisible();
   const pacePanel = page.getByRole("region", { name: "Goal checkpoint" });
   const paceMetric = pacePanel.locator("dl > div").filter({ hasText: "Pace vs expected to date" });
-  await expect(paceMetric.locator("dd")).toHaveText("14.0 behind");
+  await expect(paceMetric.locator("dd")).toHaveText("14 behind");
 });
 
 test("dashboard task links preserve Data, review, and paid-versus-estimate destinations", async ({ page }, testInfo) => {

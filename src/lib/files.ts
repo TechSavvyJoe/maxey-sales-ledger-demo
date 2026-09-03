@@ -27,6 +27,7 @@ import type {
 } from "@/domain/types";
 import type { ReportAnalytics } from "@/domain/reportAnalytics";
 import type { WorkBook } from "xlsx";
+import { roundUpVehiclePace } from "@/lib/vehiclePace";
 
 // The production CSP intentionally disallows string compilation. Zod's
 // jitless mode keeps validation on its interpreter path and avoids a blocked
@@ -824,13 +825,11 @@ export async function exportSalesWorkbook(
           : "Projected deliveries",
       pace.status === "no-workdays"
         ? "No scheduled workdays"
-        : pace.projectedDeliveries ?? "Not started",
+        : roundUpVehiclePace(pace.projectedDeliveries) ?? "Not started",
     ],
     [
       "Deliveries needed per remaining workday",
-      pace.requiredPerRemainingWorkday === null
-        ? "Not available"
-        : Math.round(pace.requiredPerRemainingWorkday * 100) / 100,
+      roundUpVehiclePace(pace.requiredPerRemainingWorkday) ?? "—",
     ],
     ["Front gross", selected.frontGrossCents / 100],
     ["Total F&I gross", selected.fiGrossCents / 100],
@@ -912,8 +911,8 @@ export async function exportSalesWorkbook(
       "Weekly Target Share": week.goal.targetShareForWeek ?? "",
       "Cumulative Target": week.goal.targetByWeekEnd ?? "",
       "Needed by Week End": week.goal.deliveriesNeededByWeekEnd ?? "",
-      "Expected by Now": week.state === "future" ? "" : week.goal.expectedDeliveriesToDate,
-      "Pace Difference": week.state === "future" ? "" : week.goal.paceDeltaToDate,
+      "Expected by Now": week.state === "future" ? "" : roundUpVehiclePace(week.goal.expectedDeliveriesToDate),
+      "Pace Difference": week.state === "future" ? "" : Math.sign(week.goal.paceDeltaToDate) * Math.ceil(Math.abs(week.goal.paceDeltaToDate)),
       "Front Gross": week.frontGrossCents / 100,
       "Total F&I Gross": week.fiGrossCents / 100,
       "Recorded F&I Gross per Delivered Sale (PVR)": dollarsOrBlank(weekAnalytics.gross.fi.averagePerDeliveredDealCents),

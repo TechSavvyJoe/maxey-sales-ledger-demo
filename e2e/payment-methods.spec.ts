@@ -6,7 +6,7 @@ test("payment methods save, survive reload, and separate financing reports", asy
   await page.clock.setFixedTime(new Date("2026-08-31T16:00:00Z"));
   await page.goto("/");
   await expect(page.locator(".dashboard-page")).toBeVisible();
-  for (const [index, method] of ["Dealership financing", "Cash", "Outside financing"].entries()) {
+  for (const [index, method] of ["Finance", "Cash", "Outside Finance"].entries()) {
     await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
     await page.getByLabel("Delivery date").fill("2026-08-31");
     await page.getByLabel(/Stock number/).fill(`PAY-${index}`);
@@ -28,7 +28,7 @@ test("payment methods save, survive reload, and separate financing reports", asy
   await page.getByRole("button", { name: "Sales", exact: true }).first().click();
   await page.getByRole("button", { name: "Actions for stock PAY-2", exact: true }).click();
   await page.getByRole("menuitem", { name: "Edit sale", exact: true }).click();
-  await expect(page.getByRole("radio", { name: "Outside financing", exact: true })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Outside Finance", exact: true })).toBeChecked();
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("");
   await page.getByLabel("Total F&I gross", { exact: true }).fill("300");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
@@ -40,12 +40,12 @@ test("payment methods save, survive reload, and separate financing reports", asy
   await center.getByRole("tab", { name: "Financing", exact: true }).click();
   const financing = center.locator('[id$="-financing-panel"]');
   await expect(financing).not.toContainText("Cash / outside not specified");
-  for (const method of ["Dealership financing", "Cash", "Outside financing"]) {
+  for (const method of ["Finance", "Cash", "Outside Finance"]) {
     const cards = financing.locator(".fi-center-phone-disclosures");
     if (await cards.isVisible()) {
-      await expect(cards.locator("details").filter({ hasText: method }).locator("summary")).toContainText("1 of 3 deals");
+      await expect(cards.locator("details").filter({ has: page.getByText(method, { exact: true }) }).locator("summary")).toContainText("1 of 3 deals");
     } else {
-      await expect(financing.locator("tbody tr").filter({ hasText: method }).first()).toContainText("33%");
+      await expect(financing.locator("tbody tr").filter({ has: page.getByRole("rowheader", { name: method, exact: true }) }).first()).toContainText("33%");
     }
   }
 });

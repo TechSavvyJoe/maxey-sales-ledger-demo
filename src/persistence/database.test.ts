@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_PAY_PLAN } from "@/domain/commission";
-import { buildDemoSales, createPublicDemoHistoricPlan } from "@/domain/demo";
+import { buildDemoSales, createPublicDemoHistoricPlan, DEMO_PROFILE_VERSION } from "@/domain/demo";
 import { getPayPlanSchedule } from "@/domain/payPlan";
 import type { Sale } from "@/domain/types";
 import {
@@ -40,6 +40,14 @@ const sampleSale: Sale = {
   revision: 1,
   source: "demo",
 };
+
+async function seedLegacyDemo(sales: Sale[]): Promise<void> {
+  await initializeDatabase();
+  await loadDemoSales(sales, { historicDemoPlan: createPublicDemoHistoricPlan("2026-09-02") });
+  await db.auditEvents.where("action").equals("demo.loaded").modify((event) => {
+    if (event.details) delete event.details.demoProfileVersion;
+  });
+}
 
 describe("local database", () => {
   beforeEach(async () => {
@@ -666,12 +674,91 @@ describe("local database", () => {
     expect(await initializePublishedDemo("2026-09-02")).toBe(true);
 
     const data = await loadTrackerData();
-    expect(data.sales).toHaveLength(481);
+    expect(data.sales).toHaveLength(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
     expect(data.sales.every((sale) => sale.source === "demo" && !sale.deletedAt)).toBe(true);
     expect(data.sales.map((sale) => sale.saleDate).sort()[0]).toMatch(/^2024-09-/);
     expect(data.sales.every((sale) => sale.saleDate <= "2026-09-02")).toBe(true);
     expect(getPayPlanSchedule(data.settings).map((plan) => plan.version)).toContain("Sample 2024–26 plan");
     expect(data.auditEvents.filter((event) => event.action === "demo.loaded")).toHaveLength(1);
+    expect(data.auditEvents[0]?.details?.demoProfileVersion).toBe(DEMO_PROFILE_VERSION);
+  });
+
+  it("refreshes a recognized old demo once, keeps deletions, and archives obsolete examples recoverably", async () => {
+    const expected = buildDemoSales("2026-09", "2026-09-02", "two-year");
+    const oldFirst = { ...expected[0], frontGrossCents: 9_000_000, fiGrossCents: 8_000_000 };
+    const obsolete = { ...sampleSale, id: "demo-2026-08-999-delivered", stockNumber: "DEMO-202608-1000" };
+    await seedLegacyDemo([oldFirst, expected[1], obsolete]);
+    const deleted = await softDeleteSale(expected[1]);
+    const settings = await initializeDatabase();
+    await persistSettings({ ...settings, monthlyGoal: 23, salespersonName: "Demo Presenter", actualPaidByMonth: { "2026-08": 123_400 } });
+    const savedSettings = await db.settings.get("primary");
+
+    expect((await Promise.all([
+      initializePublishedDemo("2026-09-02"),
+      initializePublishedDemo("2026-09-02"),
+    ])).sort()).toEqual([false, true]);
+    const refreshed = await loadTrackerData();
+    expect(refreshed.sales.filter((sale) => !sale.deletedAt)).toHaveLength(expected.length - 1);
+    expect(await db.sales.get(deleted.id)).toEqual(deleted);
+    expect(await db.sales.get(oldFirst.id)).toMatchObject({ frontGrossCents: expected[0].frontGrossCents, fiGrossCents: expected[0].fiGrossCents, revision: 2 });
+    expect(await db.sales.get(obsolete.id)).toMatchObject({ stockNumber: obsolete.stockNumber, revision: 2, deletedAt: expect.any(String) });
+    expect(await db.settings.get("primary")).toEqual(savedSettings);
+    expect(refreshed.auditEvents.filter((event) => event.details?.demoProfileVersion === DEMO_PROFILE_VERSION)).toHaveLength(1);
+
+    const current = (await db.sales.get(oldFirst.id))!;
+    await persistSale({ ...current, notes: "Keep my walkthrough edit", revision: current.revision + 1 }, false);
+    const snapshot = await loadBackupSnapshot();
+    expect(await initializePublishedDemo("2026-10-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it.each([
+    ["manual", "manual-protected", undefined],
+    ["manual", "manual-deleted", "2026-09-01T00:00:00.000Z"],
+    ["legacy-xlsx", "imported-protected", undefined],
+    ["json-restore", "restored-protected", undefined],
+    ["demo", "custom-demo-id", undefined],
+    ["demo", "custom-deleted-demo-id", "2026-09-01T00:00:00.000Z"],
+  ] as const)("does not refresh a mixed or custom demo workspace (%s, %s)", async (source, id, deletedAt) => {
+    const generated = buildDemoSales("2026-08", "2026-09-02", "two-year")[0];
+    await seedLegacyDemo([generated]);
+    await db.sales.put({ ...sampleSale, source, id, deletedAt });
+    const snapshot = await loadBackupSnapshot();
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it("requires an actual earlier demo load and does not promote payment-only audit events", async () => {
+    await initializeDatabase();
+    await db.sales.put({ ...sampleSale, id: "demo-2026-08-0-delivered", paymentMethod: "cash" });
+    await initializePublishedDemo("2026-09-02");
+    const snapshot = await loadBackupSnapshot();
+    expect(snapshot.sales).toHaveLength(1);
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it("does not refresh an old demo after removal even if one example is later restored", async () => {
+    const generated = buildDemoSales("2026-09", "2026-09-02", "two-year")
+      .filter((sale) => sale.saleDate.startsWith("2026-08")).slice(0, 2);
+    await seedLegacyDemo(generated);
+    await removeDemoSales();
+    await restoreSale((await db.sales.get(generated[0].id))!);
+    const snapshot = await loadBackupSnapshot();
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+  });
+
+  it("does not refill a deliberately emptied old demo", async () => {
+    const generated = buildDemoSales("2026-09", "2026-09-02", "two-year")[0];
+    await seedLegacyDemo([generated]);
+    await softDeleteSale(generated);
+    const snapshot = await loadBackupSnapshot();
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await loadBackupSnapshot()).toEqual(snapshot);
+    await db.sales.clear();
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await db.sales.count()).toBe(0);
   });
 
   it("seeds once when two tabs initialize together and preserves later demo edits on reload", async () => {
@@ -681,7 +768,7 @@ describe("local database", () => {
     ]);
     expect(initializations.sort()).toEqual([false, true]);
     const before = await loadTrackerData();
-    expect(before.sales).toHaveLength(481);
+    expect(before.sales).toHaveLength(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
     expect(before.auditEvents.filter((event) => event.action === "demo.loaded")).toHaveLength(1);
 
     const edited = { ...before.sales[0], notes: "My walkthrough example", revision: 2 };
@@ -701,7 +788,7 @@ describe("local database", () => {
       selectedMonth: "2026-08",
       selectedView: "sales",
     });
-    expect(await db.sales.count()).toBe(481);
+    expect(await db.sales.count()).toBe(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
   });
 
   it.each([undefined, "2026-08-21T12:00:00.000Z"])(
@@ -758,7 +845,7 @@ describe("local database", () => {
 
   it("leaves removed demonstration sales in Recently deleted on reload", async () => {
     await initializePublishedDemo("2026-09-02");
-    expect(await removeDemoSales()).toBe(481);
+    expect(await removeDemoSales()).toBe(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
     const snapshot = await loadBackupSnapshot();
 
     expect(await initializePublishedDemo("2026-09-02")).toBe(false);
@@ -772,21 +859,28 @@ describe("local database", () => {
     const oldDemo = buildDemoSales("2026-09", asOfDate, "full-year");
     const twoYearDemo = buildDemoSales("2026-09", asOfDate, "two-year");
 
-    expect(await loadDemoSales(oldDemo)).toEqual({ added: 235, restored: 0, alreadyPresent: 0 });
+    const priorIds = new Set(oldDemo.map((sale) => sale.id));
+    const incomingIds = new Set(twoYearDemo.map((sale) => sale.id));
+    expect(await loadDemoSales(oldDemo)).toEqual({ added: oldDemo.length, restored: 0, alreadyPresent: 0 });
     expect(await loadDemoSales(twoYearDemo, {
       historicDemoPlan: createPublicDemoHistoricPlan(asOfDate),
-    })).toEqual({ added: 306, restored: 0, alreadyPresent: 175 });
+    })).toEqual({
+      added: twoYearDemo.filter((sale) => !priorIds.has(sale.id)).length,
+      restored: 0,
+      alreadyPresent: twoYearDemo.filter((sale) => priorIds.has(sale.id)).length,
+    });
 
     const activeDemo = (await db.sales.where("profileId").equals("primary").toArray())
       .filter((sale) => sale.source === "demo" && !sale.deletedAt);
-    expect(activeDemo).toHaveLength(481);
+    expect(activeDemo).toHaveLength(twoYearDemo.length);
     expect(activeDemo.every((sale) => sale.saleDate <= asOfDate)).toBe(true);
     expect((await db.sales.where("profileId").equals("primary").toArray())
-      .filter((sale) => sale.source === "demo" && sale.deletedAt)).toHaveLength(60);
+      .filter((sale) => sale.source === "demo" && sale.deletedAt))
+      .toHaveLength(oldDemo.filter((sale) => !incomingIds.has(sale.id)).length);
 
     const settings = await initializeDatabase();
     expect(getPayPlanSchedule(settings).some((plan) => plan.version === "Sample 2024–26 plan")).toBe(true);
-    expect(await removeDemoSales()).toBe(481);
+    expect(await removeDemoSales()).toBe(twoYearDemo.length);
     const afterRemoval = await initializeDatabase();
     expect(getPayPlanSchedule(afterRemoval).some((plan) => plan.version === "Sample 2024–26 plan")).toBe(false);
   });

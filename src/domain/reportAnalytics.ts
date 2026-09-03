@@ -586,9 +586,9 @@ export function calculateFinancingGroupRows(
     label: string;
     matches: (sale: Sale) => boolean;
   }> = [
-    { key: "dealerFinanced", label: "Dealership financing", matches: (sale) => getPaymentMethod(sale) === "dealer_financed" },
+    { key: "dealerFinanced", label: "Finance", matches: (sale) => getPaymentMethod(sale) === "dealer_financed" },
     { key: "cash", label: "Cash", matches: (sale) => getPaymentMethod(sale) === "cash" },
-    { key: "outsideFinancing", label: "Outside financing", matches: (sale) => getPaymentMethod(sale) === "outside_financing" },
+    { key: "outsideFinancing", label: "Outside Finance", matches: (sale) => getPaymentMethod(sale) === "outside_financing" },
     {
       key: "notDealerFinanced",
       label: "Cash / outside not specified",

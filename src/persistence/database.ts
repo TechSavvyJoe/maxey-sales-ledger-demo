@@ -19,6 +19,7 @@ import {
   buildDemoSales,
   createPublicDemoHistoricPlan,
   DEMO_HISTORIC_PLAN_VERSION,
+  DEMO_PROFILE_VERSION,
   samplePaymentMethod,
 } from "@/domain/demo";
 import type { AuditEvent, PayPlan, ProfileSettings, Sale } from "@/domain/types";
@@ -332,14 +333,42 @@ export async function initializeDatabase(): Promise<ProfileSettings> {
 }
 
 /**
- * Gives a first-time visitor to the published demo a populated workspace.
+ * Populates a fresh published demo and refreshes a recognized old sample profile once.
  * The public-build caller opts into this behavior. The check and load share
  * one transaction so another tab cannot seed twice or slip a user write
- * between the empty-workspace check and the demonstration import.
+ * between the workspace checks and the demonstration import.
  */
 export async function initializePublishedDemo(asOfDate = todayDateOnly()): Promise<boolean> {
   return db.transaction("rw", db.settings, db.sales, db.auditEvents, async () => {
     const settings = await initializeDatabase();
+    const storedSales = await db.sales.toArray();
+    const storedEvents = await db.auditEvents.orderBy("id").toArray();
+    // Payment-only backfill events also use demo.loaded; they are not proof
+    // that the visitor explicitly loaded a generated demonstration workspace.
+    const demoEvents = storedEvents.filter((event) => event.profileId === PROFILE_ID
+      && (event.action === "demo.removed" || (event.action === "demo.loaded"
+        && typeof event.details?.added === "number"
+        && typeof event.details?.restored === "number")));
+    // Audit insertion order resolves same-timestamp actions and preserves an
+    // explicit removal, including a later individual restore from the trash.
+    if (demoEvents.at(-1)?.action === "demo.removed") return false;
+    const profileApplied = demoEvents.some((event) => event.action === "demo.loaded"
+      && event.details?.demoProfileVersion === DEMO_PROFILE_VERSION);
+    const isGeneratedDemoWorkspace = storedSales.length > 0
+      && storedSales.every((sale) => sale.profileId === PROFILE_ID && sale.source === "demo"
+        && /^demo-\d{4}-(0[1-9]|1[0-2])-\d+-(delivered|pending|void)$/.test(sale.id));
+    if (!profileApplied && isGeneratedDemoWorkspace
+      && storedSales.some((sale) => !sale.deletedAt)
+      && demoEvents.some((event) => event.action === "demo.loaded")) {
+      // Refresh only a recognized fictional workspace. Deleted records stay
+      // deleted; obsolete active examples are archived by the ordinary loader.
+      // A version marker makes this a one-time refresh, never a daily shuffle.
+      const deletedIds = new Set(storedSales.filter((sale) => sale.deletedAt).map((sale) => sale.id));
+      const incoming = buildDemoSales(monthKeyFromDate(asOfDate), asOfDate, "two-year")
+        .filter((sale) => !deletedIds.has(sale.id));
+      await loadDemoSales(incoming, { historicDemoPlan: createPublicDemoHistoricPlan(asOfDate) });
+      return true;
+    }
     // Only generated fictional records receive sample payment types. Keep real,
     // imported, deleted, and already-classified records exactly as they are.
     const paymentSamplesApplied = await db.auditEvents.where("action").equals("demo.loaded")
@@ -620,9 +649,9 @@ export async function importSales(
 }
 
 /**
- * Loads only generated demonstration records. Unlike workbook imports, a
- * removed demo record can safely be restored because it has no user edits or
- * external source to preserve. Manual and imported rows are never changed.
+ * Explicitly reloads the fictional demonstration, replacing its example
+ * payloads and restoring included removed rows. The automatic initializer
+ * filters deleted IDs before calling this. Manual and imported rows stay intact.
  */
 export async function loadDemoSales(
   sales: Sale[],
@@ -715,7 +744,7 @@ export async function loadDemoSales(
         "demo.loaded",
         `Loaded ${added + restored} demonstration sales.`,
         undefined,
-        { added, restored, alreadyPresent, archived: staleDemoSales.length, paymentMethodsVersion: 1 },
+        { added, restored, alreadyPresent, archived: staleDemoSales.length, paymentMethodsVersion: 1, demoProfileVersion: DEMO_PROFILE_VERSION },
       ),
     );
   });

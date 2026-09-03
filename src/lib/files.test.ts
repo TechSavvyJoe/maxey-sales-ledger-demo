@@ -131,7 +131,7 @@ describe("JSON backup validation", () => {
       "Tire & Wheel Sold": "Yes",
       "GAP Sold": "No",
       "Dealer Financed": "Yes",
-      "Payment Method": "Dealership financing",
+      "Payment Method": "Finance",
     });
     expect(JSON.stringify(privateDetail)).not.toMatch(/credited gross|gross breakdown/i);
     expect(identifiedDetail[0]).toHaveProperty("Customer Last Name", "Sample");
@@ -147,7 +147,7 @@ describe("JSON backup validation", () => {
 
     expect(tables.financingRows).toHaveLength(5);
     expect(tables.financingRows[0]).toMatchObject({
-      "Financing Outcome": "Dealership financing",
+      "Financing Outcome": "Finance",
       Deals: 1,
       "Total F&I Gross": 200,
       "Recorded F&I Gross per Group Deal (PVR)": 200,
@@ -316,7 +316,7 @@ describe("JSON backup validation", () => {
     expect(restored.data.sales.map((sale) => sale.paymentMethod)).toEqual([undefined, undefined, undefined]);
     expect(restored.data.sales.map((sale) => sale.dealerFinanced)).toEqual([false, true, undefined]);
     expect(reportRowForSale(restored.data.sales[0])[12]).toBe("Cash / outside not specified");
-    expect(reportRowForSale(restored.data.sales[1])[12]).toBe("Dealership financing");
+    expect(reportRowForSale(restored.data.sales[1])[12]).toBe("Finance");
     expect(reportRowForSale(restored.data.sales[2])[12]).toBe("Not marked");
   });
 
@@ -343,7 +343,7 @@ describe("JSON backup validation", () => {
     const csvBook = XLSX.read(csv, { type: "string" });
     const csvRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(csvBook.Sheets[csvBook.SheetNames[0]]);
     expect(csvRows.map((row) => row["Payment Method"])).toEqual([
-      "Dealership financing", "Cash", "Outside financing", "Cash / outside not specified", "Not marked",
+      "Finance", "Cash", "Outside Finance", "Cash / outside not specified", "Not marked",
     ]);
     expect(csvRows.map((row) => row["Dealer Financed"])).toEqual(["Yes", "No", "No", "No", "Not marked"]);
     expect(csvRows[2]).toMatchObject({ "Total F&I Gross": 123.45, "Front Gross": 1000 });
