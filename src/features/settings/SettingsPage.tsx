@@ -50,6 +50,15 @@ import {
   type AutomaticBackupController,
 } from "@/features/settings/AutomaticBackupCard";
 import { GoogleDriveBackupCard } from "@/features/settings/GoogleDriveBackupCard";
+import {
+  applySettingsNumber,
+  createBonusRowIdentity,
+  hasUnfinishedSettingsNumbers,
+  parseSettingsNumber,
+  settingsNumberText,
+  type SettingsNumberField,
+  type SettingsNumberText,
+} from "@/features/settings/settingsNumberDraft";
 import { calculateMonth } from "@/domain/commission";
 import {
   buildDemoSales,
@@ -146,7 +155,9 @@ interface SettingsValidationIssue {
 
 interface LocalSettingsDraft {
   value: ProfileSettings;
+  baseValue: ProfileSettings;
   baseComparable: string;
+  numberText: SettingsNumberText;
 }
 
 interface SettingsDisclosureProps {
@@ -309,13 +320,6 @@ function activityLabel(action: AuditEvent["action"]): string {
   return labels[action];
 }
 
-function bonusIncrementAt(
-  tiers: ProfileSettings["payPlan"]["bonusTiers"],
-  index: number,
-): number {
-  return tiers[index].amountCents - (tiers[index - 1]?.amountCents ?? 0);
-}
-
 export function SettingsPage({
   sales,
   auditEvents,
@@ -328,7 +332,9 @@ export function SettingsPage({
   initialSection,
 }: SettingsPageProps) {
   const [localDraft, setLocalDraft] = useState<LocalSettingsDraft | null>(null);
+  const [bonusRowIdentity] = useState(createBonusRowIdentity);
   const draft = localDraft?.value ?? settings;
+  bonusRowIdentity.snapshot(draft.payPlan.bonusTiers);
   const [isSaving, setIsSaving] = useState(false);
   const [storageHealth, setStorageHealth] = useState<StorageHealth>({
     usageBytes: null,
@@ -380,9 +386,21 @@ export function SettingsPage({
   );
   const scheduledWorkdays = openScheduleDays.length - selectedDaysOff.length;
   const isDirty = useMemo(
-    () => comparableSettingsDraft(draft) !== comparableSettingsDraft(settings),
-    [draft, settings],
+    () => Boolean(localDraft && (
+      comparableSettingsDraft(draft) !== localDraft.baseComparable
+      || hasUnfinishedSettingsNumbers(draft, localDraft.numberText, settings.selectedMonth)
+    )),
+    [draft, localDraft, settings.selectedMonth],
   );
+  const numberValidationIssues = useMemo<SettingsValidationIssue[]>(() => (
+    Object.entries(localDraft?.numberText ?? {}).flatMap(([field, text]) => {
+      const parsed = parseSettingsNumber(field as SettingsNumberField, text ?? "");
+      return parsed.valid ? [] : [{ field: field as SettingsNumberField, message: parsed.message }];
+    })
+  ), [localDraft?.numberText]);
+  const hasInvalidPlanNumber = numberValidationIssues.some((issue) => (
+    issue.field !== "monthlyGoal" && issue.field !== "monthlyCommissionGoal"
+  ));
   const externalSettingsChange = Boolean(
     localDraft
     && localDraft.baseComparable !== comparableSettingsDraft(settings)
@@ -415,7 +433,7 @@ export function SettingsPage({
         ? `${monthLabel(normalizedDraftPayPlan.effectiveMonth)} through ${monthLabel(rangeEndMonth)}`
         : `${monthLabel(normalizedDraftPayPlan.effectiveMonth)} onward`;
 
-    if (!validation.valid) {
+    if (!validation.valid || hasInvalidPlanNumber) {
       return {
         valid: false,
         rangeLabel,
@@ -460,10 +478,12 @@ export function SettingsPage({
         commissionDeltaCents: 0,
       };
     }
-  }, [normalizedDraftPayPlan, sales, settings]);
+  }, [normalizedDraftPayPlan, sales, settings, hasInvalidPlanNumber]);
 
   useEffect(() => {
-    void getStorageHealth().then(setStorageHealth);
+    // Storage estimates are optional; unavailable browser APIs must not reject
+    // the settings screen's initialization.
+    void getStorageHealth().then(setStorageHealth).catch(() => undefined);
   }, [sales.length]);
 
   useEffect(() => {
@@ -520,6 +540,50 @@ export function SettingsPage({
     setValidationIssues((current) => current.filter((issue) => !fields.includes(issue.field)));
   }
 
+  function draftBase(current: LocalSettingsDraft | null): string {
+    return current?.baseComparable ?? comparableSettingsDraft(settings);
+  }
+
+  function settleDraft(next: LocalSettingsDraft): LocalSettingsDraft | null {
+    return comparableSettingsDraft(next.value) === next.baseComparable
+      && !hasUnfinishedSettingsNumbers(next.value, next.numberText, settings.selectedMonth)
+      ? null : next;
+  }
+
+  function updateNumber(field: SettingsNumberField, text: string, normalize = false) {
+    if (!normalize) clearValidationFor([field]);
+    const parsed = parseSettingsNumber(field, text);
+    setLocalDraft((current) => {
+      const previous = current?.value ?? settings;
+      const value = parsed.valid && parsed.text !== settingsNumberText(previous, field, settings.selectedMonth)
+        ? applySettingsNumber(previous, field, parsed.value, settings.selectedMonth, current?.baseValue ?? settings)
+        : previous;
+      if (value.payPlan.bonusTiers !== previous.payPlan.bonusTiers) {
+        bonusRowIdentity.edited(previous.payPlan.bonusTiers, value.payPlan.bonusTiers);
+      }
+      return settleDraft({
+        value,
+        baseValue: current?.baseValue ?? settings,
+        baseComparable: draftBase(current),
+        numberText: {
+          ...current?.numberText,
+          [field]: normalize && parsed.valid ? parsed.text : text,
+        },
+      });
+    });
+  }
+
+  function numberInputProps(field: SettingsNumberField) {
+    return {
+      type: "text",
+      inputMode: field === "monthlyGoal" || field === "acceleratedThreshold"
+        || field.startsWith("bonusMinimum-") ? "numeric" as const : "decimal" as const,
+      value: localDraft?.numberText[field] ?? settingsNumberText(draft, field, settings.selectedMonth),
+      onChange: (event: ChangeEvent<HTMLInputElement>) => updateNumber(field, event.target.value),
+      onBlur: (event: ChangeEvent<HTMLInputElement>) => updateNumber(field, event.target.value, true),
+    };
+  }
+
   function updateDraft<Key extends keyof ProfileSettings>(key: Key, value: ProfileSettings[Key]) {
     if (key === "salespersonName") clearValidationFor(["salespersonName"]);
     if (key === "monthlyGoal" || key === "deliveryGoalsByMonth") {
@@ -530,28 +594,12 @@ export function SettingsPage({
     }
     setLocalDraft((current) => {
       const currentValue = current?.value ?? settings;
-      const latestComparable = comparableSettingsDraft(settings);
-      return {
+      return settleDraft({
         value: { ...currentValue, [key]: value },
-        baseComparable:
-          !current || comparableSettingsDraft(currentValue) === latestComparable
-            ? latestComparable
-            : current.baseComparable,
-      };
-    });
-  }
-
-  function updateSelectedMonthDeliveryGoal(goal: number) {
-    updateDraft("deliveryGoalsByMonth", {
-      ...normalizeDeliveryGoalsByMonth(draft.deliveryGoalsByMonth),
-      [settings.selectedMonth]: goal,
-    });
-  }
-
-  function updateSelectedMonthCommissionGoal(goalCents: number | null) {
-    updateDraft("commissionGoalsByMonth", {
-      ...normalizeCommissionGoalsByMonth(draft.commissionGoalsByMonth),
-      [settings.selectedMonth]: goalCents,
+        baseValue: current?.baseValue ?? settings,
+        baseComparable: draftBase(current),
+        numberText: current?.numberText ?? {},
+      });
     });
   }
 
@@ -605,8 +653,7 @@ export function SettingsPage({
     clearValidationFor(validationFields);
     setLocalDraft((current) => {
       const currentValue = current?.value ?? settings;
-      const latestComparable = comparableSettingsDraft(settings);
-      return {
+      return settleDraft({
         value: {
           ...currentValue,
           payPlan: {
@@ -614,31 +661,27 @@ export function SettingsPage({
             [key]: value,
           },
         },
-        baseComparable:
-          !current || comparableSettingsDraft(currentValue) === latestComparable
-            ? latestComparable
-            : current.baseComparable,
-      };
+        baseValue: current?.baseValue ?? settings,
+        baseComparable: draftBase(current),
+        numberText: current?.numberText ?? {},
+      });
     });
   }
 
-  function updateBonusIncrement(index: number, dollars: number) {
-    const nextIncrementCents = Math.round(dollars * 100);
-    const currentIncrementCents = bonusIncrementAt(draft.payPlan.bonusTiers, index);
-    const differenceCents = nextIncrementCents - currentIncrementCents;
-    const tiers = draft.payPlan.bonusTiers.map((tier, tierIndex) =>
-      tierIndex >= index
-        ? { ...tier, amountCents: tier.amountCents + differenceCents }
-        : tier,
-    );
-    updatePayPlan("bonusTiers", tiers);
-  }
-
   async function saveSettings() {
+    if (isSaving) return;
     if (externalSettingsChange) {
       toast.error("Settings changed in another tab. Load the latest settings before saving.");
       return;
     }
+    // Canonicalize valid visible text even when a different field blocks saving.
+    setLocalDraft((current) => current ? settleDraft({
+      ...current,
+      numberText: Object.fromEntries(Object.entries(current.numberText).map(([field, text]) => {
+        const parsed = parseSettingsNumber(field as SettingsNumberField, text ?? "");
+        return [field, parsed.valid ? parsed.text : text];
+      })),
+    }) : null);
     const normalizedPayPlan = normalizedDraftPayPlan;
     const nextValidationIssues: SettingsValidationIssue[] = [];
     if (!draft.salespersonName.trim()) {
@@ -647,6 +690,7 @@ export function SettingsPage({
         message: "Enter the salesperson name used on reports.",
       });
     }
+    nextValidationIssues.push(...numberValidationIssues);
     if (
       !Number.isInteger(selectedDeliveryGoal)
       || selectedDeliveryGoal < 1
@@ -792,6 +836,8 @@ export function SettingsPage({
           ? `Import complete: ${result.added} added; ${result.alreadyPresent} already present and left unchanged.`
           : `Import complete: ${result.added} added.`,
       );
+    } catch {
+      toast.error("Import could not be completed. Your preview is still here. Reload to check saved sales before trying again.");
     } finally {
       setIsImporting(false);
     }
@@ -850,6 +896,8 @@ export function SettingsPage({
       setBackupPreview(null);
       setSafetyBackupCreated(false);
       toast.success(`Backup restored with ${backup.data.sales.length} sales.`);
+    } catch {
+      toast.error("The restore could not be completed. Keep your backup file and reload to check saved data before trying again.");
     } finally {
       setIsImporting(false);
     }
@@ -895,6 +943,8 @@ export function SettingsPage({
       await onRefresh();
       setRemoveDemoOpen(false);
       toast.success(`${removed} demonstration sales removed.`);
+    } catch {
+      toast.error("Demo removal could not be completed. Reload to check saved sales before trying again.");
     } finally {
       setIsImporting(false);
     }
@@ -995,7 +1045,14 @@ export function SettingsPage({
                 className={cn("settings-category-button", isActive && "is-active")}
                 aria-current={isActive ? "page" : undefined}
                 aria-controls={`settings-panel-${category.id}`}
-                onClick={() => setActiveCategory(category.id)}
+                // Normalize the old field only after this click has activated
+                // its target; a disappearing draft banner must not move it
+                // between pointer press and release.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={(event) => {
+                  setActiveCategory(category.id);
+                  event.currentTarget.focus({ preventScroll: true });
+                }}
               >
                 <span className="settings-category-button__icon" aria-hidden="true">{category.icon}</span>
                 <span>
@@ -1049,12 +1106,7 @@ export function SettingsPage({
               <Input
                 ref={(node) => { validationControlRefs.current.monthlyGoal = node; }}
                 id="monthly-goal"
-                type="number"
-                min="1"
-                max="100"
-                step="1"
-                value={selectedDeliveryGoal}
-                onChange={(event) => updateSelectedMonthDeliveryGoal(Number(event.target.value))}
+                {...numberInputProps("monthlyGoal")}
                 aria-invalid={fieldError("monthlyGoal") ? true : undefined}
                 aria-describedby={fieldError("monthlyGoal") ? settingsErrorId("monthlyGoal") : undefined}
               />
@@ -1068,18 +1120,7 @@ export function SettingsPage({
                 <Input
                   ref={(node) => { validationControlRefs.current.monthlyCommissionGoal = node; }}
                   id="monthly-commission-goal"
-                  type="number"
-                  inputMode="decimal"
-                  min="1"
-                  max="1000000"
-                  step="100"
-                  value={selectedCommissionGoalCents === null ? "" : selectedCommissionGoalCents / 100}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    updateSelectedMonthCommissionGoal(
-                      value === "" ? null : Math.round(Number(value) * 100),
-                    );
-                  }}
+                  {...numberInputProps("monthlyCommissionGoal")}
                   placeholder="Example: 7500"
                   aria-invalid={fieldError("monthlyCommissionGoal") ? true : undefined}
                   aria-describedby={`monthly-commission-goal-help${fieldError("monthlyCommissionGoal") ? ` ${settingsErrorId("monthlyCommissionGoal")}` : ""}`}
@@ -1146,22 +1187,22 @@ export function SettingsPage({
           <div className="pay-plan-grid">
             <div className="pay-plan-field">
               <Label htmlFor="base-front-rate">Base front rate</Label>
-              <div><Input ref={(node) => { validationControlRefs.current.baseFrontRate = node; }} id="base-front-rate" type="number" min="0" max="100" step="0.1" value={draft.payPlan.baseFrontRateBps / 100} onChange={(event) => updatePayPlan("baseFrontRateBps", Math.round(Number(event.target.value) * 100))} aria-invalid={fieldError("baseFrontRate") ? true : undefined} aria-describedby={fieldError("baseFrontRate") ? settingsErrorId("baseFrontRate") : undefined} /><em>%</em></div>
+              <div><Input ref={(node) => { validationControlRefs.current.baseFrontRate = node; }} id="base-front-rate" {...numberInputProps("baseFrontRate")} aria-invalid={fieldError("baseFrontRate") ? true : undefined} aria-describedby={fieldError("baseFrontRate") ? settingsErrorId("baseFrontRate") : undefined} /><em>%</em></div>
               {fieldError("baseFrontRate") ? <span id={settingsErrorId("baseFrontRate")} className="field-error">{fieldError("baseFrontRate")}</span> : null}
             </div>
             <div className="pay-plan-field">
               <Label htmlFor="accelerated-front-rate">Higher front rate</Label>
-              <div><Input ref={(node) => { validationControlRefs.current.acceleratedFrontRate = node; }} id="accelerated-front-rate" type="number" min="0" max="100" step="0.1" value={draft.payPlan.acceleratedFrontRateBps / 100} onChange={(event) => updatePayPlan("acceleratedFrontRateBps", Math.round(Number(event.target.value) * 100))} aria-invalid={fieldError("acceleratedFrontRate") ? true : undefined} aria-describedby={fieldError("acceleratedFrontRate") ? settingsErrorId("acceleratedFrontRate") : undefined} /><em>%</em></div>
+              <div><Input ref={(node) => { validationControlRefs.current.acceleratedFrontRate = node; }} id="accelerated-front-rate" {...numberInputProps("acceleratedFrontRate")} aria-invalid={fieldError("acceleratedFrontRate") ? true : undefined} aria-describedby={fieldError("acceleratedFrontRate") ? settingsErrorId("acceleratedFrontRate") : undefined} /><em>%</em></div>
               {fieldError("acceleratedFrontRate") ? <span id={settingsErrorId("acceleratedFrontRate")} className="field-error">{fieldError("acceleratedFrontRate")}</span> : null}
             </div>
             <div className="pay-plan-field">
               <Label htmlFor="accelerated-threshold">Higher rate starts above</Label>
-              <div><Input ref={(node) => { validationControlRefs.current.acceleratedThreshold = node; }} id="accelerated-threshold" type="number" min="0" max="100" step="1" value={draft.payPlan.acceleratedThresholdExclusive} onChange={(event) => updatePayPlan("acceleratedThresholdExclusive", Number(event.target.value))} aria-invalid={fieldError("acceleratedThreshold") ? true : undefined} aria-describedby={fieldError("acceleratedThreshold") ? settingsErrorId("acceleratedThreshold") : undefined} /><em>delivered</em></div>
+              <div><Input ref={(node) => { validationControlRefs.current.acceleratedThreshold = node; }} id="accelerated-threshold" {...numberInputProps("acceleratedThreshold")} aria-invalid={fieldError("acceleratedThreshold") ? true : undefined} aria-describedby={fieldError("acceleratedThreshold") ? settingsErrorId("acceleratedThreshold") : undefined} /><em>delivered</em></div>
               {fieldError("acceleratedThreshold") ? <span id={settingsErrorId("acceleratedThreshold")} className="field-error">{fieldError("acceleratedThreshold")}</span> : null}
             </div>
             <div className="pay-plan-field">
               <Label htmlFor="fi-rate">F&amp;I rate</Label>
-              <div><Input ref={(node) => { validationControlRefs.current.fiRate = node; }} id="fi-rate" type="number" min="0" max="100" step="0.1" value={draft.payPlan.fiRateBps / 100} onChange={(event) => updatePayPlan("fiRateBps", Math.round(Number(event.target.value) * 100))} aria-invalid={fieldError("fiRate") ? true : undefined} aria-describedby={fieldError("fiRate") ? settingsErrorId("fiRate") : undefined} /><em>%</em></div>
+              <div><Input ref={(node) => { validationControlRefs.current.fiRate = node; }} id="fi-rate" {...numberInputProps("fiRate")} aria-invalid={fieldError("fiRate") ? true : undefined} aria-describedby={fieldError("fiRate") ? settingsErrorId("fiRate") : undefined} /><em>%</em></div>
               {fieldError("fiRate") ? <span id={settingsErrorId("fiRate")} className="field-error">{fieldError("fiRate")}</span> : null}
             </div>
           </div>
@@ -1320,24 +1361,15 @@ export function SettingsPage({
               <span>Delivered sales</span><span>Bonus added</span><span>Total bonus</span>
             </div>
             {draft.payPlan.bonusTiers.map((tier, index) => {
-              const incrementCents = bonusIncrementAt(draft.payPlan.bonusTiers, index);
               return (
-              <div key={`${tier.minimumDelivered}-${index}`} className="bonus-tier-row">
+              <div key={bonusRowIdentity.key(tier)} className="bonus-tier-row">
                 <div className="bonus-tier-field">
                   <div className="bonus-tier-control">
                     <Input
                       ref={(node) => { validationControlRefs.current[`bonusMinimum-${index}`] = node; }}
                       id={`bonus-minimum-${index}`}
                       aria-label={`Tier ${index + 1} minimum delivered`}
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={tier.minimumDelivered}
-                      onChange={(event) => {
-                        const tiers = [...draft.payPlan.bonusTiers];
-                        tiers[index] = { ...tier, minimumDelivered: Number(event.target.value) };
-                        updatePayPlan("bonusTiers", tiers);
-                      }}
+                      {...numberInputProps(`bonusMinimum-${index}`)}
                       aria-invalid={fieldError(`bonusMinimum-${index}`) ? true : undefined}
                       aria-describedby={fieldError(`bonusMinimum-${index}`) ? settingsErrorId(`bonusMinimum-${index}`) : undefined}
                     />
@@ -1352,12 +1384,7 @@ export function SettingsPage({
                       ref={(node) => { validationControlRefs.current[`bonusAmount-${index}`] = node; }}
                       id={`bonus-amount-${index}`}
                       aria-label={`Tier ${index + 1} bonus added at milestone`}
-                      type="number"
-                      min="0"
-                      max="100000"
-                      step="50"
-                      value={incrementCents / 100}
-                      onChange={(event) => updateBonusIncrement(index, Number(event.target.value))}
+                      {...numberInputProps(`bonusAmount-${index}`)}
                       aria-invalid={fieldError(`bonusAmount-${index}`) ? true : undefined}
                       aria-describedby={fieldError(`bonusAmount-${index}`) ? settingsErrorId(`bonusAmount-${index}`) : undefined}
                     />

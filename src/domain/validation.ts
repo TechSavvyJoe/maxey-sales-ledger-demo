@@ -42,8 +42,11 @@ export function validateSaleForm(values: SaleFormValues): SaleFormErrors {
   const unitCredit = Number(unitCreditText);
   if (!unitCreditText) {
     errors.unitCredit = "Enter deal credit between 0 and 2.";
-  } else if (!Number.isFinite(unitCredit) || unitCredit < 0 || unitCredit > 2) {
+  } else if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(unitCreditText)
+    || !Number.isFinite(unitCredit) || unitCredit < 0 || unitCredit > 2) {
     errors.unitCredit = "Deal credit must be between 0 and 2.";
+  } else if ((unitCreditText.split(".")[1]?.length ?? 0) > 3) {
+    errors.unitCredit = "Use up to 3 decimal places for deal credit.";
   }
 
   const frontGross = parseCurrencyToCents(values.frontGross);

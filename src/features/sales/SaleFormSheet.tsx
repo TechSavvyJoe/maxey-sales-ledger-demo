@@ -126,7 +126,7 @@ function normalizedCurrencyValue(value: string): number | string | null {
 }
 
 function comparableFormValues(values: SaleFormValues): string {
-  const unitCredit = Number(values.unitCredit);
+  const unitCredit = values.unitCredit.trim() ? Number(values.unitCredit) : Number.NaN;
   return JSON.stringify({
     status: values.status,
     saleDate: values.saleDate,
@@ -307,7 +307,7 @@ export function SaleFormSheet({
 
   async function submit(event: FormEvent, addAnother = false) {
     event.preventDefault();
-    if (conflictSaleId) return;
+    if (isSaving || conflictSaleId) return;
     const nextErrors = validateSaleForm(values);
     const saleMonth = monthKeyFromDate(values.saleDate);
     if (
@@ -714,15 +714,17 @@ export function SaleFormSheet({
                       <Input
                         ref={unitRef}
                         id="unit-credit"
-                        type="number"
                         inputMode="decimal"
-                        min="0"
-                        max="2"
-                        step="0.1"
+                        autoComplete="off"
                         value={values.unitCredit}
                         aria-invalid={Boolean(errors.unitCredit)}
                         aria-describedby={`unit-credit-help${errors.unitCredit ? " unit-credit-error" : ""}`}
                         onChange={(event) => updateValue("unitCredit", event.target.value)}
+                        onBlur={() => {
+                          if (!validateSaleForm(values).unitCredit) {
+                            updateValue("unitCredit", String(Number(values.unitCredit)));
+                          }
+                        }}
                       />
                     </div>
                   </div>

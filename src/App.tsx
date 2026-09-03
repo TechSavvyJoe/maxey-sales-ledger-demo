@@ -77,6 +77,7 @@ function AppContent() {
   const [saleFormInstance, setSaleFormInstance] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [settingsDirty, setSettingsDirty] = useState(false);
+  const [payrollDirty, setPayrollDirty] = useState(false);
   const [destination, setDestination] = useState<AppDestination>({ view: "dashboard" });
   const [tabContext, setTabContext] = useState<TabContext | null>(null);
   const saleFormReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -316,7 +317,7 @@ function AppContent() {
     }
   }
 
-  function navigate(nextDestination: AppDestination | AppView) {
+  function navigate(nextDestination: AppDestination | AppView, options?: { preserveFocus?: boolean }) {
     if (!settings) return;
     const resolved = typeof nextDestination === "string"
       ? destinationForView(nextDestination)
@@ -328,6 +329,11 @@ function AppContent() {
       !window.confirm("Discard unsaved Settings changes and leave this page?")
     ) return;
     if (resolved.view !== "settings") setSettingsDirty(false);
+    if (
+      settings.selectedView === "reports" && resolved.view !== "reports" && payrollDirty
+      && !window.confirm("Discard the unsaved payroll amount and leave Reports?")
+    ) return;
+    if (resolved.view !== "reports") setPayrollDirty(false);
     setTabContext((current) => {
       const next = {
         selectedMonth: current?.selectedMonth ?? settings.selectedMonth,
@@ -341,6 +347,7 @@ function AppContent() {
       return next;
     });
     setDestination(resolved);
+    if (options?.preserveFocus) return;
     window.requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       document.getElementById("main-content")?.focus({ preventScroll: true });
@@ -349,13 +356,19 @@ function AppContent() {
 
   function setMonth(month: string, options?: { preserveFocus?: boolean }) {
     if (!settings) return;
+    if (month === settings.selectedMonth) return;
     if (
       settings?.selectedView === "settings" &&
       settingsDirty &&
       !window.confirm("Discard unsaved Settings changes and change the reporting month?")
     ) return;
+    if (
+      settings.selectedView === "reports" && payrollDirty
+      && !window.confirm("Discard the unsaved payroll amount and change the reporting month?")
+    ) return;
     if (!hasPayPlanCoverage(getPayPlanSchedule(settings), month)) return;
     setSettingsDirty(false);
+    setPayrollDirty(false);
     setTabContext((current) => {
       const next = {
         selectedMonth: month,
@@ -425,7 +438,7 @@ function AppContent() {
           ) : null}
           {settings.selectedView === "reports" ? (
             <ReportsPage
-              key={`reports-${settings.selectedMonth}-${settings.actualPaidByMonth[settings.selectedMonth] ?? "blank"}`}
+              key={`reports-${settings.selectedMonth}`}
               sales={sales}
               auditEvents={auditEvents}
               settings={settings}
@@ -433,6 +446,7 @@ function AppContent() {
               onBackupExported={handleBackupExported}
               initialTab={destination.view === "reports" ? destination.tab : undefined}
               onNavigate={navigate}
+              onDirtyChange={setPayrollDirty}
             />
           ) : null}
           {settings.selectedView === "settings" ? (

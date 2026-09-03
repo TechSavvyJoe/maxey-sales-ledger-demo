@@ -19,4 +19,12 @@ describe("sale validation", () => {
       .toBe("Enter deal credit between 0 and 2.");
     expect(validateSaleForm({ ...validDeliveredSale, unitCredit: "0" }).unitCredit).toBeUndefined();
   });
+
+  it.each([".5", "0.5", "00.500", "0.125", "1.", "2"])("accepts decimal deal credit %j", (unitCredit) => {
+    expect(validateSaleForm({ ...validDeliveredSale, unitCredit }).unitCredit).toBeUndefined();
+  });
+
+  it.each([".", "-", "0x1", "1e0", "0.1234", "2.1"])("rejects invalid or silently rounded deal credit %j", (unitCredit) => {
+    expect(validateSaleForm({ ...validDeliveredSale, unitCredit }).unitCredit).toBeDefined();
+  });
 });

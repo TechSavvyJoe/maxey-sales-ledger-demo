@@ -316,6 +316,8 @@ export function FiReportCenter({
         role="tablist"
         aria-label="F&I report sections"
         onKeyDown={(event) => {
+          if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
           const currentIndex = FI_REPORT_VIEWS.findIndex((view) => view.value === activeView);
           let nextIndex = currentIndex;
           if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % FI_REPORT_VIEWS.length;
@@ -323,7 +325,6 @@ export function FiReportCenter({
           if (event.key === "Home") nextIndex = 0;
           if (event.key === "End") nextIndex = FI_REPORT_VIEWS.length - 1;
           if (nextIndex === currentIndex) return;
-          event.preventDefault();
           const nextView = FI_REPORT_VIEWS[nextIndex];
           setActiveView(nextView.value);
           window.requestAnimationFrame(() => {

@@ -26,9 +26,11 @@ async function boundary(locator: Locator, minimumContrast: number, againstParent
     const border = side ? css[`border${side}Color`] : "rgba(0, 0, 0, 0)";
     const light = luminance(background);
     const dark = luminance(border);
+    const text = luminance(css.color);
     return {
       border, background, side,
       contrast: (Math.max(light, dark) + 0.05) / (Math.min(light, dark) + 0.05),
+      textContrast: (Math.max(light, text) + 0.05) / (Math.min(light, text) + 0.05),
     };
   }, againstParent);
   await expect.poll(async () => (await read()).contrast, {
@@ -75,6 +77,8 @@ test("production sections and controls stay distinct on office monitors and phon
     if (viewport.width > 1120) {
       await boundary(page.locator(".sales-surface"), 2);
       await boundary(page.locator(".sales-table tbody tr:first-child td"), 1.6);
+      const header = await boundary(page.locator(".sales-table thead th"), 1.6);
+      expect(header.textContrast, "Sales column labels must contrast with their shaded header").toBeGreaterThanOrEqual(4.5);
     } else {
       await boundary(page.locator(".sale-card"), 2);
     }

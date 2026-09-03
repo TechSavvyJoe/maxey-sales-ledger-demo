@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, parseISO } from "date-fns";
 import {
   CheckCircle2,
@@ -24,7 +24,7 @@ import {
   getCommissionGoalForMonth,
   getDeliveryGoalForMonth,
 } from "@/domain/goals";
-import { formatCurrency, formatPercent, parseCurrencyToCents } from "@/domain/money";
+import { formatCurrency, formatCurrencyInput, formatPercent, parseCurrencyToCents } from "@/domain/money";
 import type { AppDestination, ReportDestinationTab } from "@/domain/navigation";
 import { calculateWorkdayPace } from "@/domain/pacing";
 import {
@@ -60,7 +60,8 @@ interface ReportsPageProps {
   /** Retained for API compatibility; Settings records successful private backups. */
   onBackupExported: () => Promise<void>;
   initialTab?: ReportDestinationTab;
-  onNavigate: (destination: AppDestination) => void;
+  onNavigate: (destination: AppDestination, options?: { preserveFocus?: boolean }) => void;
+  onDirtyChange: (dirty: boolean) => void;
 }
 
 function ReportMetric({ label, value, note }: { label: string; value: string; note?: string }) {
@@ -98,6 +99,8 @@ function ReportSubjectTabs({
       aria-label={label}
       data-tab-count={options.length}
       onKeyDown={(event) => {
+        if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
         const currentIndex = options.findIndex((option) => option.value === value);
         let nextIndex = currentIndex;
         if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % options.length;
@@ -105,7 +108,6 @@ function ReportSubjectTabs({
         if (event.key === "Home") nextIndex = 0;
         if (event.key === "End") nextIndex = options.length - 1;
         if (nextIndex === currentIndex) return;
-        event.preventDefault();
         const nextOption = options[nextIndex];
         onChange(nextOption.value);
         window.requestAnimationFrame(() => {
@@ -249,6 +251,7 @@ export function ReportsPage({
   onSaveSettings,
   initialTab,
   onNavigate,
+  onDirtyChange,
 }: ReportsPageProps) {
   const todayDate = todayDateOnly();
   const [activeTab, setActiveTab] = useState<ReportDestinationTab>(initialTab ?? "monthly");
@@ -256,11 +259,34 @@ export function ReportsPage({
   const [weekSubject, setWeekSubject] = useState<(typeof WEEK_SUBJECTS)[number]["value"]>("overview");
   const [yearSubject, setYearSubject] = useState<(typeof YEAR_SUBJECTS)[number]["value"]>("summary");
   const [includeLastNames, setIncludeLastNames] = useState(true);
-  const [actualPaidInput, setActualPaidInput] = useState(() => {
-    const value = settings.actualPaidByMonth[settings.selectedMonth];
-    return value === null || value === undefined ? "" : (value / 100).toFixed(2);
-  });
+  const savedActualPaid = settings.actualPaidByMonth[settings.selectedMonth] ?? null;
+  const [actualPaidDraft, setActualPaidDraft] = useState<{ text: string; baseCents: number | null } | null>(null);
+  const draftEdited = actualPaidDraft !== null
+    && parseCurrencyToCents(actualPaidDraft.text) !== actualPaidDraft.baseCents;
+  // Refresh clean entries from other tabs, but never replace an unfinished edit.
+  const currentPaidDraft = actualPaidDraft && (draftEdited || actualPaidDraft.baseCents === savedActualPaid)
+    ? actualPaidDraft : null;
+  const actualPaidInput = currentPaidDraft?.text ?? formatCurrencyInput(savedActualPaid);
+  const isActualPaidDirty = parseCurrencyToCents(actualPaidInput) !== savedActualPaid;
+  const actualPaidConflict = Boolean(currentPaidDraft && isActualPaidDirty && currentPaidDraft.baseCents !== savedActualPaid);
+  const actualPaidRef = useRef<HTMLInputElement>(null);
+  const [actualPaidError, setActualPaidError] = useState<string | null>(null);
   const [isSavingActual, setIsSavingActual] = useState(false);
+
+  useEffect(() => {
+    onDirtyChange(isActualPaidDirty);
+    return () => onDirtyChange(false);
+  }, [isActualPaidDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!isActualPaidDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [isActualPaidDirty]);
 
   const payPlanSchedule = useMemo(() => getPayPlanSchedule(settings), [settings]);
   const currentPayPlan = useMemo(
@@ -436,17 +462,20 @@ export function ReportsPage({
   function changeTab(value: string) {
     const tab = value as ReportDestinationTab;
     setActiveTab(tab);
-    onNavigate({ view: "reports", tab });
+    onNavigate({ view: "reports", tab }, { preserveFocus: true });
   }
 
   async function saveActualPaid() {
+    if (isSavingActual || actualPaidConflict) return;
     const cents = parseCurrencyToCents(actualPaidInput);
-    if (Number.isNaN(cents)) {
-      toast.error("Enter a valid actual-paid amount.");
-      return;
-    }
-    if (cents !== null && (!Number.isSafeInteger(cents) || Math.abs(cents) > 100_000_000)) {
-      toast.error("Enter an amount between -$1,000,000 and $1,000,000.");
+    const error = Number.isNaN(cents)
+      ? "Enter dollars, such as 4500 or 4500.00."
+      : cents !== null && (!Number.isSafeInteger(cents) || Math.abs(cents) > 100_000_000)
+        ? "Enter an amount between -$1,000,000 and $1,000,000."
+        : null;
+    setActualPaidError(error);
+    if (error) {
+      actualPaidRef.current?.focus();
       return;
     }
     setIsSavingActual(true);
@@ -458,6 +487,7 @@ export function ReportsPage({
           [settings.selectedMonth]: cents,
         },
       });
+      setActualPaidDraft(null);
       toast.success("Actual paid amount saved.");
     } catch {
       toast.error("Actual paid amount was not saved.", {
@@ -1168,23 +1198,57 @@ export function ReportsPage({
           <div className="payroll-layout print-report">
             <section className="panel payroll-entry">
               <SectionHeader title="Enter payroll amount" description={`Compare your ${monthLabel(settings.selectedMonth)} estimate with what you were paid`} />
+              <form onSubmit={(event) => { event.preventDefault(); void saveActualPaid(); }} noValidate>
               <div className="field-group">
                 <Label htmlFor="actual-paid">Commission paid</Label>
                 <div className="money-input">
                   <span aria-hidden="true">$</span>
                   <Input
+                    ref={actualPaidRef}
                     id="actual-paid"
                     inputMode="decimal"
+                    autoComplete="off"
+                    readOnly={isSavingActual}
                     value={actualPaidInput}
-                    onChange={(event) => setActualPaidInput(event.target.value)}
+                    aria-invalid={Boolean(actualPaidError)}
+                    aria-describedby={`actual-paid-help${actualPaidError ? " actual-paid-error" : ""}`}
+                    onChange={(event) => {
+                      setActualPaidDraft({
+                        text: event.target.value,
+                        baseCents: isActualPaidDirty && currentPaidDraft ? currentPaidDraft.baseCents : savedActualPaid,
+                      });
+                      setActualPaidError(null);
+                    }}
+                    onBlur={() => {
+                      const cents = parseCurrencyToCents(actualPaidInput);
+                      if (!Number.isNaN(cents)) {
+                        setActualPaidDraft({
+                          text: formatCurrencyInput(cents),
+                          baseCents: currentPaidDraft ? currentPaidDraft.baseCents : savedActualPaid,
+                        });
+                      }
+                    }}
                     placeholder="4,500.00"
                   />
                 </div>
-                <p className="field-help">Enter the amount from your payroll record. Do not upload paystubs or other documents.</p>
+                {actualPaidError ? <p id="actual-paid-error" className="field-error" role="alert">{actualPaidError}</p> : null}
+                <p id="actual-paid-help" className="field-help">Enter the amount from your payroll record. Leave blank if not entered yet; enter 0 only if you were paid $0.</p>
               </div>
-              <Button onClick={() => void saveActualPaid()} disabled={isSavingActual}>
+              {actualPaidConflict ? (
+                <div className="form-summary-error" role="alert">
+                  <div>
+                    <strong>Payroll changed in another tab</strong>
+                    <p>Your entry is still here. Load the latest saved amount before making another change.</p>
+                    <Button type="button" variant="outline" onClick={() => { setActualPaidDraft(null); setActualPaidError(null); actualPaidRef.current?.focus(); }}>
+                      Load latest payroll amount
+                    </Button>
+                  </div>
+                </div>
+              ) : isActualPaidDirty ? <p className="field-help" role="status">Unsaved payroll amount</p> : null}
+              <Button type="submit" disabled={isSavingActual || actualPaidConflict}>
                 {isSavingActual ? "Saving…" : "Save payroll amount"}
               </Button>
+              </form>
             </section>
             <section className="panel payroll-comparison">
               <SectionHeader title="Estimate vs payroll" description={monthLabel(settings.selectedMonth)} />

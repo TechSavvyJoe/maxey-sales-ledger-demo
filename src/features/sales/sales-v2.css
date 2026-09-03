@@ -125,6 +125,7 @@
   .app-shell .sales-table thead th {
     border-bottom-color: var(--color-border);
     background: var(--color-table-header);
+    color: var(--slate-700);
   }
 
   .sale-sheet .status-choice:not(.is-selected) {

@@ -24,10 +24,11 @@ export function parseCurrencyToCents(value: string): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
   const cleaned = trimmed.replace(/[$,\s]/g, "");
-  if (!/^-?\d+(?:\.\d{0,2})?$/.test(cleaned)) return Number.NaN;
+  if (!/^-?(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(cleaned)) return Number.NaN;
   const amount = Number(cleaned);
   if (!Number.isFinite(amount)) return Number.NaN;
-  return Math.round(amount * 100);
+  const cents = Math.round(amount * 100);
+  return Number.isSafeInteger(cents) ? cents : Number.NaN;
 }
 
 export function formatPercent(basisPoints: number, fractionDigits = 0): string {
