@@ -23,6 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { calculateMonth, normalizeStock } from "@/domain/commission";
 import { currentMonthKey, monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
+import { getPaymentMethod } from "@/domain/financing";
 import { formatCurrency, formatCurrencyInput, formatPercent, parseCurrencyToCents } from "@/domain/money";
 import {
   getEarliestPayPlanMonth,
@@ -31,7 +32,7 @@ import {
   hasPayPlanCoverage,
   payPlanCoverageMessage,
 } from "@/domain/payPlan";
-import type { ProfileSettings, Sale } from "@/domain/types";
+import type { PaymentMethod, ProfileSettings, Sale } from "@/domain/types";
 import {
   type SaleFormErrors,
   type SaleFormValues,
@@ -56,18 +57,20 @@ interface FiProductValues {
   tireWheelSold: boolean | undefined;
   gapSold: boolean | undefined;
   dealerFinanced: boolean | undefined;
+  paymentMethod: PaymentMethod | undefined;
 }
 
-const fiProductOptions: Array<{ key: keyof FiProductValues; label: string }> = [
+const fiProductOptions: Array<{ key: "serviceContractSold" | "tireWheelSold" | "gapSold"; label: string }> = [
   { key: "serviceContractSold", label: "Service contract / warranty" },
   { key: "tireWheelSold", label: "Tire & Wheel" },
   { key: "gapSold", label: "GAP" },
 ];
 
-const financingOption: { key: keyof FiProductValues; label: string } = {
-  key: "dealerFinanced",
-  label: "Dealer financed",
-};
+const paymentOptions: Array<{ value: PaymentMethod; label: string }> = [
+  { value: "dealer_financed", label: "Dealership financing" },
+  { value: "cash", label: "Cash" },
+  { value: "outside_financing", label: "Outside financing" },
+];
 
 function defaultDateForMonth(monthKey: string): string {
   if (monthKey === currentMonthKey()) return todayDateOnly();
@@ -109,7 +112,8 @@ function fiProductsForSale(sale: Sale | null): FiProductValues {
       serviceContractSold: false,
       tireWheelSold: false,
       gapSold: false,
-      dealerFinanced: false,
+      dealerFinanced: undefined,
+      paymentMethod: undefined,
     };
   }
   return {
@@ -117,6 +121,7 @@ function fiProductsForSale(sale: Sale | null): FiProductValues {
     tireWheelSold: sale.tireWheelSold,
     gapSold: sale.gapSold,
     dealerFinanced: sale.dealerFinanced,
+    paymentMethod: getPaymentMethod(sale) === "dealer_financed" ? "dealer_financed" : sale.paymentMethod,
   };
 }
 
@@ -266,8 +271,13 @@ export function SaleFormSheet({
     if (key === "stockNumber" || key === "status") setDuplicateConfirmed(false);
   }
 
-  function updateFiProduct(key: keyof FiProductValues, checked: boolean) {
+  function updateFiProduct(key: "serviceContractSold" | "tireWheelSold" | "gapSold", checked: boolean) {
     setFiProducts((current) => ({ ...current, [key]: checked }));
+    if (!conflictSaleId) setSaveError(null);
+  }
+
+  function updatePaymentMethod(paymentMethod: PaymentMethod | undefined) {
+    setFiProducts((current) => ({ ...current, paymentMethod, dealerFinanced: paymentMethod === undefined ? undefined : paymentMethod === "dealer_financed" }));
     if (!conflictSaleId) setSaveError(null);
   }
 
@@ -588,7 +598,7 @@ export function SaleFormSheet({
                     placeholder="600.00"
                   />
                 </div>
-                <span id="fi-gross-help" className="field-help">Enter one combined F&amp;I gross amount for the whole deal.</span>
+                <span id="fi-gross-help" className="field-help">Enter one combined F&amp;I gross amount for the whole deal. Leave blank until your F&amp;I manager provides it; you can add it next month.</span>
                 {errors.fiGross ? <span id="fi-gross-error" className="field-error">{errors.fiGross}</span> : null}
               </div>
             </div>
@@ -623,28 +633,21 @@ export function SaleFormSheet({
               <p id="fi-products-help" className="field-help">
                 Check each product that was sold. Leave it unchecked if it was not sold.
               </p>
-              <div className="grid grid-cols-2 gap-2" role="group" aria-label="Financing">
-                <label
-                  htmlFor={`fi-product-${financingOption.key}`}
-                  className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-[13px] font-semibold text-slate-900"
-                >
-                  <Checkbox
-                    id={`fi-product-${financingOption.key}`}
-                    checked={fiProducts[financingOption.key] === undefined ? "indeterminate" : fiProducts[financingOption.key]}
-                    aria-describedby="fi-financing-help"
-                    onCheckedChange={(checked) => updateFiProduct(financingOption.key, checked === true)}
-                  />
-                  <span>
-                    {financingOption.label}
-                    {fiProducts[financingOption.key] === undefined
-                      ? <small className="block text-[11px] font-medium text-slate-600">Not marked</small>
-                      : null}
-                  </span>
-                </label>
-              </div>
-              <p id="fi-financing-help" className="field-help">
-                Check this when the sale used dealer financing. Total F&amp;I gross stays as one amount for the whole sale.
-              </p>
+              <fieldset className="sale-payment-method">
+                <legend>Payment method</legend>
+                <div className="sale-payment-options">
+                  {paymentOptions.map((option) => (
+                    <label key={option.value} className={cn("sale-payment-choice", fiProducts.paymentMethod === option.value && "is-selected")}>
+                      <input type="radio" name="payment-method" value={option.value} checked={fiProducts.paymentMethod === option.value} onChange={() => updatePaymentMethod(option.value)} aria-describedby="fi-financing-help" />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <p id="fi-financing-help" className="field-help">Cash means no loan. Choose outside financing when the customer uses their own bank or credit union.</p>
+                {fiProducts.paymentMethod === undefined
+                  ? <p className="field-help">{fiProducts.dealerFinanced === false ? "Previously marked not dealer financed. Choose Cash or Outside financing when known." : "Not marked yet. You can add this later."}</p>
+                  : <button type="button" className="sale-payment-clear" onClick={() => updatePaymentMethod(undefined)}>Mark as not known yet</button>}
+              </fieldset>
             </fieldset>
 
             {duplicateMatches.length > 0 ? (
@@ -698,17 +701,16 @@ export function SaleFormSheet({
 
                 <fieldset className="sale-detail-group">
                   <legend>Unit credit</legend>
-                  <div className="credit-choices">
-                    {[{ label: "Full deal", value: "1" }, { label: "Half deal", value: "0.5" }].map((choice) => (
-                      <Button
-                        type="button"
-                        key={choice.value}
-                        variant={values.unitCredit === choice.value ? "default" : "outline"}
-                        onClick={() => updateValue("unitCredit", choice.value)}
-                      >
-                        {choice.label}
-                      </Button>
-                    ))}
+                  <div className="sale-credit-controls">
+                    <label htmlFor="split-deal-credit" className="sale-split-credit">
+                      <Checkbox
+                        id="split-deal-credit"
+                        checked={Number(values.unitCredit) === 0.5}
+                        aria-describedby="unit-credit-help"
+                        onCheckedChange={(checked) => updateValue("unitCredit", checked === true ? "0.5" : "1")}
+                      />
+                      <span>Split deal (½ credit)</span>
+                    </label>
                     <div className="credit-custom">
                       <Label htmlFor="unit-credit">Custom</Label>
                       <Input
@@ -764,6 +766,7 @@ export function SaleFormSheet({
                 <span>
                   <small>{previewHasPayPlan ? "Estimated commission" : "Commission unavailable"}</small>
                   <strong>{preview ? formatCurrency(preview.sale?.estimatedCommissionCents ?? 0, true) : "Not calculated"}</strong>
+                  {preview && !values.fiGross.trim() ? <small>Awaiting F&amp;I gross · not included yet</small> : null}
                 </span>
               </div>
               {preview && previewPayPlan ? (

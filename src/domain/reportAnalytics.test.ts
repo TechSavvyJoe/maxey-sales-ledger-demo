@@ -247,6 +247,8 @@ describe("product, bundle, and financing analytics", () => {
     const rows = calculateFinancingGroupRows(portfolio);
     expect(rows.map((row) => [row.key, row.dealCount])).toEqual([
       ["dealerFinanced", 2],
+      ["cash", 0],
+      ["outsideFinancing", 0],
       ["notDealerFinanced", 2],
       ["unmarked", 1],
     ]);
@@ -258,13 +260,70 @@ describe("product, bundle, and financing analytics", () => {
       fiGrossEnteredCount: 2,
       fiGrossMissingCount: 0,
     });
-    expect(rows[2]).toMatchObject({
+    expect(rows.find((row) => row.key === "unmarked")).toMatchObject({
       shareOfDeliveredDealsRate: 0.2,
       fiGrossCents: 0,
-      averageFiGrossPerDealCents: 0,
+      averageFiGrossPerDealCents: null,
       fiGrossEnteredCount: 0,
       fiGrossMissingCount: 1,
     });
+  });
+
+  it("reports cash and outside financing separately while preserving legacy unknowns", () => {
+    const analytics = calculateReportAnalytics([
+      calculatedSale("dealer", { paymentMethod: "dealer_financed", dealerFinanced: false, gapSold: true, unitCreditBasis: 500 }),
+      calculatedSale("cash", { paymentMethod: "cash", dealerFinanced: true, gapSold: true }),
+      calculatedSale("outside", { paymentMethod: "outside_financing", dealerFinanced: true, gapSold: true }),
+      calculatedSale("legacy-dealer", { dealerFinanced: true, gapSold: false }),
+      calculatedSale("legacy-no", { dealerFinanced: false, gapSold: false }),
+      calculatedSale("unmarked"),
+    ]);
+    expect(analytics.financingRows.map((row) => [row.key, row.dealCount])).toEqual([
+      ["dealerFinanced", 2],
+      ["cash", 1],
+      ["outsideFinancing", 1],
+      ["notDealerFinanced", 1],
+      ["unmarked", 1],
+    ]);
+    expect(analytics.financingRows.reduce((total, row) => total + row.dealCount, 0)).toBe(6);
+    expect(analytics.financingRows.reduce((total, row) => total + row.fiGrossCents, 0)).toBe(analytics.gross.fi.totalCents);
+    expect(analytics.finance.dealerFinance).toMatchObject({
+      eligibleDealCount: 6,
+      yesCount: 2,
+      noCount: 3,
+      unmarkedCount: 1,
+      penetrationRate: 1 / 3,
+    });
+    expect(analytics.products.gap.penetrationRate).toBe(0.5);
+    expect(analytics.finance.gapOnDealerFinanced).toMatchObject({ eligibleDealCount: 2, yesCount: 1, penetrationRate: 0.5 });
+    expect(analytics.finance.segments.cash.dealCount).toBe(1);
+    expect(analytics.finance.segments.outsideFinancing.dealCount).toBe(1);
+    expect(analytics.finance.segments.notDealerFinanced.dealCount).toBe(1);
+    expect(analytics.quality).toMatchObject({ recordedFinanceOutcomeCount: 5, unmarkedFinanceOutcomeCount: 1 });
+  });
+
+  it("keeps dealer-financed GAP penetration distinct from the all-sales rate", () => {
+    const analytics = calculateReportAnalytics([
+      calculatedSale("financed-yes", { dealerFinanced: true, gapSold: true, unitCreditBasis: 500 }),
+      calculatedSale("financed-no", { dealerFinanced: true, gapSold: false }),
+      calculatedSale("financed-unmarked", { dealerFinanced: true }),
+      calculatedSale("outside-yes", { dealerFinanced: false, gapSold: true }),
+      calculatedSale("financing-unmarked", { gapSold: true }),
+      calculatedSale("excluded", { dealerFinanced: true, gapSold: true, countsTowardVolume: false }),
+    ]);
+    expect(analytics.products.gap.penetrationRate).toBe(3 / 5);
+    expect(analytics.finance.gapOnDealerFinanced).toEqual({
+      eligibleDealCount: 3,
+      yesCount: 1,
+      noCount: 1,
+      unmarkedCount: 1,
+      recordedCount: 2,
+      penetrationRate: 1 / 3,
+      trackingCompletionRate: 2 / 3,
+    });
+    expect(calculateReportAnalytics([
+      calculatedSale("outside-only", { dealerFinanced: false, gapSold: true }),
+    ]).finance.gapOnDealerFinanced.penetrationRate).toBeNull();
   });
 
   it("exposes reporting-completeness counts separately from sales outcomes", () => {
@@ -287,6 +346,43 @@ describe("product, bundle, and financing analytics", () => {
 });
 
 describe("gross and commission analytics", () => {
+  it("distinguishes missing money from an entered zero in PVR and F&I earning yield", () => {
+    const missing = calculateReportAnalytics([
+      calculatedSale("missing", {
+        frontGrossCents: null,
+        fiGrossCents: null,
+        serviceContractSold: true,
+        tireWheelSold: true,
+        dealerFinanced: true,
+      }),
+    ]);
+    expect(missing.gross.fi.totalCents).toBe(0);
+    expect(missing.gross.fi.averagePerDeliveredDealCents).toBeNull();
+    expect(missing.gross.front.averagePerDeliveredDealCents).toBeNull();
+    expect(missing.gross.averageTotalGrossPerDeliveredDealCents).toBeNull();
+    expect(missing.commission.averageFiCommissionPerDeliveredDealCents).toBeNull();
+    expect(missing.financingRows[0].averageFiGrossPerDealCents).toBeNull();
+    expect(missing.productRows[0].averageCohortTotalFiGrossPerMatchingDealCents).toBeNull();
+    expect(missing.bundleRows[0].averageCohortTotalFiGrossPerMatchingDealCents).toBeNull();
+
+    const zero = calculateReportAnalytics([calculatedSale("zero", { fiGrossCents: 0 })]);
+    expect(zero.gross.fi.averagePerDeliveredDealCents).toBe(0);
+    expect(zero.commission.averageFiCommissionPerDeliveredDealCents).toBe(0);
+  });
+
+  it("uses every delivered deal for recorded PVR and allocated F&I commission per sale", () => {
+    const analytics = calculateReportAnalytics([
+      calculatedSale("earned", { fiGrossCents: 120_000, unitCreditBasis: 500 }),
+      calculatedSale("zero", { fiGrossCents: 0 }),
+      calculatedSale("not-entered", { fiGrossCents: null }),
+    ]);
+    expect(analytics.population.creditedUnits).toBe(2.5);
+    expect(analytics.gross.fi.averagePerDeliveredDealCents).toBe(40_000);
+    expect(analytics.gross.fi.enteredCount).toBe(2);
+    expect(analytics.commission.averageFiCommissionPerDeliveredDealCents).toBe(8_000);
+    expect(calculateReportAnalytics([]).commission.averageFiCommissionPerDeliveredDealCents).toBeNull();
+  });
+
   it("keeps missing, zero, positive, and negative gross values distinct", () => {
     const analytics = calculateReportAnalytics([
       calculatedSale("missing", { frontGrossCents: null, fiGrossCents: null }),

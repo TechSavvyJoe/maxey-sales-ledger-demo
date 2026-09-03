@@ -29,7 +29,7 @@ test("closed August dashboard shows final results instead of an active projectio
   const monthlyPace = page.getByRole("region", { name: "Monthly goal and commission outlook" });
   await expect(monthlyPace).toContainText("Final recorded estimate");
   await expect(monthlyPace).toContainText("Month complete");
-  await expect(monthlyPace).toContainText("Final month result");
+  await expect(monthlyPace).toContainText("Month deliveries");
   await expect(monthlyPace).toContainText("Month status");
   await expect(monthlyPace).toContainText("Closed");
   await expect(monthlyPace).not.toContainText("Commission pace and projection");
@@ -48,7 +48,7 @@ test("closed August Month report labels its commission result as final", async (
     "true",
   );
   const commissionResult = page.getByRole("region", { name: "Closed-month commission result" });
-  await expect(commissionResult).toContainText("Final month result");
+  await expect(commissionResult).toContainText("Month deliveries");
   await expect(commissionResult).toContainText("Month status");
   await expect(commissionResult).toContainText("Closed");
   await expect(commissionResult).toContainText("This closed month shows final recorded results.");

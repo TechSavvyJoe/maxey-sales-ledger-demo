@@ -175,6 +175,14 @@
 .fi-center-cell-stack { display: grid; gap: 1px; }
 .fi-center-cell-stack strong { color: var(--navy-900); }
 .fi-center-cell-stack small { color: var(--slate-600); font-size: 9px; }
+.fi-center-column-note { display: block; margin-top: 2px; font-size: 10px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.fi-product-missing { display: block; margin-top: 3px; color: var(--amber-700); font-size: 11px; font-weight: 500; }
+.fi-center-product-card { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--slate-200); border-radius: 8px; padding: 8px 10px; }
+.fi-center-product-card > div { display: grid; min-width: 0; gap: 2px; }
+.fi-center-product-card > div > strong { color: var(--navy-900); font-size: 13px; line-height: 1.3; }
+.fi-center-product-card > div > small { color: var(--slate-600); font-size: 11px; line-height: 1.35; }
+.fi-center-product-card > div > .fi-product-missing { color: var(--amber-700); }
+.fi-report-center .fi-center-product-card > .fi-center-view-button { min-height: 44px; padding-inline: 6px; font-size: 11px; }
 
 .fi-center-view-button {
   min-width: max-content;
@@ -196,6 +204,43 @@
 .fi-center-panel { min-width: 0; padding: 11px 13px; }
 .fi-center-panel + .fi-center-panel { border-left: 1px solid var(--slate-200); }
 .fi-center-panel h4 { margin: 0 0 6px; color: var(--navy-900); font-size: 12px; }
+
+.fi-report-center .fi-center-money-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+.fi-center-money-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  border-bottom: 1px solid var(--slate-200);
+  padding: 10px 13px;
+}
+.fi-center-money-header > div { min-width: 0; }
+.fi-report-center .fi-center-money-header h4 {
+  margin: 0;
+  color: var(--navy-900);
+  font-size: 14px;
+  font-weight: 700;
+}
+.fi-center-money-header small {
+  display: block;
+  margin-top: 2px;
+  color: var(--slate-600);
+  font-size: 12px;
+  line-height: 1.3;
+}
+.fi-center-money-header > span {
+  color: var(--navy-900);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 720px) {
+  .fi-report-center .fi-center-money-grid { grid-template-columns: minmax(0, 1fr); }
+}
 
 .fi-center-row-list { display: grid; margin: 0; }
 .fi-center-row-list > div {
@@ -335,6 +380,271 @@
 .fi-report-center.is-compact .fi-center-heading { display: none; }
 .fi-report-center.is-compact .fi-center-kpi { padding-block: 8px; }
 
+.reports-page .report-openable-sale { cursor: pointer; }
+.reports-page .report-openable-sale:focus-within { outline: 2px solid #aac5de; outline-offset: -2px; }
+.reports-page .report-openable-sale:hover { background: #f5f8fc; }
+.reports-page tr.report-openable-sale:hover > * { background: #f5f8fc; }
+.reports-page .report-open-sale {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: flex-start;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--blue-700);
+  padding: 3px 0;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: #b6c9dc;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+.reports-page .report-open-sale:hover { color: var(--navy-900); text-decoration-color: currentColor; }
+.reports-page .report-open-sale:focus-visible { outline: 2px solid var(--blue-700); outline-offset: 3px; }
+.reports-page .report-product-badges > span,
+.reports-page .fi-evidence-outcomes > span,
+.reports-page .fi-evidence-finance {
+  min-height: 21px;
+  border: 1px solid #d5dde6;
+  border-radius: 4px;
+  background: #f2f5f8;
+  color: #34475b;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.reports-page .fi-evidence-outcomes > span[data-state="Missing"],
+.reports-page .fi-evidence-finance[data-state="Missing"] {
+  border-color: #dfcfae;
+  background: #faf6eb;
+  color: #73581f;
+}
+.reports-page .status-badge { border-radius: 4px; font-weight: 600; }
+.reports-page .status-badge--delivered { border: 1px solid #d5dde6; background: #f2f5f8; color: #425569; }
+
+@media (pointer: coarse), (max-width: 720px) {
+  .reports-page .report-open-sale { min-height: 44px; }
+}
+
+/* A report can be narrower than the browser when the navigation is visible.
+   Choose the table from the space it actually has, and style disclosure bodies
+   at every width where they can appear, not just at phone breakpoints. */
+@media screen {
+  .fi-report-center .fi-center-section {
+    container: fi-report-section / inline-size;
+  }
+
+  .fi-report-center .fi-center-table-wrap {
+    width: auto;
+  }
+
+  .fi-report-center .fi-center-desktop-table {
+    display: block;
+    margin: 10px;
+  }
+
+  .fi-report-center .fi-center-product-table,
+  .fi-report-center .fi-center-finance-table {
+    min-width: 0;
+  }
+
+  .fi-report-center .fi-center-phone-disclosures {
+    display: none;
+    gap: 6px;
+    margin: 10px;
+  }
+
+  .fi-report-center .fi-center-mobile-detail {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--slate-200);
+    border-radius: 8px;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > summary {
+    min-height: 54px;
+    padding: 9px 12px;
+    cursor: pointer;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > summary strong {
+    font-size: 13px;
+    line-height: 1.3;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > summary small {
+    margin-top: 2px;
+    font-size: 11px;
+  }
+
+  .fi-report-center .fi-center-summary-rate {
+    color: var(--blue-700);
+    font-size: 17px;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > dl {
+    display: grid;
+    margin: 0;
+    border-top: 1px solid var(--slate-200);
+    background: #f8fafc;
+    padding: 3px 12px;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > dl > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    align-items: baseline;
+    gap: 12px;
+    border-bottom: 1px solid var(--slate-200);
+    padding: 7px 0;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > dl > div:last-child {
+    border-bottom: 0;
+  }
+
+  .fi-report-center .fi-center-mobile-detail dt,
+  .fi-report-center .fi-center-mobile-detail dd {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .fi-report-center .fi-center-mobile-detail dd {
+    text-align: right;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > .fi-center-inline-note {
+    margin: 7px 12px 0;
+  }
+
+  .fi-report-center .fi-center-mobile-detail > .fi-center-view-button {
+    min-height: 44px;
+    margin: 0 2px 2px;
+  }
+
+  .fi-report-center .fi-center-mobile-detail:not([open]) > :not(summary) {
+    display: none;
+  }
+
+  @container fi-report-section (max-width: 719px) {
+    .fi-report-center .fi-center-desktop-table {
+      display: none;
+    }
+
+    .fi-report-center .fi-center-phone-disclosures {
+      display: grid;
+    }
+  }
+
+  @container fi-report-section (min-width: 720px) and (max-width: 879px) {
+    .fi-report-center .fi-center-desktop-table:has(.fi-center-finance-table) {
+      display: none;
+    }
+
+    .fi-report-center .fi-center-desktop-table:has(.fi-center-finance-table) + .fi-center-phone-disclosures {
+      display: grid;
+    }
+  }
+}
+
+.fi-performance-comparison,
+.fi-metric-guide {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--slate-200);
+  border-radius: 9px;
+  background: white;
+}
+
+.fi-performance-comparison { container: fi-performance / inline-size; }
+.fi-performance-comparison > summary,
+.fi-metric-guide > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  padding: 10px 13px;
+  color: var(--navy-900);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.fi-performance-comparison > summary::after,
+.fi-metric-guide > summary::after {
+  content: "+";
+  margin-left: auto;
+  font-size: 18px;
+  font-weight: 500;
+}
+.fi-performance-comparison[open] > summary::after,
+.fi-metric-guide[open] > summary::after { content: "−"; }
+.fi-performance-comparison > summary::-webkit-details-marker,
+.fi-metric-guide > summary::-webkit-details-marker { display: none; }
+.fi-performance-comparison > summary small { color: var(--slate-600); font-size: 12px; font-weight: 400; }
+.fi-performance-comparison > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.fi-performance-comparison > summary > span,
+.fi-performance-comparison > summary > small { grid-column: 1; }
+.fi-performance-comparison > summary::after { grid-column: 2; grid-row: 1 / span 2; }
+.fi-performance-comparison[open] > summary,
+.fi-metric-guide[open] > summary { border-bottom: 1px solid var(--slate-200); }
+.fi-performance-intro { margin: 0; padding: 10px 13px; color: var(--slate-600); font-size: 12px; line-height: 1.45; }
+.fi-performance-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.fi-performance-table th,
+.fi-performance-table td { border-bottom: 1px solid var(--slate-200); padding: 9px 13px; text-align: right; vertical-align: top; }
+.fi-performance-table th:first-child { text-align: left; }
+.fi-performance-table thead th { background: #f4f7fa; color: var(--slate-700); font-size: 11px; font-weight: 700; }
+.fi-performance-table tbody th { color: var(--navy-900); font-weight: 600; }
+.fi-performance-table tbody tr:last-child > * { border-bottom: 0; }
+.fi-performance-table td strong { display: block; color: var(--navy-900); font-size: 13px; font-weight: 700; }
+.fi-performance-table td small { display: block; max-width: 200px; margin-left: auto; color: var(--slate-600); font-size: 11px; }
+.fi-metric-guide__body { padding: 2px 13px 12px; }
+.fi-metric-guide__body dl { margin: 0; }
+.fi-metric-guide__body dt { margin-top: 11px; color: var(--navy-900); font-size: 12px; font-weight: 700; }
+.fi-metric-guide__body dd { margin: 2px 0 0; color: var(--slate-600); font-size: 12px; line-height: 1.45; }
+.fi-metric-guide__body p,
+.fi-metric-guide__body > small { display: block; margin: 10px 0 0; color: var(--slate-600); font-size: 11px; line-height: 1.45; }
+.fi-metric-guide__body a { color: var(--blue-700); text-decoration: underline; text-underline-offset: 2px; }
+.fi-finance-highlight { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 10px; border: 1px solid #d1e1ee; border-radius: 7px; background: #f4f8fc; padding: 9px 12px; }
+.fi-finance-highlight > div { min-width: 0; }
+.fi-finance-highlight > div > strong { color: var(--navy-900); font-size: 12px; }
+.fi-finance-highlight p { margin: 2px 0 0; color: var(--slate-600); font-size: 11px; line-height: 1.4; }
+.fi-finance-highlight > strong { flex: 0 0 auto; color: var(--blue-700); font-size: 20px; font-variant-numeric: tabular-nums; }
+.fi-report-center .fi-finance-products-table { min-width: 0; table-layout: fixed; }
+.fi-report-center .fi-finance-products-table th,
+.fi-report-center .fi-finance-products-table td { padding: 8px 7px; overflow-wrap: anywhere; }
+.fi-report-center .fi-finance-products-table th:first-child { width: 34%; }
+
+@media (min-width: 721px) {
+  .fi-metric-guide__body dl { display: grid; grid-template-columns: minmax(140px, 0.34fr) minmax(0, 1fr); gap: 12px 18px; padding-top: 12px; }
+  .fi-metric-guide__body dt,
+  .fi-metric-guide__body dd { margin: 0; }
+}
+
+@container fi-performance (max-width: 599px) {
+  .fi-performance-table thead { display: none; }
+  .fi-performance-table tbody { display: block; }
+  .fi-performance-table tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--slate-200); padding: 10px 12px; gap: 7px 10px; }
+  .fi-performance-table tr:last-child { border-bottom: 0; }
+  .fi-performance-table tbody th { grid-column: 1 / -1; }
+  .fi-report-center .fi-performance-table th,
+  .fi-report-center .fi-performance-table td { display: block; padding: 0; border: 0; text-align: left; }
+  .fi-performance-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--slate-600); font-size: 10px; }
+  .fi-performance-table td small { margin-left: 0; overflow-wrap: anywhere; }
+}
+
 @media (max-width: 1100px) {
   .fi-center-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .fi-center-kpi:nth-child(3) { border-right: 0; }
@@ -419,6 +729,10 @@
 }
 
 @media print {
+  /* Nested subject panels do not carry Radix's data-state attribute. The
+     outer active report controls print scope; keep all its subjects visible. */
+  .reports-page .report-tabs .report-subject-panel,
+  .reports-page .report-tabs .fi-center-view { display: block !important; }
   .fi-center-jump-nav,
   .fi-center-view-button,
   .fi-center-evidence-controls { display: none !important; }
@@ -427,4 +741,9 @@
   .fi-center-product-table,
   .fi-center-finance-table,
   .fi-center-evidence-table .fi-center-table { min-width: 0; }
+  .fi-report-center .fi-center-desktop-table { display: block !important; }
+  .fi-report-center .fi-center-phone-disclosures { display: none !important; }
+  .fi-performance-comparison { container-type: normal; }
+  .reports-page .report-openable-sale { cursor: auto; outline: 0; }
+  .reports-page .report-open-sale { display: inline !important; min-height: 0; padding: 0; color: inherit; text-decoration: none; }
 }

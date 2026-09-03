@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from "dexie";
 import { currentMonthKey, monthKeyFromDate, todayDateOnly } from "@/domain/date";
 import { DEFAULT_PAY_PLAN } from "@/domain/commission";
+import { normalizeSaleFinancing } from "@/domain/financing";
 import {
   normalizeCommissionGoalsByMonth,
   normalizeDeliveryGoalsByMonth,
@@ -18,6 +19,7 @@ import {
   buildDemoSales,
   createPublicDemoHistoricPlan,
   DEMO_HISTORIC_PLAN_VERSION,
+  samplePaymentMethod,
 } from "@/domain/demo";
 import type { AuditEvent, PayPlan, ProfileSettings, Sale } from "@/domain/types";
 import { SaleWriteConflictError, type SaleVersionToken } from "@/persistence/errors";
@@ -151,6 +153,9 @@ function normalizeActualPaidByMonth(value: unknown): Record<string, number | nul
 }
 
 function assertPersistableSaleNumbers(sale: Sale): void {
+  if (sale.paymentMethod !== undefined && !["dealer_financed", "cash", "outside_financing"].includes(sale.paymentMethod)) {
+    throw new Error("Choose dealership financing, cash, or outside financing.");
+  }
   if (
     !Number.isSafeInteger(sale.unitCreditBasis)
     || sale.unitCreditBasis < 0
@@ -335,6 +340,23 @@ export async function initializeDatabase(): Promise<ProfileSettings> {
 export async function initializePublishedDemo(asOfDate = todayDateOnly()): Promise<boolean> {
   return db.transaction("rw", db.settings, db.sales, db.auditEvents, async () => {
     const settings = await initializeDatabase();
+    // Only generated fictional records receive sample payment types. Keep real,
+    // imported, deleted, and already-classified records exactly as they are.
+    const paymentSamplesApplied = await db.auditEvents.where("action").equals("demo.loaded")
+      .filter((event) => event.profileId === PROFILE_ID && event.details?.paymentMethodsVersion === 1).count() > 0;
+    const generatedDemoSales = paymentSamplesApplied ? [] : await db.sales.where("profileId").equals(PROFILE_ID)
+      .filter((sale) => sale.source === "demo" && /^demo-\d{4}-\d{2}-\d+-delivered$/.test(sale.id) && !sale.deletedAt)
+      .toArray();
+    const demoPaymentUpdates = generatedDemoSales.filter((sale) => sale.paymentMethod === undefined);
+    if (demoPaymentUpdates.length) {
+      const timestamp = new Date().toISOString();
+      await db.sales.bulkPut(demoPaymentUpdates.map((sale) => normalizeSaleFinancing({
+        ...sale, paymentMethod: samplePaymentMethod(sale), revision: sale.revision + 1, updatedAt: timestamp,
+      })));
+    }
+    if (generatedDemoSales.length) {
+      await db.auditEvents.add(createAuditEvent("demo.loaded", demoPaymentUpdates.length ? "Added sample payment methods to fictional demo sales." : "Retained saved payment methods on fictional demo sales.", undefined, { updated: demoPaymentUpdates.length, paymentMethodsVersion: 1 }));
+    }
     // Include deleted rows and all activity: an intentionally emptied or
     // restored workspace must never be repopulated on the next page load.
     if (await db.sales.count() || await db.auditEvents.count()) return false;
@@ -456,7 +478,7 @@ export async function persistSale(
           revision: (existing?.revision ?? 0) + 1,
           updatedAt: new Date().toISOString(),
         };
-    await db.sales.put(persisted);
+    await db.sales.put(normalizeSaleFinancing(persisted));
     await db.auditEvents.add(
       createAuditEvent(
         isNew ? "sale.created" : "sale.updated",
@@ -585,7 +607,7 @@ export async function importSales(
         continue;
       }
       added += 1;
-      await db.sales.put(sale);
+      await db.sales.put(normalizeSaleFinancing(sale));
     }
     await db.auditEvents.add(
       createAuditEvent("import.completed", `Imported ${added} new sales from ${sourceName}.`, undefined, {
@@ -693,7 +715,7 @@ export async function loadDemoSales(
         "demo.loaded",
         `Loaded ${added + restored} demonstration sales.`,
         undefined,
-        { added, restored, alreadyPresent, archived: staleDemoSales.length },
+        { added, restored, alreadyPresent, archived: staleDemoSales.length, paymentMethodsVersion: 1 },
       ),
     );
   });
@@ -746,7 +768,7 @@ export async function replaceDatabaseFromBackup(
   const normalizedSettings = normalizeSettings({ ...settings, id: PROFILE_ID });
   const restoredSchedule = getPayPlanSchedule(normalizedSettings);
   const timestamp = new Date().toISOString();
-  const restoredSales = archiveLegacyVoidSales(sales, timestamp);
+  const restoredSales = archiveLegacyVoidSales(sales, timestamp).map(normalizeSaleFinancing);
   restoredSales
     .filter((sale) => !sale.deletedAt)
     .forEach((sale) => assertSaleHasPayPlanCoverage(sale, restoredSchedule));

@@ -75,9 +75,9 @@ function Difference({ current, previous, format = "number" }: { current: number;
   const Icon = difference > 0 ? ArrowUpRight : difference < 0 ? ArrowDownRight : ArrowRight;
   const text = format === "currency" ? formatCurrency(Math.abs(difference)) : Math.abs(difference).toLocaleString();
   return (
-    <span className={cn("metric-delta", difference > 0 && "is-positive", difference < 0 && "is-negative")}>
+    <span className="metric-delta">
       <Icon aria-hidden="true" />
-      {difference === 0 ? "No change" : `${text} ${difference > 0 ? "ahead" : "behind"}`} vs last month
+      {difference === 0 ? "No change" : `${difference > 0 ? "+" : "−"}${text}`} vs last full month
     </span>
   );
 }
@@ -278,7 +278,8 @@ export function Dashboard({
         )
       : `${formatCurrency(Math.max(commissionRunRate.low.estimatedCommissionCents - current.estimatedCommissionCents, 0))}–${formatCurrency(Math.max(commissionRunRate.high.estimatedCommissionCents - current.estimatedCommissionCents, 0))}`
     : "—";
-  const earningsPaceLabel = monthIsComplete
+  const awaitingFiGrossCount = current.calculatedSales.filter((item) => item.countsTowardVolume && item.sale.fiGrossCents === null).length;
+  const earningsPaceLabel = awaitingFiGrossCount > 0 ? "Awaiting F&I gross" : monthIsComplete
     ? "Month complete"
     : !earningsGoal
     ? "Projection active"
@@ -293,7 +294,9 @@ export function Dashboard({
             : earningsGoal.status === "complete"
               ? "Month complete"
               : "Not started";
-  const earningsGuidance = monthIsComplete
+  const earningsGuidance = awaitingFiGrossCount > 0
+    ? `Awaiting F&I gross on ${awaitingFiGrossCount} ${awaitingFiGrossCount === 1 ? "sale" : "sales"}. Earnings shown use only gross entered so far; add the amounts when your F&I manager provides them.`
+    : monthIsComplete
     ? earningsGoal
       ? earningsGoal.remainingCents === 0
         ? `${formatCurrency(earningsGoal.goalCents)} monthly commission goal reached.`
@@ -323,15 +326,15 @@ export function Dashboard({
           </span>
         </MetricCard>
         <MetricCard label="Estimated commission" value={formatCurrency(current.estimatedCommissionCents)}>
-          <Difference
+          {awaitingFiGrossCount > 0 ? <span className="metric-note">Awaiting F&amp;I gross on {awaitingFiGrossCount} {awaitingFiGrossCount === 1 ? "sale" : "sales"}</span> : previous?.calculatedSales.some((item) => item.countsTowardVolume && (item.sale.fiGrossCents === null || item.sale.frontGrossCents === null)) ? <span className="metric-note">Prior month awaits gross amounts</span> : <Difference
             current={current.estimatedCommissionCents}
             previous={previous?.estimatedCommissionCents ?? null}
             format="currency"
-          />
+          />}
         </MetricCard>
         <MetricCard label="Pace and projection" value={paceChipText}>
           <span className="metric-note">
-            {monthIsComplete ? `${current.deliveredCount} final deliveries` : `${projectedUnits} · ${projectedCommission}`}
+            {monthIsComplete ? `${current.deliveredCount} final deliveries` : `${projectedUnits} · ${projectedCommission}${awaitingFiGrossCount > 0 ? " from entered gross" : ""}`}
           </span>
         </MetricCard>
       </section>
@@ -445,12 +448,12 @@ export function Dashboard({
             <div className="dashboard-pace-lane__heading">
               <span>
                 <small>Commission outlook</small>
-                <strong id="earnings-pace-heading">{monthIsComplete ? "Final recorded estimate" : "Current and projected earnings"}</strong>
+                <strong id="earnings-pace-heading">{awaitingFiGrossCount > 0 ? "Earnings recorded so far" : monthIsComplete ? "Final recorded estimate" : "Current and projected earnings"}</strong>
               </span>
               <span className={cn(
                 "pace-chip",
-                earningsGoal?.status === "reached" || earningsGoal?.status === "on-pace" ? "is-on-pace" : undefined,
-                earningsGoal?.status === "behind" || earningsGoal?.status === "complete" && earningsGoal.remainingCents > 0 ? "is-behind" : undefined,
+                awaitingFiGrossCount === 0 && (earningsGoal?.status === "reached" || earningsGoal?.status === "on-pace") ? "is-on-pace" : undefined,
+                awaitingFiGrossCount === 0 && (earningsGoal?.status === "behind" || earningsGoal?.status === "complete" && earningsGoal.remainingCents > 0) ? "is-behind" : undefined,
               )}>
                 <CircleDollarSign aria-hidden="true" /> {earningsPaceLabel}
               </span>
@@ -461,18 +464,18 @@ export function Dashboard({
                 <dd><strong>{formatCurrency(current.estimatedCommissionCents)}</strong><small>{formatCurrency(current.bonusIncludedCents)} bonus included</small></dd>
               </div>
               <div>
-                <dt>{monthIsComplete ? "Final month result" : "Projected month end"}</dt>
+                <dt>{monthIsComplete ? "Month deliveries" : awaitingFiGrossCount > 0 ? "Projection from entered gross" : "Projected month end"}</dt>
                 <dd>
                   <strong>{monthIsComplete ? `${current.deliveredCount} ${current.deliveredCount === 1 ? "delivery" : "deliveries"}` : projectedCommission}</strong>
-                  <small>{monthIsComplete ? `${formatCurrency(current.estimatedCommissionCents)} final recorded estimate` : projectedUnits}</small>
+                  <small>{monthIsComplete ? `${formatCurrency(current.estimatedCommissionCents)} ${awaitingFiGrossCount > 0 ? "recorded so far" : "final recorded estimate"}` : projectedUnits}</small>
                 </dd>
               </div>
               <div>
-                <dt>{earningsGoal ? "Still needed" : monthIsComplete ? "Month status" : "Projected increase"}</dt>
+                <dt>{earningsGoal ? awaitingFiGrossCount > 0 ? "Goal gap so far" : "Still needed" : monthIsComplete ? "Month status" : "Projected increase"}</dt>
                 <dd>
                   <strong>{earningsGoal ? formatCurrency(earningsGoal.remainingCents) : monthIsComplete ? "Closed" : projectedIncrease}</strong>
                   <small>{monthlyCommissionGoalCents === null
-                    ? monthIsComplete ? "Final recorded results" : "Goal not set"
+                    ? awaitingFiGrossCount > 0 ? "F&I amounts still due" : monthIsComplete ? "Final recorded results" : "Goal not set"
                     : `${formatCurrency(monthlyCommissionGoalCents)} goal · ${Math.round(earningsGoal?.progressPercent ?? 0)}% reached`}</small>
                 </dd>
               </div>
@@ -567,7 +570,7 @@ export function Dashboard({
                 </dd>
               </div>
               <div>
-                <dt>Dealer financing</dt>
+                <dt>Finance Penetration</dt>
                 <dd>
                   <strong>{penetrationLabel(weekly.monthToDate.fi.dealerFinanced.rate)}</strong>
                   <small>{weekly.monthToDate.fi.dealerFinanced.soldCount} of {weekly.monthToDate.fi.dealerFinanced.eligibleDealCount} valid deals{weekly.monthToDate.fi.dealerFinanced.unrecordedCount ? ` · ${weekly.monthToDate.fi.dealerFinanced.unrecordedCount} not marked` : ""}</small>

@@ -55,7 +55,18 @@ test("reports center reconciles product, financing, and one total F&I gross sour
   const center = page.locator(".fi-report-center").first();
   await expect(center.getByRole("heading", { name: "Products, financing, and total F&I gross" })).toBeVisible();
   await expect(center).toContainText("12 delivered sales that count");
-  await expect(center.locator(".fi-center-kpi").filter({ hasText: "Total F&I gross" })).toContainText("$9,150");
+  const pvr = center.locator(".fi-center-kpi").filter({ hasText: "F&I gross per sale (PVR)" });
+  await expect(pvr).toContainText("$9,150 total recorded");
+  await expect(pvr).toContainText("$763");
+  await expect(center.locator(".fi-center-kpi").filter({ hasText: "Finance Penetration" })).toContainText("8 of 12 sales");
+  await expect(center).not.toContainText("Positive F&I gross deals");
+  await expect(center).not.toContainText("of deals have positive F&I gross");
+  const personalComparison = center.locator(".fi-performance-comparison");
+  await personalComparison.locator("summary").click();
+  const pvrRow = personalComparison.getByRole("row", { name: /^F&I gross per sale \(PVR\)/ });
+  await expect(pvrRow.locator('td[data-label="This period"]')).toContainText("$762.50");
+  await expect(personalComparison).toContainText("prior completed months");
+  await personalComparison.locator("summary").click();
 
   await center.getByRole("tab", { name: "Products", exact: true }).click();
   const productTable = center.locator(".fi-center-product-table");
@@ -64,7 +75,8 @@ test("reports center reconciles product, financing, and one total F&I gross sour
   const gapRow = productTable.locator("tbody tr").filter({ hasText: "GAP" });
   await expect(serviceRow).toContainText("6 / 12");
   await expect(serviceRow).toContainText("50%");
-  await expect(serviceRow).toContainText("6 Yes · 6 No");
+  await expect(productTable).not.toContainText("Yes / No");
+  await expect(productTable).not.toContainText("Answers recorded");
   await expect(serviceRow).not.toContainText("$");
   await expect(tireWheelRow).toContainText("3 / 12");
   await expect(tireWheelRow).toContainText("25%");
@@ -72,7 +84,9 @@ test("reports center reconciles product, financing, and one total F&I gross sour
   await expect(gapRow).toContainText("33%");
 
   await center.getByRole("tab", { name: "Financing", exact: true }).click();
-  const financedRow = center.getByRole("row", { name: /^Dealer financed / });
+  await expect(center.locator(".fi-finance-highlight")).toContainText("4 of 8 sales");
+  await expect(center.locator(".fi-finance-highlight")).toContainText("50.0%");
+  const financedRow = center.getByRole("row", { name: /^Dealership financing / });
   await expect(financedRow).toContainText("8");
   await expect(financedRow).toContainText("67%");
   await expect(financedRow).toContainText("$6,100");
@@ -118,14 +132,16 @@ test("sale entry has product outcomes and only one F&I dollar field", async ({ p
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
 
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toBeVisible();
-  await expect(page.getByText("Enter one combined F&I gross amount for the whole deal.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Enter one combined F&I gross amount for the whole deal.", { exact: false })).toBeVisible();
   for (const outcome of [
     "Service contract / warranty",
     "Tire & Wheel",
     "GAP",
-    "Dealer financed",
   ]) {
     await expect(page.getByRole("checkbox", { name: outcome, exact: true })).toBeVisible();
+  }
+  for (const method of ["Dealership financing", "Cash", "Outside financing"]) {
+    await expect(page.getByRole("radio", { name: method, exact: true })).toBeVisible();
   }
   await expect(page.getByText(/service contract gross|tire.*wheel gross|GAP gross|product credited gross/i)).toHaveCount(0);
 });
@@ -146,11 +162,11 @@ test("phone reports use disclosures and cards without page-level sideways scroll
   await expect(center.locator(".fi-center-finance-table")).toBeHidden();
   const disclosureGroups = center.locator(".fi-center-phone-disclosures");
   await expect(disclosureGroups).toHaveCount(2);
-  await expect(disclosureGroups.nth(0).locator("details")).toHaveCount(3);
+  await expect(disclosureGroups.nth(0).locator(".fi-center-product-card")).toHaveCount(3);
   await expect(disclosureGroups.nth(1).locator("details")).toHaveCount(3);
 
-  await disclosureGroups.nth(0).locator("details").first().locator("summary").click();
-  await expect(disclosureGroups.nth(0).locator("details").first()).toContainText("Details complete");
+  await expect(disclosureGroups.nth(0).locator(".fi-center-product-card").first()).toContainText("6 of 12");
+  await expect(disclosureGroups.nth(0)).not.toContainText("Answers recorded");
 
   await monthSubjects.getByRole("tab", { name: "Sales", exact: true }).click();
   const salesDetail = page.locator(".report-sales-disclosure");

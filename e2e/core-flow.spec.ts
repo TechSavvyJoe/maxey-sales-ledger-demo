@@ -140,7 +140,7 @@ test("Excel export carries the cumulative bonus schedule and included total", as
   expect(summaryRows).toContainEqual(["Scheduled workdays", 26]);
   expect(summaryRows).toContainEqual(["Elapsed scheduled workdays", 26]);
   expect(summaryRows).toContainEqual(["Personal days off", 0]);
-  expect(summaryRows.some((row) => row[0] === "Front gross per delivery" && typeof row[1] === "number")).toBe(true);
+  expect(summaryRows.some((row) => row[0] === "Recorded front gross per delivered sale" && typeof row[1] === "number")).toBe(true);
   expect(summaryRows.some((row) => row[0] === "Projected month-end commission low" && typeof row[1] === "number")).toBe(true);
 
   const productRows = XLSX.utils.sheet_to_json<Record<string, number | string>>(
@@ -160,9 +160,11 @@ test("Excel export carries the cumulative bonus schedule and included total", as
     workbook.Sheets.Financing,
   );
   expect(financingRows.map((row) => row["Financing Outcome"])).toEqual([
-    "Dealer financed",
-    "Not dealer financed",
-    "Financing not marked",
+    "Dealership financing",
+    "Cash",
+    "Outside financing",
+    "Cash / outside not specified",
+    "Not marked",
   ]);
 
   const dataQualityRows = XLSX.utils.sheet_to_json<Record<string, number | string>>(

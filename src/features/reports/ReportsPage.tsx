@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { format, parseISO } from "date-fns";
 import {
   CheckCircle2,
@@ -20,6 +20,7 @@ import { PageHeading, ReviewState, SectionHeader, StatusBadge } from "@/componen
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
 import { calculateMonth, calculateYear, getBonusMilestone } from "@/domain/commission";
 import { monthLabel, shiftMonth, todayDateOnly, yearForMonth } from "@/domain/date";
+import { getPaymentMethod, paymentMethodLabel } from "@/domain/financing";
 import {
   getCommissionGoalForMonth,
   getDeliveryGoalForMonth,
@@ -32,6 +33,7 @@ import {
   calculateEarningsGoalProgress,
 } from "@/domain/performance";
 import { getPayPlanForMonth, getPayPlanSchedule, hasPayPlanCoverage } from "@/domain/payPlan";
+import { calculatePersonalReportBaseline } from "@/domain/reportBaseline";
 import {
   calculateMonthReportAnalytics,
   calculatePeriodReportAnalytics,
@@ -47,7 +49,7 @@ import {
 } from "@/domain/weeklyPerformance";
 import { exportMonthlyCsv, exportSalesWorkbook } from "@/lib/files";
 import { cn } from "@/lib/utils";
-import { FiReportCenter } from "./FiReportCenter";
+import { FiReportCenter, ReportSaleButton } from "./FiReportCenter";
 import "./reports-density.css";
 import "./reports-v2.css";
 
@@ -62,6 +64,17 @@ interface ReportsPageProps {
   initialTab?: ReportDestinationTab;
   onNavigate: (destination: AppDestination, options?: { preserveFocus?: boolean }) => void;
   onDirtyChange: (dirty: boolean) => void;
+  onOpenSale: (sale: Sale) => void;
+}
+
+function openSaleFromReportRow(event: MouseEvent<HTMLElement>, sale: Sale, onOpenSale: (sale: Sale) => void) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+  const target = event.target;
+  if (!(target instanceof Element) || target.closest("button, a, input, select, textarea, summary, [role='button'], [role='link'], [contenteditable='true']")) return;
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && (event.currentTarget.contains(selection.anchorNode) || event.currentTarget.contains(selection.focusNode))) return;
+  event.currentTarget.querySelector<HTMLButtonElement>(".report-open-sale")?.focus({ preventScroll: true });
+  onOpenSale(sale);
 }
 
 function ReportMetric({ label, value, note }: { label: string; value: string; note?: string }) {
@@ -182,7 +195,7 @@ function productLabels(sale: Sale): string[] {
     sale.serviceContractSold === true ? "Service contract" : null,
     sale.tireWheelSold === true ? "T&W" : null,
     sale.gapSold === true ? "GAP" : null,
-    sale.dealerFinanced === true ? "Dealer financed" : null,
+    ["dealer_financed", "cash", "outside_financing"].includes(getPaymentMethod(sale)) ? paymentMethodLabel(sale) : null,
   ].filter((label): label is string => label !== null);
 }
 
@@ -192,12 +205,11 @@ function ProductBadges({ sale }: { sale: Sale }) {
     sale.serviceContractSold,
     sale.tireWheelSold,
     sale.gapSold,
-    sale.dealerFinanced,
   ];
   if (labels.length === 0) {
     return (
       <small className="report-product-empty">
-        {outcomes.some((value) => typeof value === "boolean") ? "None sold" : "Not marked"}
+        {outcomes.every((value) => value === false) ? "No tracked products" : "Product answers incomplete"}
       </small>
     );
   }
@@ -252,6 +264,7 @@ export function ReportsPage({
   initialTab,
   onNavigate,
   onDirtyChange,
+  onOpenSale,
 }: ReportsPageProps) {
   const todayDate = todayDateOnly();
   const [activeTab, setActiveTab] = useState<ReportDestinationTab>(initialTab ?? "monthly");
@@ -289,6 +302,14 @@ export function ReportsPage({
   }, [isActualPaidDirty]);
 
   const payPlanSchedule = useMemo(() => getPayPlanSchedule(settings), [settings]);
+  const recentBaseline = useMemo(
+    () => calculatePersonalReportBaseline(sales, settings.selectedMonth, payPlanSchedule, "recent", todayDate.slice(0, 7)),
+    [sales, settings.selectedMonth, payPlanSchedule, todayDate],
+  );
+  const yearBaseline = useMemo(
+    () => calculatePersonalReportBaseline(sales, settings.selectedMonth, payPlanSchedule, "year", todayDate.slice(0, 7)),
+    [sales, settings.selectedMonth, payPlanSchedule, todayDate],
+  );
   const currentPayPlan = useMemo(
     () => getPayPlanForMonth(payPlanSchedule, settings.selectedMonth),
     [payPlanSchedule, settings.selectedMonth],
@@ -327,6 +348,10 @@ export function ReportsPage({
     () => previousAnalytics ? compareReportAnalytics(monthlyAnalytics, previousAnalytics) : null,
     [monthlyAnalytics, previousAnalytics],
   );
+  const awaitingFiGrossCount = monthlyAnalytics.gross.fi.missingCount;
+  const payrollEstimateIncomplete = awaitingFiGrossCount > 0 || monthlyAnalytics.gross.front.missingCount > 0;
+  const fiComparisonIncomplete = awaitingFiGrossCount > 0 || (previousAnalytics?.gross.fi.missingCount ?? 0) > 0;
+  const frontComparisonIncomplete = monthlyAnalytics.gross.front.missingCount > 0 || (previousAnalytics?.gross.front.missingCount ?? 0) > 0;
   const attentionRecords = useMemo(
     () => getAttentionRecords(summary.calculatedSales, todayDate),
     [summary.calculatedSales, todayDate],
@@ -617,7 +642,11 @@ export function ReportsPage({
               <ReportMetric label="Delivered" value={String(summary.deliveredCount)} note={`${summary.creditedUnitsBasis / 1_000} credited units`} />
               <ReportMetric label="Front rate" value={formatPercent(summary.frontRateBps)} note="Applied month-wide" />
               <ReportMetric label="Front gross" value={formatCurrency(summary.frontGrossCents)} />
-              <ReportMetric label="Total F&I gross" value={formatCurrency(summary.fiGrossCents)} />
+              <ReportMetric
+                label="Total F&I gross"
+                value={monthlyAnalytics.gross.fi.enteredCount > 0 ? formatCurrency(summary.fiGrossCents) : "—"}
+                note={awaitingFiGrossCount > 0 ? `Awaiting F&I gross on ${awaitingFiGrossCount} ${awaitingFiGrossCount === 1 ? "sale" : "sales"}` : undefined}
+              />
             </section>
 
             <details id="month-comparison" className="report-comparison">
@@ -638,11 +667,11 @@ export function ReportsPage({
               {monthComparison && !selectedMonthIsFuture ? (
                 <dl>
                   <div><dt>Valid deliveries</dt><dd><strong>{summary.deliveredCount}</strong><small>{comparisonChange(monthComparison.deliveredDeals, (value) => value.toLocaleString())}</small></dd></div>
-                  <div><dt>Front gross</dt><dd><strong>{formatCurrency(summary.frontGrossCents)}</strong><small>{comparisonChange(monthComparison.frontGrossCents, formatCurrency)}</small></dd></div>
-                  <div><dt>Total F&amp;I gross</dt><dd><strong>{formatCurrency(summary.fiGrossCents)}</strong><small>{comparisonChange(monthComparison.fiGrossCents, formatCurrency)}</small></dd></div>
-                  <div><dt>Monthly estimate</dt><dd><strong>{formatCurrency(summary.estimatedCommissionCents)}</strong><small>{comparisonChange(monthComparison.estimatedCommissionCents, formatCurrency)}</small></dd></div>
+                  <div><dt>Front gross</dt><dd><strong>{monthlyAnalytics.gross.front.enteredCount ? formatCurrency(summary.frontGrossCents) : "—"}</strong><small>{frontComparisonIncomplete ? "Awaiting front gross" : comparisonChange(monthComparison.frontGrossCents, formatCurrency)}</small></dd></div>
+                  <div><dt>Total F&amp;I gross</dt><dd><strong>{monthlyAnalytics.gross.fi.enteredCount ? formatCurrency(summary.fiGrossCents) : "—"}</strong><small>{fiComparisonIncomplete ? "Awaiting F&I gross" : comparisonChange(monthComparison.fiGrossCents, formatCurrency)}</small></dd></div>
+                  <div><dt>Monthly estimate</dt><dd><strong>{formatCurrency(summary.estimatedCommissionCents)}</strong><small>{fiComparisonIncomplete || frontComparisonIncomplete ? "Comparison waits for gross amounts" : comparisonChange(monthComparison.estimatedCommissionCents, formatCurrency)}</small></dd></div>
                   <div><dt>Any product</dt><dd><strong>{monthlyAnalytics.products.anyProduct.penetrationRate === null ? "—" : `${Math.round(monthlyAnalytics.products.anyProduct.penetrationRate * 100)}%`}</strong><small>{rateComparisonChange(monthComparison.anyProductPenetrationRate)}</small></dd></div>
-                  <div><dt>Dealer financed</dt><dd><strong>{monthlyAnalytics.finance.dealerFinance.penetrationRate === null ? "—" : `${Math.round(monthlyAnalytics.finance.dealerFinance.penetrationRate * 100)}%`}</strong><small>{rateComparisonChange(monthComparison.dealerFinancePenetrationRate)}</small></dd></div>
+                  <div><dt>Finance Penetration</dt><dd><strong>{monthlyAnalytics.finance.dealerFinance.penetrationRate === null ? "—" : `${Math.round(monthlyAnalytics.finance.dealerFinance.penetrationRate * 100)}%`}</strong><small>{rateComparisonChange(monthComparison.dealerFinancePenetrationRate)}</small></dd></div>
                 </dl>
               ) : (
                 <p>{selectedMonthIsFuture ? "No future results are projected." : "The previous month is outside the saved pay-plan history."}</p>
@@ -690,9 +719,9 @@ export function ReportsPage({
                 <small>Includes {formatCurrency(summary.bonusIncludedCents)} bonus</small>
               </div>
               <div>
-                <span>{monthIsComplete ? "Final month result" : "Projected month end"}</span>
+                <span>{monthIsComplete ? "Month deliveries" : awaitingFiGrossCount > 0 ? "Projection from entered gross" : "Projected month end"}</span>
                 <strong>{monthIsComplete ? `${summary.deliveredCount} ${summary.deliveredCount === 1 ? "delivery" : "deliveries"}` : projectedCommission}</strong>
-                <small>{monthIsComplete ? `${formatCurrency(summary.estimatedCommissionCents)} final recorded estimate` : projectedUnits}</small>
+                <small>{monthIsComplete ? `${formatCurrency(summary.estimatedCommissionCents)} ${awaitingFiGrossCount > 0 ? "recorded so far" : "final recorded estimate"}` : projectedUnits}</small>
               </div>
               <div>
                 <span>Commission goal</span>
@@ -700,9 +729,9 @@ export function ReportsPage({
                 <small>{earningsGoal ? `${Math.round(earningsGoal.progressPercent)}% reached` : "Optional personal target"}</small>
               </div>
               <div>
-                <span>{earningsGoal ? "Still needed" : monthIsComplete ? "Month status" : "Projection basis"}</span>
+                <span>{earningsGoal ? awaitingFiGrossCount > 0 ? "Goal gap so far" : "Still needed" : monthIsComplete ? "Month status" : "Projection basis"}</span>
                 <strong>{earningsGoal ? formatCurrency(earningsGoal.remainingCents) : monthIsComplete ? "Closed" : "Current pace"}</strong>
-                <small>{monthIsComplete
+                <small>{awaitingFiGrossCount > 0 ? "Awaiting F&I gross" : monthIsComplete
                   ? earningsGoal
                     ? earningsGoal.remainingCents === 0
                       ? "Commission goal reached"
@@ -712,7 +741,7 @@ export function ReportsPage({
                     ? "Based on scheduled workdays and average recorded gross"
                     : `${formatCurrency(earningsGoal.requiredPerRemainingWorkdayCents)} needed per remaining workday`}</small>
               </div>
-              <p>{monthIsComplete
+              <p>{awaitingFiGrossCount > 0 ? `Awaiting F&I gross on ${awaitingFiGrossCount} ${awaitingFiGrossCount === 1 ? "sale" : "sales"}. Earnings shown use only gross entered so far. Add the amounts to these deliveries when your F&I manager provides them.` : monthIsComplete
                 ? "This closed month shows final recorded results. Commission remains a personal estimate until reconciled with payroll."
                 : "Projection is a planning scenario based on current pace and average recorded gross, not guaranteed payroll."}</p>
             </section>
@@ -726,8 +755,11 @@ export function ReportsPage({
               hidden={monthSubject !== "fi"}
             >
               <FiReportCenter
+                onOpenSale={onOpenSale}
                 calculatedSales={summary.calculatedSales}
                 analytics={monthlyAnalytics}
+                baseline={recentBaseline.analytics}
+                baselineLabel={recentBaseline.label}
                 includeLastNames={includeLastNames}
                 scopeLabel={monthLabel(settings.selectedMonth)}
                 headingLevel={2}
@@ -755,7 +787,7 @@ export function ReportsPage({
                   <dl>
                     <div><dt>Front commission</dt><dd>{formatCurrency(summary.frontCommissionCents, true)}</dd></div>
                     <div><dt>F&amp;I commission</dt><dd>{formatCurrency(summary.fiCommissionCents, true)}</dd></div>
-                    <div className="subtotal"><dt>Core commission</dt><dd>{formatCurrency(summary.coreCommissionCents, true)}</dd></div>
+                    <div className="subtotal"><dt>Sales commission</dt><dd>{formatCurrency(summary.coreCommissionCents, true)}</dd></div>
                     <div className="bonus-row">
                       <dt>
                         Cumulative volume bonus
@@ -795,14 +827,14 @@ export function ReportsPage({
                     <>
                       <div className="report-table-wrap" role="region" aria-label={`${monthLabel(settings.selectedMonth)} sales detail table`} tabIndex={0}>
                         <table>
-                          <thead><tr><th>Deal</th><th>Stock / vehicle</th><th>Status</th><th>F&amp;I / financing</th><th>Front gross</th><th>Total F&amp;I gross</th><th>Core commission</th></tr></thead>
+                          <thead><tr><th>Deal</th><th>Stock / vehicle</th><th>Status</th><th>F&amp;I / financing</th><th>Front gross</th><th>Total F&amp;I gross</th><th>Sale commission</th></tr></thead>
                           <tbody>
                             {summary.calculatedSales.map((item) => {
                               const attention = attentionBySale.get(item.sale.id);
                               return (
-                                <tr key={item.sale.id}>
+                                <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                                   <td><span className="report-deal-cell"><time dateTime={item.sale.saleDate}>{shortDate(item.sale.saleDate)}</time>{includeLastNames ? <small>{item.sale.customerLastName || "Customer not entered"}</small> : null}</span></td>
-                                  <td><span className="report-deal-cell"><strong>{item.sale.stockNumber || "No stock number"}</strong><small>{item.sale.vehicleDescription || "Vehicle not entered"}</small></span></td>
+                                  <td><span className="report-deal-cell"><ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} /><small>{item.sale.vehicleDescription || "Vehicle not entered"}</small></span></td>
                                   <td><StatusBadge status={item.sale.status} /></td>
                                   <td><ProductBadges sale={item.sale} /></td>
                                   <td>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</td>
@@ -825,10 +857,10 @@ export function ReportsPage({
                         {summary.calculatedSales.map((item) => {
                           const attention = attentionBySale.get(item.sale.id);
                           return (
-                            <article className={cn("report-sale-card", attention && "needs-review")} key={item.sale.id}>
+                            <article className={cn("report-sale-card report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                               <header>
                                 <span>
-                                  <strong>{item.sale.stockNumber || "No stock number"}</strong>
+                                  <ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} />
                                   <small>{item.sale.saleDate}{includeLastNames && item.sale.customerLastName ? ` · ${item.sale.customerLastName}` : ""}</small>
                                   <small>{item.sale.vehicleDescription || "Vehicle not entered"}</small>
                                 </span>
@@ -838,7 +870,7 @@ export function ReportsPage({
                               <dl>
                                 <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                                 <div><dt>Total F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
-                                <div><dt>Core commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
+                                <div><dt>Sale commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
                               </dl>
                               {attention
                                 ? <small className="report-sale-card__flag">{attentionSummary(attention)}</small>
@@ -915,7 +947,7 @@ export function ReportsPage({
                     </p>
                   </span>
                   <strong className="weekly-needed">
-                    <span>{selectedWeek.state === "current" ? "More needed by Saturday" : "This-week target share"}</span>
+                    <span>{selectedWeek.state === "current" ? `More needed by ${shortDate(selectedWeek.endDate)}` : "This-week target share"}</span>
                     {selectedWeek.state === "current"
                       ? selectedWeek.goal.deliveriesNeededByWeekEnd ?? "—"
                       : selectedWeek.goal.targetShareForWeek ?? "—"}
@@ -934,12 +966,12 @@ export function ReportsPage({
                   <ReportMetric label="Credited units" value={selectedWeek.creditedUnits.toLocaleString("en-US", { maximumFractionDigits: 2 })} />
                   <ReportMetric label="Front gross" value={formatCurrency(selectedWeek.frontGrossCents)} />
                   <ReportMetric label="Total F&I gross" value={formatCurrency(selectedWeek.fiGrossCents)} />
-                  <ReportMetric label="Core commission" value={formatCurrency(selectedWeek.estimatedCoreCommissionCents)} note="Monthly bonus excluded" />
+                  <ReportMetric label="Sales commission" value={formatCurrency(selectedWeek.estimatedCoreCommissionCents)} note="Front + F&I · monthly bonus excluded" />
                 </section>
 
                 <dl className="week-goal-strip" aria-label="Weekly and monthly goal requirements">
                   <div><dt>This-week target share</dt><dd>{selectedWeek.goal.targetShareForWeek ?? "—"}</dd></div>
-                  <div><dt>Cumulative month checkpoint by Saturday</dt><dd>{selectedWeek.goal.targetByWeekEnd ?? "—"}</dd></div>
+                  <div><dt>Month checkpoint by {shortDate(selectedWeek.endDate)}</dt><dd>{selectedWeek.goal.targetByWeekEnd ?? "—"}</dd></div>
                   <div><dt>Remaining to monthly goal</dt><dd>{weeklyPerformance.goal.remainingToGoal}</dd></div>
                 </dl>
 
@@ -971,8 +1003,11 @@ export function ReportsPage({
                   hidden={weekSubject !== "fi"}
                 >
                   <FiReportCenter
+                    onOpenSale={onOpenSale}
                     calculatedSales={selectedWeekSales}
                     analytics={selectedWeekAnalytics}
+                    baseline={recentBaseline.analytics}
+                    baselineLabel={recentBaseline.label}
                     includeLastNames={includeLastNames}
                     scopeLabel={`Week ${weeklyPerformance.weeks.findIndex((week) => week.id === selectedWeek.id) + 1} · ${weekRange(selectedWeek)}`}
                     headingLevel={2}
@@ -1000,9 +1035,9 @@ export function ReportsPage({
                       ? selectedWeekSales.map((item: CalculatedSale) => {
                         const attention = attentionBySale.get(item.sale.id);
                         return (
-                          <article className={cn("weekly-deal-row", attention && "needs-review")} key={item.sale.id}>
+                          <article className={cn("weekly-deal-row report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                             <span className="weekly-deal-row__identity">
-                              <strong>{item.sale.stockNumber || "No stock number"}</strong>
+                              <ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} />
                               <small>{shortDate(item.sale.saleDate)}{includeLastNames && item.sale.customerLastName ? ` · ${item.sale.customerLastName}` : ""} · {item.sale.vehicleDescription || "Vehicle not entered"}</small>
                             </span>
                             <StatusBadge status={item.sale.status} />
@@ -1010,7 +1045,7 @@ export function ReportsPage({
                             <dl>
                               <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                               <div><dt>Total F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
-                              <div><dt>Core commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
+                              <div><dt>Sale commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
                             </dl>
                             {attention ? <small className="weekly-deal-row__attention">{attentionSummary(attention)}</small> : null}
                           </article>
@@ -1066,7 +1101,7 @@ export function ReportsPage({
               </summary>
               <div className="year-fi-trend__table-wrap" role="region" aria-label={`${year} monthly F&I trend table`} tabIndex={0}>
                 <table>
-                  <thead><tr><th>Month</th><th>Deals</th><th>Service contract / warranty</th><th>Tire &amp; Wheel</th><th>GAP</th><th>Dealer financed</th><th>Total F&amp;I gross</th><th>Average F&amp;I / deal</th><th>Products / deal</th></tr></thead>
+                  <thead><tr><th>Month</th><th>Deals</th><th>Service contract / warranty</th><th>Tire &amp; Wheel</th><th>GAP · all sales</th><th>Finance Penetration</th><th>Total F&amp;I gross</th><th>F&amp;I gross / sale (PVR)</th><th>Tracked products / sale</th></tr></thead>
                   <tbody>
                     {yearTrendRows.map(({ month, analytics }) => (
                       <tr key={month.monthKey}>
@@ -1092,9 +1127,9 @@ export function ReportsPage({
                       <div><dt>Service contract / warranty</dt><dd>{analytics.products.serviceContract.yesCount} · {analytics.products.serviceContract.penetrationRate === null ? "—" : `${Math.round(analytics.products.serviceContract.penetrationRate * 100)}%`}</dd></div>
                       <div><dt>Tire &amp; Wheel</dt><dd>{analytics.products.tireWheel.yesCount} · {analytics.products.tireWheel.penetrationRate === null ? "—" : `${Math.round(analytics.products.tireWheel.penetrationRate * 100)}%`}</dd></div>
                       <div><dt>GAP</dt><dd>{analytics.products.gap.yesCount} · {analytics.products.gap.penetrationRate === null ? "—" : `${Math.round(analytics.products.gap.penetrationRate * 100)}%`}</dd></div>
-                      <div><dt>Dealer financed</dt><dd>{analytics.finance.dealerFinance.yesCount} · {analytics.finance.dealerFinance.penetrationRate === null ? "—" : `${Math.round(analytics.finance.dealerFinance.penetrationRate * 100)}%`}</dd></div>
+                      <div><dt>Finance Penetration</dt><dd>{analytics.finance.dealerFinance.yesCount} · {analytics.finance.dealerFinance.penetrationRate === null ? "—" : `${Math.round(analytics.finance.dealerFinance.penetrationRate * 100)}%`}</dd></div>
                       <div><dt>Total F&amp;I gross</dt><dd>{formatCurrency(analytics.gross.fi.totalCents)}</dd></div>
-                      <div><dt>Average F&amp;I / deal</dt><dd>{analytics.gross.fi.averagePerDeliveredDealCents === null ? "—" : formatCurrency(analytics.gross.fi.averagePerDeliveredDealCents)}</dd></div>
+                      <div><dt>F&amp;I gross / sale (PVR)</dt><dd>{analytics.gross.fi.averagePerDeliveredDealCents === null ? "—" : formatCurrency(analytics.gross.fi.averagePerDeliveredDealCents)}</dd></div>
                     </dl>
                   </article>
                 ))}
@@ -1110,7 +1145,7 @@ export function ReportsPage({
             <p className="table-scroll-hint">Monthly results</p>
             <div className="year-table-wrap" role="region" aria-label={`${year} through selected month performance table`} tabIndex={0}>
               <table className="year-table">
-                <thead><tr><th>Month</th><th>Delivered</th><th>Front gross</th><th>Total F&amp;I gross</th><th>Rate</th><th>Core commission</th><th>Bonus included</th><th>Monthly estimate</th><th>Actual paid</th><th>Variance</th><th>Attention</th></tr></thead>
+                <thead><tr><th>Month</th><th>Delivered</th><th>Front gross</th><th>Total F&amp;I gross</th><th>Rate</th><th>Sales commission</th><th>Bonus included</th><th>Monthly estimate</th><th>Actual paid</th><th>Variance</th><th>Attention</th></tr></thead>
                 <tbody>
                   {yearly.map((month) => {
                     const attentionCount = yearAttention.get(month.monthKey) ?? 0;
@@ -1182,8 +1217,11 @@ export function ReportsPage({
               </summary>
               <div className="year-fi-disclosure__body">
                 <FiReportCenter
+                  onOpenSale={onOpenSale}
                   calculatedSales={yearThroughSelectedMonth.flatMap((month) => month.calculatedSales)}
                   analytics={yearAnalytics}
+                  baseline={yearBaseline.analytics}
+                  baselineLabel={yearBaseline.label}
                   includeLastNames={includeLastNames}
                   scopeLabel={`${year} through ${monthLabel(settings.selectedMonth, "short")}`}
                   compact
@@ -1256,14 +1294,15 @@ export function ReportsPage({
                 <div><dt>Estimated commission</dt><dd>{formatCurrency(summary.estimatedCommissionCents, true)}</dd></div>
                 <div><dt>Cumulative bonus included</dt><dd>{formatCurrency(summary.bonusIncludedCents, true)}</dd></div>
                 <div><dt>Payroll amount</dt><dd>{summary.actualPaidCents === null ? "Not entered" : formatCurrency(summary.actualPaidCents, true)}</dd></div>
-                <div className={cn("payroll-variance", summary.payrollVarianceCents !== null && summary.payrollVarianceCents !== 0 && "has-variance")}>
+                <div className={cn("payroll-variance", !payrollEstimateIncomplete && summary.payrollVarianceCents !== null && summary.payrollVarianceCents !== 0 && "has-variance")}>
                   <dt>Payroll minus estimate</dt>
                   <dd>{summary.payrollVarianceCents === null ? "—" : formatCurrency(summary.payrollVarianceCents, true)}</dd>
                 </div>
               </dl>
               <p>
-                If the amounts differ, review missing sales, duplicate stock numbers, reversals,
-                rounding, bonuses, and the pay plan used for the month.
+                {payrollEstimateIncomplete
+                  ? `Estimate incomplete — awaiting ${awaitingFiGrossCount > 0 ? monthlyAnalytics.gross.front.missingCount > 0 ? "front and F&I" : "F&I" : "front"} gross.`
+                  : "If the amounts differ, review missing sales, duplicate stock numbers, reversals, rounding, bonuses, and the pay plan used for the month."}
               </p>
             </section>
           </div>

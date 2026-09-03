@@ -30,11 +30,12 @@ async function addDeliveredFiSale(page: Page, stockNumber = "WEEK-FI-001") {
   await page.getByLabel("Front gross").fill("2500");
   await page.getByLabel(/Total F&I gross/).fill("600");
 
-  for (const product of ["Service contract / warranty", "GAP", "Dealer financed"]) {
+  for (const product of ["Service contract / warranty", "GAP"]) {
     const checkbox = page.getByRole("checkbox", { name: product, exact: true });
     await checkbox.click();
     await expect(checkbox).toHaveAttribute("aria-checked", "true");
   }
+  await page.getByRole("radio", { name: "Dealership financing", exact: true }).check();
 
   await page.getByRole("button", { name: "Save sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
@@ -66,7 +67,7 @@ test("tracks F&I products and carries the current-week requirement into the Week
   await expect(saleRow).toBeVisible();
   await expect(
     saleRow.getByRole("group", {
-      name: "F&I products sold: Service contract / warranty, GAP. F&I products marked No: Tire & Wheel. Dealer financing: Yes",
+      name: "F&I products sold: Service contract / warranty, GAP. F&I products marked No: Tire & Wheel. Payment method: Dealership financing",
       exact: true,
     }),
   ).toBeVisible();
@@ -78,7 +79,7 @@ test("tracks F&I products and carries the current-week requirement into the Week
   await expect(fiPanel.locator("dl > div").filter({ hasText: "Service contract / warranty" })).toContainText("100%");
   await expect(fiPanel.locator("dl > div").filter({ hasText: "Tire & Wheel" })).toContainText("0%");
   await expect(fiPanel.locator("dl > div").filter({ hasText: "GAP" })).toContainText("100%");
-  await expect(fiPanel.locator("dl > div").filter({ hasText: "Dealer financing" })).toContainText("100%");
+  await expect(fiPanel.locator("dl > div").filter({ hasText: "Finance Penetration" })).toContainText("100%");
 
   await expect(page.getByText("This week · 1 sold · 14 more needed by 08/31", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Weekly performance", exact: true }).click();

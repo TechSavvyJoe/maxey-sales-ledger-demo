@@ -66,6 +66,58 @@ describe("local database", () => {
     expect(data.auditEvents.some((event) => event.action === "sale.created")).toBe(true);
   });
 
+  it("persists explicit payment methods with compatible financing flags", async () => {
+    await initializeDatabase();
+    await persistSale({ ...sampleSale, paymentMethod: "outside_financing", dealerFinanced: true }, true);
+    expect(await db.sales.get(sampleSale.id)).toMatchObject({ paymentMethod: "outside_financing", dealerFinanced: false });
+  });
+
+  it("fills payment methods only on old generated demo deals and only once", async () => {
+    await initializeDatabase();
+    const oldSamples = [
+      { ...sampleSale, id: "demo-2026-08-1-delivered", dealerFinanced: false },
+      { ...sampleSale, id: "demo-2026-08-4-delivered", dealerFinanced: false },
+      { ...sampleSale, id: "demo-2026-08-0-delivered", dealerFinanced: true },
+    ];
+    const manual: Sale = { ...sampleSale, id: "manual-unknown", source: "manual", dealerFinanced: false };
+    const classified: Sale = { ...sampleSale, id: "demo-2026-08-7-delivered", dealerFinanced: false, paymentMethod: "cash" };
+    const deleted: Sale = { ...sampleSale, id: "demo-2026-08-8-delivered", deletedAt: "2026-09-01T00:00:00Z" };
+    await db.sales.bulkPut([...oldSamples, manual, classified, deleted]);
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    const changed = await db.sales.bulkGet(oldSamples.map((sale) => sale.id));
+    expect(new Set(changed.map((sale) => sale?.paymentMethod))).toEqual(new Set(["dealer_financed", "cash", "outside_financing"]));
+    expect(changed.every((sale) => sale?.revision === 2)).toBe(true);
+    expect(await db.sales.get(manual.id)).toEqual(manual);
+    expect(await db.sales.get(classified.id)).toEqual(classified);
+    expect(await db.sales.get(deleted.id)).toEqual(deleted);
+    expect(await initializePublishedDemo("2026-09-02")).toBe(false);
+    expect(await db.sales.bulkGet(oldSamples.map((sale) => sale.id))).toEqual(changed);
+    await db.sales.update(oldSamples[0].id, { paymentMethod: undefined, dealerFinanced: undefined });
+    await initializePublishedDemo("2026-09-02");
+    expect((await db.sales.get(oldSamples[0].id))?.paymentMethod).toBeUndefined();
+  });
+
+  it("does not reassign a payment method deliberately cleared from a new demo", async () => {
+    await initializePublishedDemo("2026-09-02");
+    const id = "demo-2026-08-0-delivered";
+    await db.sales.update(id, { paymentMethod: undefined, dealerFinanced: undefined });
+    await initializePublishedDemo("2026-09-02");
+    expect((await db.sales.get(id))?.paymentMethod).toBeUndefined();
+  });
+
+  it("records the payment sample check when restored demo sales are already classified", async () => {
+    await initializeDatabase();
+    const classified: Sale = { ...sampleSale, id: "demo-2026-08-7-delivered", paymentMethod: "cash", dealerFinanced: false };
+    await db.sales.put(classified);
+    await initializePublishedDemo("2026-09-02");
+    expect(await db.sales.get(classified.id)).toEqual(classified);
+    const events = await db.auditEvents.toArray();
+    expect(events.some((event) => event.details?.paymentMethodsVersion === 1 && event.details.updated === 0)).toBe(true);
+    await db.sales.update(classified.id, { paymentMethod: undefined, dealerFinanced: undefined });
+    await initializePublishedDemo("2026-09-02");
+    expect((await db.sales.get(classified.id))?.paymentMethod).toBeUndefined();
+  });
+
   it("captures settings, sales, and activity together for a recovery backup", async () => {
     const settings = await initializeDatabase();
     await persistSettings({ ...settings, salespersonName: "Backup User" });

@@ -5,6 +5,7 @@
  */
 export type SaleStatus = "delivered" | "pending" | "void";
 export type EditableSaleStatus = Exclude<SaleStatus, "void">;
+export type PaymentMethod = "dealer_financed" | "cash" | "outside_financing";
 
 export interface Sale {
   id: string;
@@ -21,6 +22,9 @@ export interface Sale {
   serviceContractSold?: boolean;
   tireWheelSold?: boolean;
   gapSold?: boolean;
+  /** Explicit payment method; omitted on older sales until the salesperson updates it. */
+  paymentMethod?: PaymentMethod;
+  /** Retained for older backups; paymentMethod is authoritative when it is present. */
   dealerFinanced?: boolean;
   notes: string;
   createdAt: string;

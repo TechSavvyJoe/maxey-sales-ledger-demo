@@ -439,6 +439,7 @@ function AppContent() {
           {settings.selectedView === "reports" ? (
             <ReportsPage
               key={`reports-${settings.selectedMonth}`}
+              onOpenSale={openEditSale}
               sales={sales}
               auditEvents={auditEvents}
               settings={settings}

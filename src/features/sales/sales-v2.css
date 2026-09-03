@@ -377,6 +377,44 @@
   font-size: 12px;
 }
 
+.sale-form .sale-credit-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.sale-form .sale-split-credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  border-radius: 5px;
+  padding: 6px 4px;
+  color: var(--navy-900);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sale-form .sale-split-credit:hover {
+  background: var(--slate-100);
+}
+
+.sale-form .sale-split-credit:focus-within {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+}
+
+.sale-form .sale-credit-controls .credit-custom {
+  flex: 0 0 auto;
+}
+
+.sale-form .sale-credit-controls .credit-custom input {
+  width: 72px;
+  min-height: 44px;
+}
+
 .sale-form__footer-estimate {
   min-width: 100px;
   flex: 1 1 120px;
@@ -516,6 +554,15 @@
     white-space: normal;
   }
 }
+
+.sale-payment-method { min-width: 0; margin: 8px 0 0; border: 0; padding: 0; }
+.sale-payment-method legend { margin-bottom: 8px; font-size: 14px; font-weight: 700; }
+.sale-payment-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 8px; }
+.sale-payment-choice { display: flex; min-height: 48px; min-width: 0; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--color-control-border); border-radius: 8px; color: var(--slate-900); background: white; font-size: 13px; line-height: 1.4; font-weight: 650; cursor: pointer; }
+.sale-payment-choice.is-selected { border-color: var(--blue-700); background: #eff6ff; color: var(--blue-700); }
+.sale-payment-choice input { width: 16px; height: 16px; flex: 0 0 16px; accent-color: var(--blue-700); }
+.sale-payment-choice:focus-within { outline: 3px solid var(--blue-700); outline-offset: 2px; }
+.sale-payment-clear { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 0; color: var(--blue-700); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 360px) {
   .app-shell .sales-toolbar {

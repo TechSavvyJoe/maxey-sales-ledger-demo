@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { buildDemoSales, createPublicDemoHistoricPlan } from "@/domain/demo";
 
 describe("demonstration data", () => {
+  it("assigns stable fictional payment methods across all three choices", () => {
+    const sales = buildDemoSales("2026-08", "2026-09-02", "two-year").filter((sale) => sale.status === "delivered");
+    expect(new Set(sales.map((sale) => sale.paymentMethod))).toEqual(new Set(["dealer_financed", "cash", "outside_financing"]));
+    expect(sales.every((sale) => sale.dealerFinanced === (sale.paymentMethod === "dealer_financed"))).toBe(true);
+    expect(buildDemoSales("2026-08", "2026-09-02", "two-year").filter((sale) => sale.status === "delivered")).toEqual(sales);
+  });
   it("keeps current-month delivered examples on or before the as-of date", () => {
     const asOfDate = "2026-09-02";
     const sales = buildDemoSales("2026-09", asOfDate, "full-year");

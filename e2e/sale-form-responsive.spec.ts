@@ -41,9 +41,11 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
       "Service contract / warranty",
       "Tire & Wheel",
       "GAP",
-      "Dealer financed",
     ]) {
       await expect(page.getByRole("checkbox", { name: outcome, exact: true })).toBeAttached();
+    }
+    for (const method of ["Dealership financing", "Cash", "Outside financing"]) {
+      await expect(page.getByRole("radio", { name: method, exact: true })).toBeAttached();
     }
 
     const geometry = await page.evaluate(() => {
@@ -90,9 +92,9 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
 
     await page.getByLabel(/Total F&I gross/).fill("600");
     await page.getByRole("checkbox", { name: "Service contract / warranty", exact: true }).click();
-    await page.getByRole("checkbox", { name: "Dealer financed", exact: true }).click();
+    await page.getByRole("radio", { name: "Dealership financing", exact: true }).check();
     await expect(page.getByRole("checkbox", { name: "Service contract / warranty", exact: true })).toBeChecked();
-    await expect(page.getByRole("checkbox", { name: "Dealer financed", exact: true })).toBeChecked();
+    await expect(page.getByRole("radio", { name: "Dealership financing", exact: true })).toBeChecked();
 
     const moreDetails = page.locator("details.sale-more-details");
     await moreDetails.locator("summary").click();

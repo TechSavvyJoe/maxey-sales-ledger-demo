@@ -1,4 +1,5 @@
 import type { CalculatedSale, MonthSummary, Sale } from "@/domain/types";
+import { dealerFinancingOutcome, getPaymentMethod } from "@/domain/financing";
 
 export type ProductOutcomeField =
   | "serviceContractSold"
@@ -118,7 +119,7 @@ export interface BundleReportRow {
   averageCohortTotalFiGrossPerMatchingDealCents: number | null;
 }
 
-export type FinancingGroupKey = "dealerFinanced" | "notDealerFinanced" | "unmarked";
+export type FinancingGroupKey = "dealerFinanced" | "cash" | "outsideFinancing" | "notDealerFinanced" | "unmarked";
 
 export interface FinancingGroupReportRow extends ProductAttachmentSegment {
   key: FinancingGroupKey;
@@ -135,7 +136,7 @@ export interface AmountCoverageMetric {
   zeroCount: number;
   negativeCount: number;
   totalCents: number;
-  /** Total divided by all eligible delivered deals; missing amounts contribute zero. */
+  /** Recorded total divided by all delivered deals; null until an amount is entered. */
   averagePerDeliveredDealCents: number | null;
   /** Total divided only by deals with an entered amount. */
   averagePerEnteredDealCents: number | null;
@@ -187,8 +188,13 @@ export interface ReportGrossAnalytics {
 
 export interface ReportFinanceAnalytics {
   dealerFinance: OutcomePenetrationMetric;
+  /** GAP Yes divided by dealer-financed delivered deals; not every GAP-eligible deal. */
+  gapOnDealerFinanced: OutcomePenetrationMetric;
   segments: {
     dealerFinanced: ProductAttachmentSegment;
+    cash: ProductAttachmentSegment;
+    outsideFinancing: ProductAttachmentSegment;
+    /** Legacy No answer without enough detail to classify cash versus outside financing. */
     notDealerFinanced: ProductAttachmentSegment;
     financeOutcomeUnmarked: ProductAttachmentSegment;
   };
@@ -200,6 +206,8 @@ export interface ReportCommissionAnalytics {
   coreCommissionCents: number;
   bonusIncludedCents: number;
   estimatedCommissionCents: number;
+  /** Allocated F&I commission per delivered deal; null when all F&I gross is missing. */
+  averageFiCommissionPerDeliveredDealCents: number | null;
   averageCoreCommissionPerDeliveredDealCents: number | null;
   averageEstimatedCommissionPerDeliveredDealCents: number | null;
   actualPaidCents: number | null;
@@ -303,8 +311,10 @@ function outcomeMetric(
   field: ProductOutcomeField | "dealerFinanced",
 ): OutcomePenetrationMetric {
   const eligibleDealCount = deals.length;
-  const yesCount = deals.filter((item) => item.sale[field] === true).length;
-  const noCount = deals.filter((item) => item.sale[field] === false).length;
+  const outcomes = deals.map((item) => field === "dealerFinanced"
+    ? dealerFinancingOutcome(item.sale) : item.sale[field]);
+  const yesCount = outcomes.filter((outcome) => outcome === true).length;
+  const noCount = outcomes.filter((outcome) => outcome === false).length;
   const recordedCount = yesCount + noCount;
   return {
     eligibleDealCount,
@@ -438,7 +448,7 @@ function amountCoverage(
     zeroCount: entered.filter((amount) => amount === 0).length,
     negativeCount: entered.filter((amount) => amount < 0).length,
     totalCents,
-    averagePerDeliveredDealCents: average(totalCents, deals.length),
+    averagePerDeliveredDealCents: entered.length > 0 ? average(totalCents, deals.length) : null,
     averagePerEnteredDealCents: average(totalCents, entered.length),
     positiveAmountPenetrationRate:
       deals.length > 0 ? entered.filter((amount) => amount > 0).length / deals.length : null,
@@ -447,6 +457,7 @@ function amountCoverage(
 
 function productSegment(deals: CalculatedSale[]): ProductAttachmentSegment {
   const fiGrossCents = deals.reduce((total, item) => total + (item.sale.fiGrossCents ?? 0), 0);
+  const fiGrossEnteredCount = deals.filter((item) => item.sale.fiGrossCents !== null).length;
   const creditedUnitsBasis = deals.reduce(
     (total, item) => total + item.sale.unitCreditBasis,
     0,
@@ -456,9 +467,9 @@ function productSegment(deals: CalculatedSale[]): ProductAttachmentSegment {
     creditedUnitsBasis,
     creditedUnits: creditedUnitsBasis / 1_000,
     fiGrossCents,
-    fiGrossEnteredCount: deals.filter((item) => item.sale.fiGrossCents !== null).length,
-    fiGrossMissingCount: deals.filter((item) => item.sale.fiGrossCents === null).length,
-    averageFiGrossPerDealCents: average(fiGrossCents, deals.length),
+    fiGrossEnteredCount,
+    fiGrossMissingCount: deals.length - fiGrossEnteredCount,
+    averageFiGrossPerDealCents: fiGrossEnteredCount > 0 ? average(fiGrossCents, deals.length) : null,
     positiveFiGrossDealCount: deals.filter((item) => (item.sale.fiGrossCents ?? 0) > 0).length,
     products: calculateProductPortfolio(deals),
   };
@@ -479,6 +490,9 @@ export function calculateProductReportRows(
       (total, item) => total + (item.sale.fiGrossCents ?? 0),
       0,
     );
+    const cohortFiGrossEnteredCount = matchingDeals.filter(
+      (item) => item.sale.fiGrossCents !== null,
+    ).length;
     return {
       ...definition,
       eligibleDealCount: outcome.eligibleDealCount,
@@ -489,13 +503,11 @@ export function calculateProductReportRows(
       penetrationRate: outcome.penetrationRate,
       trackingCompletionRate: outcome.trackingCompletionRate,
       cohortTotalFiGrossCents,
-      cohortFiGrossEnteredCount: matchingDeals.filter(
-        (item) => item.sale.fiGrossCents !== null,
-      ).length,
-      averageCohortTotalFiGrossPerMatchingDealCents: average(
+      cohortFiGrossEnteredCount,
+      averageCohortTotalFiGrossPerMatchingDealCents: cohortFiGrossEnteredCount > 0 ? average(
         cohortTotalFiGrossCents,
         matchingDeals.length,
-      ),
+      ) : null,
       positiveFiGrossDealCount: matchingDeals.filter(
         (item) => (item.sale.fiGrossCents ?? 0) > 0,
       ).length,
@@ -546,6 +558,9 @@ export function calculateBundleReportRows(
       (total, item) => total + (item.sale.fiGrossCents ?? 0),
       0,
     );
+    const cohortFiGrossEnteredCount = matchingDeals.filter(
+      (item) => item.sale.fiGrossCents !== null,
+    ).length;
     return {
       ...definition,
       productFields: [...definition.productFields],
@@ -553,13 +568,11 @@ export function calculateBundleReportRows(
       eligibleDealCount: deals.length,
       penetrationRate: deals.length > 0 ? matchingDeals.length / deals.length : null,
       cohortTotalFiGrossCents,
-      cohortFiGrossEnteredCount: matchingDeals.filter(
-        (item) => item.sale.fiGrossCents !== null,
-      ).length,
-      averageCohortTotalFiGrossPerMatchingDealCents: average(
+      cohortFiGrossEnteredCount,
+      averageCohortTotalFiGrossPerMatchingDealCents: cohortFiGrossEnteredCount > 0 ? average(
         cohortTotalFiGrossCents,
         matchingDeals.length,
-      ),
+      ) : null,
     };
   });
 }
@@ -573,16 +586,18 @@ export function calculateFinancingGroupRows(
     label: string;
     matches: (sale: Sale) => boolean;
   }> = [
-    { key: "dealerFinanced", label: "Dealer financed", matches: (sale) => sale.dealerFinanced === true },
+    { key: "dealerFinanced", label: "Dealership financing", matches: (sale) => getPaymentMethod(sale) === "dealer_financed" },
+    { key: "cash", label: "Cash", matches: (sale) => getPaymentMethod(sale) === "cash" },
+    { key: "outsideFinancing", label: "Outside financing", matches: (sale) => getPaymentMethod(sale) === "outside_financing" },
     {
       key: "notDealerFinanced",
-      label: "Not dealer financed",
-      matches: (sale) => sale.dealerFinanced === false,
+      label: "Cash / outside not specified",
+      matches: (sale) => getPaymentMethod(sale) === "not_dealer_financed",
     },
     {
       key: "unmarked",
-      label: "Financing not marked",
-      matches: (sale) => typeof sale.dealerFinanced !== "boolean",
+      label: "Not marked",
+      matches: (sale) => getPaymentMethod(sale) === "unmarked",
     },
   ];
   return groups.map((group) => {
@@ -618,6 +633,7 @@ export function calculateReportAnalytics(
   const productRows = calculateProductReportRows(deals);
   const bundleRows = calculateBundleReportRows(deals);
   const financingRows = calculateFinancingGroupRows(deals);
+  const dealerFinance = outcomeMetric(deals, "dealerFinanced");
   const front = amountCoverage(deals, (sale) => sale.frontGrossCents);
   const fi = amountCoverage(deals, (sale) => sale.fiGrossCents);
   const totalGrossCents = front.totalCents + fi.totalCents;
@@ -667,16 +683,26 @@ export function calculateReportAnalytics(
     productRows,
     bundleRows,
     finance: {
-      dealerFinance: outcomeMetric(deals, "dealerFinanced"),
+      dealerFinance,
+      gapOnDealerFinanced: outcomeMetric(
+        deals.filter((item) => dealerFinancingOutcome(item.sale) === true),
+        "gapSold",
+      ),
       segments: {
         dealerFinanced: productSegment(
-          deals.filter((item) => item.sale.dealerFinanced === true),
+          deals.filter((item) => getPaymentMethod(item.sale) === "dealer_financed"),
+        ),
+        cash: productSegment(
+          deals.filter((item) => getPaymentMethod(item.sale) === "cash"),
+        ),
+        outsideFinancing: productSegment(
+          deals.filter((item) => getPaymentMethod(item.sale) === "outside_financing"),
         ),
         notDealerFinanced: productSegment(
-          deals.filter((item) => item.sale.dealerFinanced === false),
+          deals.filter((item) => getPaymentMethod(item.sale) === "not_dealer_financed"),
         ),
         financeOutcomeUnmarked: productSegment(
-          deals.filter((item) => typeof item.sale.dealerFinanced !== "boolean"),
+          deals.filter((item) => getPaymentMethod(item.sale) === "unmarked"),
         ),
       },
     },
@@ -685,7 +711,8 @@ export function calculateReportAnalytics(
       front,
       fi,
       totalGrossCents,
-      averageTotalGrossPerDeliveredDealCents: average(totalGrossCents, deals.length),
+      averageTotalGrossPerDeliveredDealCents: front.enteredCount + fi.enteredCount > 0
+        ? average(totalGrossCents, deals.length) : null,
       bothAmountsEnteredDealCount: deals.filter(
         (item) => item.sale.frontGrossCents !== null && item.sale.fiGrossCents !== null,
       ).length,
@@ -702,6 +729,8 @@ export function calculateReportAnalytics(
       coreCommissionCents,
       bonusIncludedCents,
       estimatedCommissionCents,
+      averageFiCommissionPerDeliveredDealCents: fi.enteredCount > 0
+        ? average(fiCommissionCents, deals.length) : null,
       averageCoreCommissionPerDeliveredDealCents: average(coreCommissionCents, deals.length),
       averageEstimatedCommissionPerDeliveredDealCents: average(
         estimatedCommissionCents,
@@ -720,12 +749,12 @@ export function calculateReportAnalytics(
       fullyTrackedProductDealCount: products.fullyTrackedDealCount,
       incompletelyTrackedProductDealCount: products.incompletelyTrackedDealCount,
       fullyTrackedAllOutcomesDealCount: deals.filter((item) =>
-        [...PRODUCT_FIELDS, "dealerFinanced" as const].every(
+        typeof dealerFinancingOutcome(item.sale) === "boolean" && PRODUCT_FIELDS.every(
           (field) => typeof item.sale[field] === "boolean",
         ),
       ).length,
       dealsWithAnyUnmarkedOutcomeCount: deals.filter((item) =>
-        [...PRODUCT_FIELDS, "dealerFinanced" as const].some(
+        typeof dealerFinancingOutcome(item.sale) !== "boolean" || PRODUCT_FIELDS.some(
           (field) => typeof item.sale[field] !== "boolean",
         ),
       ).length,
@@ -737,8 +766,8 @@ export function calculateReportAnalytics(
         (total, row) => total + row.unmarkedCount,
         0,
       ),
-      recordedFinanceOutcomeCount: deals.length - financingRows[2]!.dealCount,
-      unmarkedFinanceOutcomeCount: financingRows[2]!.dealCount,
+      recordedFinanceOutcomeCount: dealerFinance.recordedCount,
+      unmarkedFinanceOutcomeCount: dealerFinance.unmarkedCount,
       frontGrossEnteredCount: front.enteredCount,
       frontGrossMissingCount: front.missingCount,
       fiGrossEnteredCount: fi.enteredCount,

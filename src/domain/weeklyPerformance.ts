@@ -1,5 +1,6 @@
 import { addDays, format, parseISO, startOfWeek } from "date-fns";
 import { daysInMonthKey, isValidDateOnly } from "@/domain/date";
+import { dealerFinancingOutcome } from "@/domain/financing";
 import { normalizeDaysOffForMonth } from "@/domain/pacing";
 import type { CalculatedSale, MonthSummary, Sale } from "@/domain/types";
 
@@ -143,10 +144,11 @@ function sum(items: CalculatedSale[], selector: (item: CalculatedSale) => number
 
 function penetrationMetric(items: CalculatedSale[], field: FiProductField): PenetrationMetric {
   const eligibleDealCount = items.length;
+  const outcome = (item: CalculatedSale) => field === "dealerFinanced" ? dealerFinancingOutcome(item.sale) : (item.sale as FiTrackedSale)[field];
   const recordedCount = items.filter(
-    (item) => typeof (item.sale as FiTrackedSale)[field] === "boolean",
+    (item) => typeof outcome(item) === "boolean",
   ).length;
-  const soldCount = items.filter((item) => (item.sale as FiTrackedSale)[field] === true).length;
+  const soldCount = items.filter((item) => outcome(item) === true).length;
   return {
     soldCount,
     eligibleDealCount,

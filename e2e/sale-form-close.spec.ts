@@ -37,14 +37,69 @@ test("opens on the fast entry path with optional details collapsed", async ({ pa
   await detailsSummary.click();
   await expect(moreDetails).toHaveAttribute("open", "");
   await expect(page.getByLabel("Vehicle optional")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Full deal", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Half deal", exact: true }).click();
+  const splitDeal = page.getByRole("checkbox", { name: "Split deal (½ credit)", exact: true });
+  await expect(splitDeal).toBeVisible();
+  await expect(splitDeal).not.toBeChecked();
+  await splitDeal.check();
   await expect(detailsSummary).toContainText("Half deal");
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(results.violations).toEqual([]);
+});
+
+test("split credit saves as half a deal and can be restored to full credit after reopening", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-08-31T16:00:00.000Z"));
+  await openNewSale(page);
+  await page.getByLabel("Customer last name").fill("Example");
+  await page.getByLabel(/Stock number/).fill("SPLIT-CREDIT-1");
+  await page.getByLabel("Front gross", { exact: true }).fill("2500");
+  await page.getByLabel("Total F&I gross", { exact: true }).fill("600");
+
+  const moreDetails = page.locator("details.sale-more-details");
+  const detailsSummary = moreDetails.locator("summary");
+  const splitDeal = page.getByRole("checkbox", { name: "Split deal (½ credit)", exact: true });
+  const unitCredit = page.getByLabel("Custom", { exact: true });
+  const footerEstimate = page.locator(".sale-form__footer-estimate");
+  await detailsSummary.click();
+  await expect(splitDeal).not.toBeChecked();
+  await expect(unitCredit).toHaveValue("1");
+  await splitDeal.check();
+  await expect(unitCredit).toHaveValue("0.5");
+  await expect(detailsSummary).toContainText("Half deal");
+  await expect(footerEstimate).toContainText("$870.00");
+  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
+
+  async function reopenSavedSale() {
+    await page.reload();
+    await page.getByRole("button", { name: "Sales", exact: true }).first().click();
+    await page.getByRole("button", { name: "Actions for stock SPLIT-CREDIT-1", exact: true }).first().click();
+    await page.getByRole("menuitem", { name: "Edit sale", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeVisible();
+  }
+
+  await reopenSavedSale();
+  await expect(moreDetails).toHaveAttribute("open", "");
+  await expect(splitDeal).toBeChecked();
+  await expect(unitCredit).toHaveValue("0.5");
+  await expect(detailsSummary).toContainText("Half deal");
+  await expect(footerEstimate).toContainText("$870.00");
+  await splitDeal.uncheck();
+  await expect(unitCredit).toHaveValue("1");
+  await expect(detailsSummary).toContainText("Full deal");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
+
+  await reopenSavedSale();
+  await expect(detailsSummary).toContainText("Full deal");
+  await detailsSummary.click();
+  await expect(splitDeal).not.toBeChecked();
+  await expect(unitCredit).toHaveValue("1");
+  await expect(page.getByLabel("Front gross", { exact: true })).toHaveValue("2500.00");
+  await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("600.00");
+  await expect(footerEstimate).toContainText("$870.00");
 });
 
 test("a pristine sale form closes immediately", async ({ page }) => {

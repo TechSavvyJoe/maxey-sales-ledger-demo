@@ -1,14 +1,16 @@
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { format, parseISO } from "date-fns";
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  Clock3,
   Filter,
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { dealerFinancingOutcome, getPaymentMethod, paymentMethodLabel } from "@/domain/financing";
 import { formatCurrency, formatUnitCredit } from "@/domain/money";
 import type {
   FinancingGroupKey,
@@ -17,6 +19,8 @@ import type {
 } from "@/domain/reportAnalytics";
 import type { CalculatedSale, Sale } from "@/domain/types";
 import { cn } from "@/lib/utils";
+import { PerformanceScorecard } from "./PerformanceScorecard";
+import { MetricGuide } from "./MetricGuide";
 import "./reports-center.css";
 
 type EvidenceFilter =
@@ -54,6 +58,37 @@ export interface FiReportCenterProps {
   scopeLabel: string;
   compact?: boolean;
   headingLevel?: 2 | 3;
+  baseline?: ReportAnalytics | null;
+  baselineLabel?: string;
+  onOpenSale: (sale: Sale) => void;
+}
+
+function openSaleFromReportRow(event: MouseEvent<HTMLElement>, sale: Sale, onOpenSale: (sale: Sale) => void) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+  const target = event.target;
+  if (!(target instanceof Element) || target.closest("button, a, input, select, textarea, summary, [role='button'], [role='link'], [contenteditable='true']")) return;
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed && (event.currentTarget.contains(selection.anchorNode) || event.currentTarget.contains(selection.focusNode))) return;
+  event.currentTarget.querySelector<HTMLButtonElement>(".report-open-sale")?.focus({ preventScroll: true });
+  onOpenSale(sale);
+}
+
+export function ReportSaleButton({ sale, onOpenSale }: { sale: Sale; onOpenSale: (sale: Sale) => void }) {
+  const label = sale.stockNumber.trim() || "No stock number";
+  return (
+    <button
+      type="button"
+      className="report-open-sale"
+      aria-label={`Open sale ${sale.stockNumber.trim() || sale.saleDate}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.focus({ preventScroll: true });
+        onOpenSale(sale);
+      }}
+    >
+      {label}
+    </button>
+  );
 }
 
 const PRODUCT_FIELDS = [
@@ -77,18 +112,28 @@ const EVIDENCE_FILTERS: readonly EvidenceFilterOption[] = [
   { value: "gap", label: "GAP sold", matches: (sale) => sale.gapSold === true },
   {
     value: "dealerFinanced",
-    label: "Dealer financed",
-    matches: (sale) => sale.dealerFinanced === true,
+    label: "Dealership financing",
+    matches: (sale) => getPaymentMethod(sale) === "dealer_financed",
+  },
+  {
+    value: "cash",
+    label: "Cash",
+    matches: (sale) => getPaymentMethod(sale) === "cash",
+  },
+  {
+    value: "outsideFinancing",
+    label: "Outside financing",
+    matches: (sale) => getPaymentMethod(sale) === "outside_financing",
   },
   {
     value: "notDealerFinanced",
-    label: "Not dealer financed",
-    matches: (sale) => sale.dealerFinanced === false,
+    label: "Cash / outside not specified",
+    matches: (sale) => getPaymentMethod(sale) === "not_dealer_financed",
   },
   {
     value: "unmarked",
     label: "Financing answer missing",
-    matches: (sale) => typeof sale.dealerFinanced !== "boolean",
+    matches: (sale) => getPaymentMethod(sale) === "unmarked",
   },
   {
     value: "anyProduct",
@@ -120,11 +165,11 @@ const EVIDENCE_FILTERS: readonly EvidenceFilterOption[] = [
     label: "Any product or financing answer missing",
     matches: (sale) =>
       PRODUCT_FIELDS.some((field) => typeof sale[field] !== "boolean")
-      || typeof sale.dealerFinanced !== "boolean",
+      || dealerFinancingOutcome(sale) === undefined,
   },
   {
     value: "fiGrossMissing",
-    label: "Total F&I gross missing",
+    label: "Awaiting F&I gross",
     matches: (sale) => sale.fiGrossCents === null,
   },
 ] as const;
@@ -135,6 +180,15 @@ function rateLabel(rate: number | null, fractionDigits = 0): string {
 
 function amountLabel(amount: number | null, entered = true): string {
   return !entered || amount === null ? "—" : formatCurrency(amount);
+}
+
+function grossCoverage(entered: number, total: number): string {
+  if (!total) return "No delivered sales in this period";
+  return entered === total ? `Gross entered on all ${total} sales` : `Partial · gross entered on ${entered} of ${total} sales`;
+}
+
+function outcomeNote(count: number, total: number, missing: number): string {
+  return `${count} of ${total} sales${missing ? ` · ${missing} unmarked` : ""}`;
 }
 
 function countLabel(count: number, singular: string, plural = `${singular}s`): string {
@@ -232,6 +286,9 @@ export function FiReportCenter({
   scopeLabel,
   compact = false,
   headingLevel = 2,
+  baseline = null,
+  baselineLabel = "No earlier covered months",
+  onOpenSale,
 }: FiReportCenterProps) {
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const idPrefix = useId().replaceAll(":", "");
@@ -281,6 +338,9 @@ export function FiReportCenter({
     : analytics.quality.recordedProductOutcomeCount
       / (analytics.quality.eligibleDealCount * PRODUCT_FIELDS.length);
   const financeTrackingRate = analytics.finance.dealerFinance.trackingCompletionRate;
+  const financingRows = analytics.financingRows.filter((row) =>
+    row.dealCount > 0 || (row.key !== "notDealerFinanced" && row.key !== "unmarked"),
+  );
   const hasMissingDetails = analytics.quality.unmarkedProductOutcomeCount > 0
     || analytics.quality.unmarkedFinanceOutcomeCount > 0
     || analytics.quality.fiGrossMissingCount > 0
@@ -350,29 +410,29 @@ export function FiReportCenter({
 
       <div className="fi-center-kpis" aria-label="F&I summary">
         <Metric
-          label="Total F&I gross"
-          value={formatCurrency(analytics.gross.fi.totalCents)}
-          note={`${analytics.gross.fi.enteredCount} of ${analytics.gross.fi.eligibleDealCount} deals entered`}
+          label="F&I gross per sale (PVR)"
+          value={amountLabel(analytics.gross.fi.averagePerDeliveredDealCents, analytics.gross.fi.enteredCount > 0)}
+          note={`${amountLabel(analytics.gross.fi.totalCents, analytics.gross.fi.enteredCount > 0)} total recorded · ${analytics.gross.fi.enteredCount}/${analytics.gross.fi.eligibleDealCount} entered`}
         />
         <Metric
-          label="1+ products sold"
+          label="Deals with tracked products"
           value={rateLabel(analytics.products.anyProduct.penetrationRate)}
-          note={`${analytics.products.anyProduct.qualifyingDealCount} of ${analytics.products.anyProduct.eligibleDealCount} deals`}
+          note={outcomeNote(analytics.products.anyProduct.qualifyingDealCount, analytics.products.anyProduct.eligibleDealCount, analytics.products.anyProduct.undeterminedDealCount)}
         />
         <Metric
-          label="Dealer-financed sales"
+          label="Finance Penetration"
           value={rateLabel(analytics.finance.dealerFinance.penetrationRate)}
-          note={`${analytics.finance.dealerFinance.yesCount} of ${analytics.finance.dealerFinance.eligibleDealCount} deals`}
+          note={outcomeNote(analytics.finance.dealerFinance.yesCount, analytics.finance.dealerFinance.eligibleDealCount, analytics.finance.dealerFinance.unmarkedCount)}
         />
         <Metric
-          label="Avg. products per sale"
+          label="Tracked products per sale (PPD)"
           value={analytics.products.averageProductsPerDeliveredDeal?.toFixed(2) ?? "—"}
-          note={`${analytics.products.totalProductUnitsSold} product units sold`}
+          note={`${analytics.products.totalProductUnitsSold} products · ${analytics.products.incompletelyTrackedDealCount ? `${analytics.products.incompletelyTrackedDealCount} sales incomplete` : "3 categories tracked"}`}
         />
         <Metric
           label="Est. F&I commission"
-          value={formatCurrency(analytics.commission.fiCommissionCents)}
-          note={`${rateLabel(analytics.gross.fi.positiveAmountPenetrationRate)} of deals have positive F&I gross`}
+          value={amountLabel(analytics.commission.fiCommissionCents, analytics.gross.fi.enteredCount > 0)}
+          note={`${amountLabel(analytics.commission.averageFiCommissionPerDeliveredDealCents)} per delivered sale`}
         />
       </div>
 
@@ -386,7 +446,7 @@ export function FiReportCenter({
         <Section
           id={`${idPrefix}-products`}
           title="Products sold"
-          description="See product volume, penetration, and whether every delivered sale has been marked Yes or No."
+          description="Penetration is each product's sold count divided by all delivered sales."
         >
         <div className="fi-center-table-wrap fi-center-desktop-table" tabIndex={0}>
           <table className="fi-center-table fi-center-product-table">
@@ -395,30 +455,19 @@ export function FiReportCenter({
               <tr>
                 <th scope="col">Product</th>
                 <th scope="col">Sold</th>
-                <th scope="col">Penetration</th>
-                <th scope="col">Yes / No</th>
-                <th scope="col">Details complete</th>
+                <th scope="col">Penetration <span className="fi-center-column-note">% of all sales</span></th>
                 <th scope="col" aria-label="Action" />
               </tr>
             </thead>
             <tbody>
               {analytics.productRows.map((row) => (
                 <tr key={row.key}>
-                  <th scope="row">{row.label}</th>
+                  <th scope="row">
+                    {row.label}
+                    {row.unmarkedCount > 0 && <small className="fi-product-missing">{countLabel(row.unmarkedCount, "answer")} missing</small>}
+                  </th>
                   <td><strong>{row.soldCount}</strong> / {row.eligibleDealCount}</td>
                   <td><strong>{rateLabel(row.penetrationRate)}</strong></td>
-                  <td>
-                    <span className="fi-center-cell-stack">
-                      <span>{row.soldCount} Yes · {row.noCount} No</span>
-                      <small>{row.unmarkedCount} missing</small>
-                    </span>
-                  </td>
-                  <td>
-                    <span className="fi-center-cell-stack">
-                      <strong>{rateLabel(row.trackingCompletionRate)}</strong>
-                      <small>{row.recordedCount} of {row.eligibleDealCount} complete</small>
-                    </span>
-                  </td>
                   <td>
                     <ViewDealsButton
                       filter={row.key}
@@ -435,21 +484,15 @@ export function FiReportCenter({
 
         <div className="fi-center-phone-disclosures">
           {analytics.productRows.map((row) => (
-            <details key={row.key} className="fi-center-mobile-detail">
-              <summary>
-                <span>
-                  <strong>{row.label}</strong>
-                  <small>{row.soldCount} of {row.eligibleDealCount} sold</small>
-                </span>
-                <span className="fi-center-summary-rate">{rateLabel(row.penetrationRate)}</span>
-                <ChevronDown aria-hidden="true" />
-              </summary>
-              <dl>
-                <div><dt>Yes / No</dt><dd>{row.soldCount} Yes · {row.noCount} No · {row.unmarkedCount} missing</dd></div>
-                <div><dt>Details complete</dt><dd>{rateLabel(row.trackingCompletionRate)} · {row.recordedCount} of {row.eligibleDealCount}</dd></div>
-              </dl>
+            <article key={row.key} className="fi-center-product-card">
+              <div>
+                <strong>{row.label}</strong>
+                <small>{row.soldCount} of {row.eligibleDealCount} sold</small>
+                {row.unmarkedCount > 0 && <small className="fi-product-missing">{countLabel(row.unmarkedCount, "answer")} missing</small>}
+              </div>
+              <span className="fi-center-summary-rate" aria-label={`${rateLabel(row.penetrationRate)} of all sales`}>{rateLabel(row.penetrationRate)}</span>
               <ViewDealsButton filter={row.key} label={row.label} onSelect={selectEvidence} />
-            </details>
+            </article>
           ))}
         </div>
         </Section>
@@ -465,8 +508,15 @@ export function FiReportCenter({
       <Section
         id={`${idPrefix}-financing`}
         title="Financing"
-        description="See how many delivered sales were financed through the dealership and how products performed on those sales."
+        description="Compare dealership financing, cash, and outside financing. Finance Penetration uses all delivered sales; product rates within each group use that group's sales."
       >
+        <div className="fi-finance-highlight">
+          <div>
+            <strong>GAP on dealer-financed sales</strong>
+            <p>{outcomeNote(analytics.finance.gapOnDealerFinanced.yesCount, analytics.finance.gapOnDealerFinanced.eligibleDealCount, analytics.finance.gapOnDealerFinanced.unmarkedCount)} · GAP marked sold within dealer-financed sales</p>
+          </div>
+          <strong>{rateLabel(analytics.finance.gapOnDealerFinanced.penetrationRate, 1)}</strong>
+        </div>
         <div className="fi-center-table-wrap fi-center-desktop-table" tabIndex={0}>
           <table className="fi-center-table fi-center-finance-table">
             <caption className="sr-only">Dealer financing cohorts for {scopeLabel}</caption>
@@ -475,15 +525,15 @@ export function FiReportCenter({
                 <th scope="col">Financing</th>
                 <th scope="col">Deals</th>
                 <th scope="col">Share of delivered</th>
-                <th scope="col">Any product</th>
-                <th scope="col">Product units</th>
+                <th scope="col">1+ tracked products</th>
+                <th scope="col">Tracked products</th>
                 <th scope="col">Total F&amp;I gross</th>
-                <th scope="col">Average per deal</th>
+                <th scope="col">F&amp;I per sale</th>
                 <th scope="col" aria-label="Action" />
               </tr>
             </thead>
             <tbody>
-              {analytics.financingRows.map((row) => (
+              {financingRows.map((row) => (
                 <tr key={row.key}>
                   <th scope="row">{row.label}</th>
                   <td>{row.dealCount}</td>
@@ -492,7 +542,7 @@ export function FiReportCenter({
                   <td>{row.products.totalProductUnitsSold} · {row.products.averageProductsPerDeliveredDeal?.toFixed(2) ?? "—"} / deal</td>
                   <td>
                     <span className="fi-center-cell-stack">
-                      <strong>{formatCurrency(row.fiGrossCents)}</strong>
+                      <strong>{amountLabel(row.fiGrossCents, row.fiGrossEnteredCount > 0)}</strong>
                       <small>{row.fiGrossEnteredCount} entered · {row.fiGrossMissingCount} missing</small>
                     </span>
                   </td>
@@ -505,7 +555,7 @@ export function FiReportCenter({
         </div>
 
         <div className="fi-center-phone-disclosures">
-          {analytics.financingRows.map((row) => (
+          {financingRows.map((row) => (
             <details key={row.key} className="fi-center-mobile-detail">
               <summary>
                 <span>
@@ -516,15 +566,30 @@ export function FiReportCenter({
                 <ChevronDown aria-hidden="true" />
               </summary>
               <dl>
-                <div><dt>Any product</dt><dd>{row.products.anyProduct.qualifyingDealCount} · {rateLabel(row.products.anyProduct.penetrationRate)}</dd></div>
-                <div><dt>Product units</dt><dd>{row.products.totalProductUnitsSold} · {row.products.averageProductsPerDeliveredDeal?.toFixed(2) ?? "—"} / deal</dd></div>
-                <div><dt>Total F&amp;I gross</dt><dd>{formatCurrency(row.fiGrossCents)} · {row.fiGrossEnteredCount} entered</dd></div>
-                <div><dt>Average F&amp;I / deal</dt><dd>{amountLabel(row.averageFiGrossPerDealCents)}</dd></div>
+                <div><dt>1+ tracked products</dt><dd>{row.products.anyProduct.qualifyingDealCount} · {rateLabel(row.products.anyProduct.penetrationRate)}</dd></div>
+                <div><dt>Tracked products</dt><dd>{row.products.totalProductUnitsSold} · {row.products.averageProductsPerDeliveredDeal?.toFixed(2) ?? "—"} / sale</dd></div>
+                <div><dt>Total F&amp;I gross</dt><dd>{amountLabel(row.fiGrossCents, row.fiGrossEnteredCount > 0)} · {row.fiGrossEnteredCount} entered · {row.fiGrossMissingCount} missing</dd></div>
+                <div><dt>F&amp;I gross per sale</dt><dd>{amountLabel(row.averageFiGrossPerDealCents)}</dd></div>
               </dl>
               <ViewDealsButton filter={row.key} label={row.label} onSelect={selectEvidence} />
             </details>
           ))}
         </div>
+        <details className="fi-center-exact-mix">
+          <summary><span><strong>Products by financing group</strong><small>Sold ÷ sales within each financing group</small></span><ChevronDown aria-hidden="true" /></summary>
+          <table className="fi-center-table fi-finance-products-table">
+            <caption className="sr-only">Product penetration within financing groups</caption>
+            <thead><tr><th scope="col">Financing</th><th scope="col">Service contract</th><th scope="col">Tire &amp; Wheel</th><th scope="col">GAP</th></tr></thead>
+            <tbody>{financingRows.map((row) => (
+              <tr key={row.key}>
+                <th scope="row">{row.label}</th>
+                {(["serviceContract", "tireWheel", "gap"] as const).map((product) => (
+                  <td key={product}><span className="fi-center-cell-stack"><strong>{rateLabel(row.products[product].penetrationRate)}</strong><small>{row.products[product].yesCount} of {row.dealCount}{row.products[product].unmarkedCount ? ` · ${row.products[product].unmarkedCount} unmarked` : ""}</small></span></td>
+                ))}
+              </tr>
+            ))}</tbody>
+          </table>
+        </details>
       </Section>
       </div>
 
@@ -557,7 +622,7 @@ export function FiReportCenter({
                 <dd>{analytics.products.allThreeProducts.qualifyingDealCount} · {rateLabel(analytics.products.allThreeProducts.penetrationRate)}</dd>
               </div>
               <div>
-                <dt>Confirmed no product</dt>
+                <dt>No tracked products sold</dt>
                 <dd>{analytics.products.confirmedNoProductDealCount}</dd>
               </div>
               <div>
@@ -644,46 +709,47 @@ export function FiReportCenter({
         <Section
           id={`${idPrefix}-money`}
           title="F&I gross & commission"
-          description="One total F&I gross amount is tracked for each sale. That amount is used to estimate F&I commission."
+          description={grossCoverage(analytics.gross.fi.enteredCount, analytics.gross.fi.eligibleDealCount)}
         >
-        <div className="fi-center-split-grid">
-          <details className="fi-center-panel fi-center-money-detail">
-            <summary>
-              <span><strong>Gross details</strong><small>Front, F&amp;I, averages, and mix</small></span>
+        <div className="fi-center-split-grid fi-center-money-grid">
+          <section className="fi-center-panel fi-center-money-detail" aria-labelledby={`${idPrefix}-gross-details-heading`}>
+            <header className="fi-center-money-header">
+              <div><h4 id={`${idPrefix}-gross-details-heading`}>Gross details</h4><small>Front, F&amp;I, averages, and mix</small></div>
               <span>{formatCurrency(analytics.gross.totalGrossCents)}</span>
-              <ChevronDown aria-hidden="true" />
-            </summary>
+            </header>
             <dl className="fi-center-row-list">
-              <div><dt>Front gross</dt><dd>{formatCurrency(analytics.gross.front.totalCents)}</dd></div>
-              <div><dt>Total F&amp;I gross</dt><dd>{formatCurrency(analytics.gross.fi.totalCents)}</dd></div>
+              <div><dt>Recorded front gross</dt><dd>{amountLabel(analytics.gross.front.totalCents, analytics.gross.front.enteredCount > 0)}</dd></div>
+              <div><dt>Recorded total F&amp;I gross</dt><dd>{amountLabel(analytics.gross.fi.totalCents, analytics.gross.fi.enteredCount > 0)}</dd></div>
               <div className="is-total"><dt>Combined recorded gross</dt><dd>{formatCurrency(analytics.gross.totalGrossCents)}</dd></div>
-              <div><dt>Average front gross / deal</dt><dd>{amountLabel(analytics.gross.front.averagePerDeliveredDealCents)}</dd></div>
-              <div><dt>Average F&amp;I gross / deal</dt><dd>{amountLabel(analytics.gross.fi.averagePerDeliveredDealCents)}</dd></div>
-              <div><dt>F&amp;I share of combined gross</dt><dd>{rateLabel(analytics.gross.fiShareOfTotalGrossRate, 1)}</dd></div>
-              <div><dt>Positive F&amp;I gross deals</dt><dd>{analytics.gross.fi.positiveCount} · {rateLabel(analytics.gross.fi.positiveAmountPenetrationRate)}</dd></div>
+              <div><dt>Front gross per sale</dt><dd>{amountLabel(analytics.gross.front.averagePerDeliveredDealCents)}</dd></div>
+              <div><dt>F&amp;I gross per sale (PVR)</dt><dd>{amountLabel(analytics.gross.fi.averagePerDeliveredDealCents)}</dd></div>
+              <div><dt>Combined gross per sale</dt><dd>{amountLabel(analytics.gross.averageTotalGrossPerDeliveredDealCents)}</dd></div>
+              <div><dt>F&amp;I commission per sale</dt><dd>{amountLabel(analytics.commission.averageFiCommissionPerDeliveredDealCents)}</dd></div>
             </dl>
-          </details>
+          </section>
 
-          <details className="fi-center-panel fi-center-money-detail">
-            <summary>
-              <span><strong>Commission details</strong><small>Front, F&amp;I, bonus, and payroll</small></span>
+          <section className="fi-center-panel fi-center-money-detail" aria-labelledby={`${idPrefix}-commission-details-heading`}>
+            <header className="fi-center-money-header">
+              <div><h4 id={`${idPrefix}-commission-details-heading`}>Commission details</h4><small>Front, F&amp;I, bonus, and payroll</small></div>
               <span>{formatCurrency(analytics.commission.estimatedCommissionCents)}</span>
-              <ChevronDown aria-hidden="true" />
-            </summary>
+            </header>
             <dl className="fi-center-row-list">
               <div><dt>Front commission</dt><dd>{formatCurrency(analytics.commission.frontCommissionCents)}</dd></div>
               <div><dt>F&amp;I commission</dt><dd>{formatCurrency(analytics.commission.fiCommissionCents)}</dd></div>
-              <div><dt>Core commission</dt><dd>{formatCurrency(analytics.commission.coreCommissionCents)}</dd></div>
+              <div><dt>Sales commission</dt><dd>{formatCurrency(analytics.commission.coreCommissionCents)}</dd></div>
               <div><dt>Bonus included</dt><dd>{formatCurrency(analytics.commission.bonusIncludedCents)}</dd></div>
               <div className="is-total"><dt>Estimated commission</dt><dd>{formatCurrency(analytics.commission.estimatedCommissionCents)}</dd></div>
-              <div><dt>Average estimated / deal</dt><dd>{amountLabel(analytics.commission.averageEstimatedCommissionPerDeliveredDealCents)}</dd></div>
+              <div><dt>Est. commission per sale</dt><dd>{amountLabel(analytics.commission.averageEstimatedCommissionPerDeliveredDealCents)}</dd></div>
               <div><dt>Actual paid</dt><dd>{amountLabel(analytics.commission.actualPaidCents, analytics.commission.actualPaidCents !== null)}</dd></div>
               <div><dt>Payroll variance</dt><dd>{amountLabel(analytics.commission.payrollVarianceCents, analytics.commission.payrollVarianceCents !== null)}</dd></div>
             </dl>
-          </details>
+          </section>
         </div>
 
         </Section>
+
+        <PerformanceScorecard analytics={analytics} baseline={baseline} baselineLabel={baselineLabel} />
+        <MetricGuide />
 
         <Section
           id={`${idPrefix}-quality`}
@@ -707,10 +773,10 @@ export function FiReportCenter({
           </div>
           <div className="fi-center-quality-item">
             <span className="fi-center-quality-icon" data-ready={analytics.quality.fiGrossMissingCount === 0}>
-              {analytics.quality.fiGrossMissingCount === 0 ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
+              {analytics.quality.fiGrossMissingCount === 0 ? <CheckCircle2 aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
             </span>
-            <div><strong>Total F&amp;I gross</strong><span>{analytics.quality.fiGrossEnteredCount} of {analytics.quality.eligibleDealCount} entered</span><small>{analytics.quality.fiGrossMissingCount} missing · $0 stays distinct from missing</small></div>
-            {analytics.quality.fiGrossMissingCount > 0 ? <ViewDealsButton filter="fiGrossMissing" label="deals missing total F&I gross" onSelect={selectEvidence} /> : null}
+            <div><strong>{analytics.quality.fiGrossMissingCount > 0 ? "Awaiting F&I gross" : "Total F&I gross"}</strong><span>{analytics.quality.fiGrossEnteredCount} of {analytics.quality.eligibleDealCount} entered</span><small>{analytics.quality.fiGrossMissingCount} awaiting · add amounts when your F&amp;I manager provides them</small></div>
+            {analytics.quality.fiGrossMissingCount > 0 ? <ViewDealsButton filter="fiGrossMissing" label="deals awaiting F&I gross" onSelect={selectEvidence} /> : null}
           </div>
           <div className="fi-center-quality-item">
             <span className="fi-center-quality-icon" data-ready={analytics.quality.frontGrossMissingCount === 0}>
@@ -791,13 +857,13 @@ export function FiReportCenter({
                 </thead>
                 <tbody>
                   {filteredDeals.map((item) => (
-                    <tr key={item.sale.id}>
+                    <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                       <td>{format(parseISO(item.sale.saleDate), "MMM d")}</td>
                       {includeLastNames ? <td>{item.sale.customerLastName || "—"}</td> : null}
-                      <th scope="row">{item.sale.stockNumber || "—"}</th>
+                      <th scope="row"><ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} /></th>
                       <td>{item.sale.vehicleDescription || "—"}</td>
                       <td><ProductOutcomeBadges sale={item.sale} /></td>
-                      <td><span className="fi-evidence-finance" data-state={outcomeLabel(item.sale.dealerFinanced)}>{outcomeLabel(item.sale.dealerFinanced)}</span></td>
+                      <td><span className="fi-evidence-finance" data-state={outcomeLabel(dealerFinancingOutcome(item.sale))}>{paymentMethodLabel(item.sale)}</span></td>
                       <td>{item.sale.fiGrossCents === null ? "Not entered" : formatCurrency(item.sale.fiGrossCents)}</td>
                       <td>{formatUnitCredit(item.sale.unitCreditBasis)}</td>
                     </tr>
@@ -808,16 +874,16 @@ export function FiReportCenter({
 
             <div className="fi-center-evidence-cards">
               {filteredDeals.map((item) => (
-                <article key={item.sale.id} className="fi-evidence-card">
+                <article key={item.sale.id} className="fi-evidence-card report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                   <header>
-                    <div><strong>{item.sale.stockNumber || "No stock number"}</strong><span>{format(parseISO(item.sale.saleDate), "MMM d")}</span></div>
+                    <div><ReportSaleButton sale={item.sale} onOpenSale={onOpenSale} /><span>{format(parseISO(item.sale.saleDate), "MMM d")}</span></div>
                     <span>{formatUnitCredit(item.sale.unitCreditBasis)} units</span>
                   </header>
                   <p>{item.sale.vehicleDescription || "Vehicle not entered"}</p>
                   {includeLastNames ? <small>Customer: {item.sale.customerLastName || "Not entered"}</small> : null}
                   <ProductOutcomeBadges sale={item.sale} />
                   <dl>
-                    <div><dt>Dealer financed</dt><dd>{outcomeLabel(item.sale.dealerFinanced)}</dd></div>
+                    <div><dt>Payment method</dt><dd>{paymentMethodLabel(item.sale)}</dd></div>
                     <div><dt>Total F&amp;I gross</dt><dd>{item.sale.fiGrossCents === null ? "Not entered" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
                   </dl>
                 </article>

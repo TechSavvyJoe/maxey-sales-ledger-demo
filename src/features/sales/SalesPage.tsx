@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { getPaymentMethod, paymentMethodLabel } from "@/domain/financing";
 import {
   ArrowDownAZ,
   ChevronDown,
@@ -80,23 +81,20 @@ function SaleProductBadges({ sale }: { sale: Sale }) {
   const soldProducts = productOutcomes.filter(([, , value]) => value === true);
   const noProducts = productOutcomes.filter(([, , value]) => value === false);
   const unmarkedProducts = productOutcomes.filter(([, , value]) => value === undefined);
-  const financingState = sale.dealerFinanced === true
-    ? "Yes"
-    : sale.dealerFinanced === false
-      ? "No"
-      : "Not marked";
+  const paymentMethod = getPaymentMethod(sale);
   const accessibleLabel = [
     `F&I products sold: ${soldProducts.length ? soldProducts.map(([, label]) => label).join(", ") : "none recorded"}`,
     noProducts.length ? `F&I products marked No: ${noProducts.map(([, label]) => label).join(", ")}` : null,
     unmarkedProducts.length ? `F&I products not marked: ${unmarkedProducts.map(([, label]) => label).join(", ")}` : null,
-    `Dealer financing: ${financingState}`,
+    `Payment method: ${paymentMethodLabel(sale)}`,
   ].filter((part): part is string => part !== null).join(". ");
   const badges = [
     ...soldProducts.map(([short, label]) => [short, label] as const),
-    ...(sale.dealerFinanced === true ? [["Financed", "Dealer financing"] as const] : []),
+    ...(["dealer_financed", "cash", "outside_financing"].includes(paymentMethod)
+      ? [[paymentMethod === "dealer_financed" ? "Dealer financed" : paymentMethod === "cash" ? "Cash" : "Outside financed", paymentMethodLabel(sale)] as const] : []),
   ];
   if (!badges.length) {
-    const hasUnmarkedOutcome = unmarkedProducts.length > 0 || sale.dealerFinanced === undefined;
+    const hasUnmarkedOutcome = unmarkedProducts.length > 0 || paymentMethod === "unmarked" || paymentMethod === "not_dealer_financed";
     return (
       <span role="group" className="sale-products sale-products--empty" aria-label={accessibleLabel}>
         {hasUnmarkedOutcome ? "Needs details" : "No products"}

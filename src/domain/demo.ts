@@ -1,6 +1,6 @@
 import { DEFAULT_PAY_PLAN } from "@/domain/commission";
 import { monthKeyFromDate, todayDateOnly } from "@/domain/date";
-import type { PayPlan, Sale } from "@/domain/types";
+import type { PaymentMethod, PayPlan, Sale } from "@/domain/types";
 
 const vehicles = [
   "2023 Ford Escape Active",
@@ -26,6 +26,14 @@ export const DEMO_DATASET_TITLE = IS_PUBLIC_DEMO_BUILD ? "Two-year" : "Full-year
 export const DEMO_HISTORIC_PLAN_VERSION = "Sample 2024–26 plan";
 
 type DemoDatasetScope = "full-year" | "two-year";
+
+/** Stable sample choices: refreshes must never shuffle a demonstration's results. */
+export function samplePaymentMethod(sale: Pick<Sale, "id" | "dealerFinanced">): PaymentMethod {
+  if (sale.dealerFinanced === true) return "dealer_financed";
+  const seed = [...sale.id].reduce((value, character) => (Math.imul(value, 31) + character.charCodeAt(0)) >>> 0, 7);
+  if (sale.dealerFinanced === false) return seed % 2 ? "cash" : "outside_financing";
+  return (["dealer_financed", "cash", "outside_financing"] as const)[seed % 3];
+}
 
 function addMonths(monthKey: string, offset: number): string {
   const [year, month] = monthKey.split("-").map(Number);
@@ -97,6 +105,7 @@ function createDemoSale(
     tireWheelSold,
     gapSold,
     dealerFinanced: isDelivered && index % 3 !== 1,
+    paymentMethod: isDelivered ? samplePaymentMethod({ id: `demo-${monthKey}-${index}-${status}`, dealerFinanced: index % 3 !== 1 }) : undefined,
     notes: "Demonstration record — safe to remove from active views.",
     createdAt: timestamp,
     updatedAt: timestamp,

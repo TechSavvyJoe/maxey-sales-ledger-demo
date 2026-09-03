@@ -8,6 +8,7 @@ import {
   calculateFiPenetrationMetrics,
   createMonthlyCsvContent,
   createBackupEnvelope,
+  formatReportWorkbookNumbers,
   parseBackupFile,
   prepareBackupFile,
   reportRowForSale,
@@ -41,6 +42,14 @@ function jsonFile(value: unknown): File {
 }
 
 describe("JSON backup validation", () => {
+  it("keeps awaiting gross blank in portable rows while preserving entered zero", () => {
+    expect(reportRowForSale({ ...testSale(), frontGrossCents: null, fiGrossCents: null }).slice(6, 8))
+      .toEqual(["", ""]);
+    expect(reportRowForSale({ ...testSale(), frontGrossCents: 0, fiGrossCents: 0 }).slice(6, 8))
+      .toEqual(["$0", "$0"]);
+    expect(reportRowForSale(testSale()).slice(6, 8)).toEqual(["$1,000", "$200"]);
+  });
+
   it("labels omitted legacy F&I outcomes as not marked in report rows", () => {
     expect(reportRowForSale(testSale()).slice(8, 12)).toEqual([
       "Not marked",
@@ -64,6 +73,7 @@ describe("JSON backup validation", () => {
     expect(privateCsv).toContain('"Total F&I Gross"');
     expect(privateCsv).toContain('"Service Contract / Warranty Sold"');
     expect(privateCsv).toContain('"Dealer Financed"');
+    expect(privateCsv).toContain('"Payment Method"');
     expect(privateCsv).not.toMatch(/credited gross|gross breakdown|unallocated F&I/i);
     expect(privateCsv).not.toContain('"Customer Last Name"');
     expect(privateCsv).not.toContain('"Sample"');
@@ -121,6 +131,7 @@ describe("JSON backup validation", () => {
       "Tire & Wheel Sold": "Yes",
       "GAP Sold": "No",
       "Dealer Financed": "Yes",
+      "Payment Method": "Dealership financing",
     });
     expect(JSON.stringify(privateDetail)).not.toMatch(/credited gross|gross breakdown/i);
     expect(identifiedDetail[0]).toHaveProperty("Customer Last Name", "Sample");
@@ -134,13 +145,37 @@ describe("JSON backup validation", () => {
       "Deal-level Total F&I Gross on Matching Deals (Overlapping)",
     );
 
-    expect(tables.financingRows).toHaveLength(3);
+    expect(tables.financingRows).toHaveLength(5);
     expect(tables.financingRows[0]).toMatchObject({
-      "Financing Outcome": "Dealer financed",
+      "Financing Outcome": "Dealership financing",
       Deals: 1,
       "Total F&I Gross": 200,
+      "Recorded F&I Gross per Group Deal (PVR)": 200,
+      "Product Penetration Denominator (Group Deals)": 1,
+      "GAP Penetration within Financing Group": 0,
       "Service Contract / Warranty Sold": 1,
     });
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
+      Metric: "Recorded F&I gross per delivered sale (PVR)",
+      Value: 140,
+    }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
+      Metric: "Estimated F&I commission per delivered sale",
+      Value: 28,
+    }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
+      Metric: "GAP penetration - all delivered sales",
+      Value: 0.5,
+    }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
+      Metric: "GAP penetration - dealer-financed sales",
+      Value: 0,
+    }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
+      Metric: "Dealer-financed sales (GAP denominator)",
+      Value: 1,
+    }));
+    expect(JSON.stringify(tables)).not.toMatch(/positive.*F&I.*gross/i);
 
     expect(tables.productMixBundleRows).toContainEqual(expect.objectContaining({
       Section: "Inclusive bundle",
@@ -160,6 +195,86 @@ describe("JSON backup validation", () => {
     expect(JSON.stringify(tables)).not.toMatch(/credited gross|gross breakdown/i);
   });
 
+  it("exports missing F&I gross as blank PVR while retaining entered zero and coverage", () => {
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    const missingSale = { ...testSale(), dealerFinanced: true, fiGrossCents: null };
+    const missingTables = buildReportAnalyticsExportTables(calculateMonthReportAnalytics(
+      calculateMonth([missingSale], "2026-08", getPayPlanSchedule(settings)),
+    ));
+    expect(missingTables.financingRows[0]).toMatchObject({
+      "Total F&I Gross": "",
+      "Recorded F&I Gross per Group Deal (PVR)": "",
+      "F&I Gross Coverage": 0,
+    });
+    expect(missingTables.dataQualityRows).toContainEqual(expect.objectContaining({
+      Metric: "Estimated F&I commission per delivered sale",
+      Value: "",
+    }));
+
+    const zeroTables = buildReportAnalyticsExportTables(calculateMonthReportAnalytics(
+      calculateMonth([{ ...missingSale, fiGrossCents: 0 }], "2026-08", getPayPlanSchedule(settings)),
+    ));
+    expect(zeroTables.financingRows[0]).toMatchObject({
+      "Total F&I Gross": 0,
+      "Recorded F&I Gross per Group Deal (PVR)": 0,
+      "F&I Gross Coverage": 1,
+    });
+  });
+
+  it("round-trips numeric percentages and currency without changing counts or formulas", async () => {
+    const XLSX = await import("xlsx");
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    const analytics = calculateMonthReportAnalytics(calculateMonth([
+      { ...testSale(), dealerFinanced: true, gapSold: true },
+      { ...testSale(), id: "other", stockNumber: "OTHER", dealerFinanced: false, fiGrossCents: null },
+    ], "2026-08", getPayPlanSchedule(settings)));
+    const tables = buildReportAnalyticsExportTables(analytics);
+    const workbook = XLSX.utils.book_new();
+    const summary = XLSX.utils.aoa_to_sheet([
+      ["Metric", "Value"],
+      ["Finance Penetration", 0.5],
+      ["Total F&I gross", 200],
+      ["F&I amount missing", 1],
+      ["Tracked products per delivered sale (PPD)", 0.5],
+      ["Cash sales", 2],
+      ["Outside-financed sales", 3],
+      ["Cash / outside not specified", 4],
+    ]);
+    summary.B2.f = "1/2";
+    XLSX.utils.book_append_sheet(workbook, summary, "Monthly Summary");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(tables.financingRows), "Financing");
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(tables.dataQualityRows), "Data Quality");
+
+    formatReportWorkbookNumbers(workbook);
+    const restored = XLSX.read(XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }), {
+      type: "buffer",
+      cellNF: true,
+    });
+    const restoredSummary = restored.Sheets["Monthly Summary"];
+    expect(restoredSummary.B2).toMatchObject({ t: "n", v: 0.5, f: "1/2", z: "0.0%", w: "50.0%" });
+    expect(restoredSummary.B3).toMatchObject({ t: "n", v: 200, w: "$200.00" });
+    expect(restoredSummary.B4).toMatchObject({ t: "n", v: 1, z: "General" });
+    expect(restoredSummary.B5).toMatchObject({ t: "n", v: 0.5, z: "0.00", w: "0.50" });
+    expect(restoredSummary.B6).toMatchObject({ t: "n", v: 2, z: "General" });
+    expect(restoredSummary.B7).toMatchObject({ t: "n", v: 3, z: "General" });
+    expect(restoredSummary.B8).toMatchObject({ t: "n", v: 4, z: "General" });
+
+    const financeHeaders = Object.keys(tables.financingRows[0]);
+    const financeCell = (header: string) => restored.Sheets.Financing[
+      XLSX.utils.encode_cell({ r: 1, c: financeHeaders.indexOf(header) })
+    ];
+    expect(financeCell("Share of Delivered Deals")).toMatchObject({ v: 0.5, z: "0.0%" });
+    expect(financeCell("Product Penetration Denominator (Group Deals)")).toMatchObject({ v: 1, z: "General" });
+    expect(financeCell("Recorded F&I Gross per Group Deal (PVR)")).toMatchObject({ v: 200, w: "$200.00" });
+
+    const qualityCell = (metric: string) => restored.Sheets["Data Quality"][
+      XLSX.utils.encode_cell({ r: tables.dataQualityRows.findIndex((row) => row.Metric === metric) + 1, c: 2 })
+    ];
+    expect(qualityCell("F&I gross coverage")).toMatchObject({ v: 0.5, z: "0.0%" });
+    expect(qualityCell("Total F&I gross missing")).toMatchObject({ v: 1, z: "General" });
+    expect(qualityCell("Recorded F&I gross per delivered sale (PVR)")).toMatchObject({ v: 100, w: "$100.00" });
+  });
+
   it("prepares the exact manual-download file only after a successful round trip", async () => {
     const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
     settings.salespersonName = "Drive User";
@@ -170,6 +285,80 @@ describe("JSON backup validation", () => {
     expect(prepared.fileName).toMatch(/^drive-user-sales-backup-\d{4}-\d{2}-\d{2}\.json$/);
     expect(prepared.file.name).toBe(prepared.fileName);
     expect(parsed.data.sales[0]?.stockNumber).toBe("B-0001");
+  });
+
+  it.each([
+    ["dealer_financed", true],
+    ["cash", false],
+    ["outside_financing", false],
+  ] as const)("preserves %s through backups and reconciles its legacy financing answer", async (paymentMethod, dealerFinanced) => {
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    const sale: Sale = { ...testSale(), paymentMethod, dealerFinanced: !dealerFinanced };
+    const envelope = await createBackupEnvelope(settings, [sale], []);
+    expect(envelope.data.sales[0]).toMatchObject({ paymentMethod, dealerFinanced });
+    expect(sale.dealerFinanced).toBe(!dealerFinanced);
+
+    // A checksum-valid recovery copy may still contain an older, conflicting boolean.
+    envelope.data.sales[0].dealerFinanced = !dealerFinanced;
+    envelope.checksum = await sha256(JSON.stringify(envelope.data));
+    const parsed = await parseBackupFile(jsonFile(envelope));
+    expect(parsed.data.sales[0]).toMatchObject({ paymentMethod, dealerFinanced });
+  });
+
+  it("keeps legacy No financing separate from explicit cash and outside financing", async () => {
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    const sales: Sale[] = [
+      { ...testSale(), id: "legacy-no", dealerFinanced: false },
+      { ...testSale(), id: "legacy-yes", dealerFinanced: true },
+      { ...testSale(), id: "legacy-unmarked" },
+    ];
+    const restored = await parseBackupFile(jsonFile(await createBackupEnvelope(settings, sales, [])));
+    expect(restored.data.sales.map((sale) => sale.paymentMethod)).toEqual([undefined, undefined, undefined]);
+    expect(restored.data.sales.map((sale) => sale.dealerFinanced)).toEqual([false, true, undefined]);
+    expect(reportRowForSale(restored.data.sales[0])[12]).toBe("Cash / outside not specified");
+    expect(reportRowForSale(restored.data.sales[1])[12]).toBe("Dealership financing");
+    expect(reportRowForSale(restored.data.sales[2])[12]).toBe("Not marked");
+  });
+
+  it("rejects a checksum-valid backup containing an unsupported payment method", async () => {
+    const envelope = await createBackupEnvelope(
+      createDefaultSettings(new Date("2026-08-20T12:00:00.000Z")), [testSale()], [],
+    );
+    (envelope.data.sales[0] as unknown as Record<string, unknown>).paymentMethod = "some-other-method";
+    envelope.checksum = await sha256(JSON.stringify(envelope.data));
+    await expect(parseBackupFile(jsonFile(envelope))).rejects.toThrow(/valid Sales Ledger backup/i);
+  });
+
+  it("exports all payment groups without reclassifying older sales or changing financial numbers", async () => {
+    const XLSX = await import("xlsx");
+    const settings = createDefaultSettings(new Date("2026-08-20T12:00:00.000Z"));
+    const sales: Sale[] = [
+      { ...testSale(), id: "dealer", stockNumber: "P-1", paymentMethod: "dealer_financed", dealerFinanced: false },
+      { ...testSale(), id: "cash", stockNumber: "P-2", paymentMethod: "cash", dealerFinanced: true, fiGrossCents: 0 },
+      { ...testSale(), id: "outside", stockNumber: "P-3", paymentMethod: "outside_financing", dealerFinanced: true, fiGrossCents: 12_345 },
+      { ...testSale(), id: "legacy-no", stockNumber: "P-4", dealerFinanced: false, fiGrossCents: null },
+      { ...testSale(), id: "unknown", stockNumber: "P-5", fiGrossCents: null },
+    ];
+    const csv = createMonthlyCsvContent(sales, settings, "2026-08", false);
+    const csvBook = XLSX.read(csv, { type: "string" });
+    const csvRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(csvBook.Sheets[csvBook.SheetNames[0]]);
+    expect(csvRows.map((row) => row["Payment Method"])).toEqual([
+      "Dealership financing", "Cash", "Outside financing", "Cash / outside not specified", "Not marked",
+    ]);
+    expect(csvRows.map((row) => row["Dealer Financed"])).toEqual(["Yes", "No", "No", "No", "Not marked"]);
+    expect(csvRows[2]).toMatchObject({ "Total F&I Gross": 123.45, "Front Gross": 1000 });
+
+    const summary = calculateMonth(sales, "2026-08", getPayPlanSchedule(settings));
+    const detail = buildSalesDetailExportRows(summary.calculatedSales, false);
+    expect(detail.map((row) => row["Payment Method"])).toEqual(csvRows.map((row) => row["Payment Method"]));
+    expect(detail.map((row) => row["Total F&I Gross"])).toEqual([200, 0, 123.45, "", ""]);
+    const tables = buildReportAnalyticsExportTables(calculateMonthReportAnalytics(summary));
+    expect(tables.financingRows.map((row) => row.Deals)).toEqual([1, 1, 1, 1, 1]);
+    expect(tables.financingRows.reduce((sum, row) => sum + Number(row.Deals), 0)).toBe(5);
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({ Section: "Payment method", Metric: "Cash sales", Value: 1 }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({ Section: "Payment method", Metric: "Outside-financed sales", Value: 1 }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({ Section: "Payment method", Metric: "Cash / outside not specified", Value: 1 }));
+    expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({ Section: "Payment method", Metric: "Payment method not marked", Value: 1 }));
   });
 
   it("round-trips valid settings, plan history, and sales", async () => {

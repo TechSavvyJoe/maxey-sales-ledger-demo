@@ -147,7 +147,7 @@
 
 .app-shell .topbar {
   min-height: var(--shell-topbar-height);
-  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  grid-template-columns: minmax(0, 296px) minmax(0, 1fr);
   gap: 16px;
   padding: 0 24px;
   border-bottom-color: var(--color-border);
@@ -186,8 +186,13 @@
 }
 
 .app-shell .period-switcher {
-  min-width: 246px;
-  min-height: 44px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  width: min(100%, 296px);
+  min-width: 0;
+  max-width: 296px;
+  min-height: 48px;
+  justify-self: start;
   border-color: var(--color-control-border);
   border-radius: var(--radius-control);
   background: var(--surface);
@@ -196,17 +201,20 @@
 
 .app-shell .period-switcher__arrow,
 .app-shell .period-switcher__label {
-  min-height: 40px !important;
-  height: 40px;
+  min-height: 44px !important;
+  height: 44px;
 }
 
 .app-shell .period-switcher__arrow {
-  width: 40px;
-  min-width: 40px;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  padding-inline: 0;
 }
 
 .app-shell .period-switcher__label {
-  min-width: 160px;
+  min-width: 0;
+  width: 100%;
   gap: 8px;
   padding-inline: 14px !important;
   border-color: var(--color-control-border);
@@ -320,8 +328,8 @@
   }
 
   .app-shell .period-switcher__arrow {
-    width: 40px;
-    min-width: 40px;
+    width: 44px;
+    min-width: 44px;
   }
 
   .app-shell .period-switcher__label {
@@ -391,8 +399,8 @@
   }
 
   .app-shell .period-switcher__arrow {
-    width: 36px;
-    min-width: 36px;
+    width: 44px;
+    min-width: 44px;
   }
 
   .app-shell .add-sale-button {
