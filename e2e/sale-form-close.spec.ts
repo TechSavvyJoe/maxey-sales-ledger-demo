@@ -95,7 +95,7 @@ test("split credit saves as half a deal and can be restored to full credit after
   await splitDeal.check();
   await expect(splitDeal).toBeChecked();
   await expect(footerEstimate).toContainText("$870.00");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
 
   expect(await savedUnitCredit(page, "SPLIT-CREDIT-1")).toBe(500);
@@ -106,7 +106,7 @@ test("split credit saves as half a deal and can be restored to full credit after
   await expect(footerEstimate).toContainText("$870.00");
   await splitDeal.uncheck();
   await expect(splitDeal).not.toBeChecked();
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
 
   expect(await savedUnitCredit(page, "SPLIT-CREDIT-1")).toBe(1000);
@@ -123,7 +123,7 @@ test("editing a legacy quarter-credit sale preserves its credit until split is e
   await page.getByLabel("Customer last name").fill("Example");
   await page.getByLabel(/Stock number/).fill("LEGACY-CREDIT-1");
   await page.getByLabel("Front gross", { exact: true }).fill("2500");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
   await savedUnitCredit(page, "LEGACY-CREDIT-1", 250);
 
@@ -133,7 +133,7 @@ test("editing a legacy quarter-credit sale preserves its credit until split is e
   await expect(page.getByText("Existing credit: 0.25", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Custom", { exact: true })).toHaveCount(0);
   await page.getByLabel("Notes optional").fill("Updated demonstration note");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
   expect(await savedUnitCredit(page, "LEGACY-CREDIT-1")).toBe(250);
 
@@ -142,7 +142,7 @@ test("editing a legacy quarter-credit sale preserves its credit until split is e
   await expect(page.getByLabel("Notes optional")).toHaveValue("Updated demonstration note");
   await splitDeal.check();
   await expect(page.getByText("Existing credit: 0.25", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
   expect(await savedUnitCredit(page, "LEGACY-CREDIT-1")).toBe(500);
 });
@@ -150,55 +150,50 @@ test("editing a legacy quarter-credit sale preserves its credit until split is e
 test("a pristine sale form closes immediately", async ({ page }) => {
   await openNewSale(page);
   const saleDialog = page.getByRole("dialog", { name: "Add sale" });
-  await saleDialog.getByRole("button", { name: "Close" }).click();
+  await saleDialog.getByRole("button", { name: "Close" }).first().click();
 
   await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "These changes have not saved yet" })).toBeHidden();
 });
 
-test("every dirty close path requires confirmation and preserves entries while continuing", async ({ page }) => {
+test("every close path saves and restores an unfinished new-sale draft", async ({ page }) => {
   await openNewSale(page);
-  const saleDialog = page.getByRole("dialog", { name: "Add sale" });
-  const lastName = page.getByLabel("Customer last name");
-  await lastName.fill("Miller");
+  await page.getByLabel("Customer last name").fill("Miller");
 
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
+  await openNewSale(page);
+  await expect(page.getByLabel("Customer last name")).toHaveValue("Miller");
+  await expect(page.getByText(/unfinished sale.*restored/i)).toBeVisible();
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(results.violations).toEqual([]);
 
-  await page.getByRole("button", { name: "Continue editing" }).click();
-  await expect(page.getByRole("heading", { name: "Add sale" })).toBeVisible();
-  await expect(lastName).toHaveValue("Miller");
-
-  await saleDialog.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue editing" }).click();
-  await expect(lastName).toHaveValue("Miller");
+  const saleDialog = page.getByRole("dialog", { name: "Add sale" });
+  await saleDialog.getByRole("button", { name: "Close" }).first().click();
+  await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
+  await openNewSale(page);
+  await expect(page.getByLabel("Customer last name")).toHaveValue("Miller");
 
   await page.mouse.click(20, 200);
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue editing" }).click();
-  await expect(lastName).toHaveValue("Miller");
-
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?" })).toBeVisible();
-  await page.getByRole("button", { name: "Discard changes" }).click();
-
   await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
-  await expect(page.getByText("Miller")).toBeHidden();
+  await openNewSale(page);
+  await expect(page.getByLabel("Customer last name")).toHaveValue("Miller");
+  await page.getByLabel(/Stock number/).fill("RESTORED-DRAFT-1");
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
+  await expect(page.getByText("Sale added.")).toBeVisible();
+  await expect(page.getByText("RESTORED-DRAFT-1").first()).toBeVisible();
 });
 
-test("successful save closes without a discard loop", async ({ page }) => {
+test("adding a sale closes without a draft warning loop", async ({ page }) => {
   await openNewSale(page);
   await page.getByLabel("Customer last name").fill("Saved");
   await page.getByLabel(/Stock number/).fill("SAVE-CLOSE-1");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
 
   await expect(page.getByText("Sale added.")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "These changes have not saved yet" })).toBeHidden();
   await expect(page.getByText("SAVE-CLOSE-1").first()).toBeVisible();
 });

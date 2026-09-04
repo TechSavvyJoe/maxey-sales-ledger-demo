@@ -84,7 +84,7 @@ test("report keyboard selectors retain focus through primary, subject, and F&I n
   await expect(fiOverview).toHaveAttribute("aria-selected", "true");
 });
 
-test("month selector keeps focus when stepping and does not discard a draft when reselecting the current month", async ({ page }, testInfo) => {
+test("month selector keeps focus when stepping and preserves an automatically saved profile", async ({ page }, testInfo) => {
   desktopOnly(testInfo);
   await openWorkspace(page);
 
@@ -99,8 +99,8 @@ test("month selector keeps focus when stepping and does not discard a draft when
 
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   const name = page.getByLabel("Salesperson name *");
-  await name.fill("Draft stays here");
-  await expect(page.getByText(/Unsaved settings changes/)).toBeVisible();
+  await name.fill("Saved profile stays here");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
 
   let unexpectedDialog: string | null = null;
   page.on("dialog", async (dialog) => {
@@ -111,6 +111,6 @@ test("month selector keeps focus when stepping and does not discard a draft when
   await page.getByRole("button", { name: "Aug", exact: true }).click();
 
   await expect.poll(() => unexpectedDialog).toBeNull();
-  await expect(name).toHaveValue("Draft stays here");
-  await expect(page.getByText(/Unsaved settings changes/)).toBeVisible();
+  await expect(name).toHaveValue("Saved profile stays here");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
 });

@@ -60,11 +60,22 @@
 
   --shell-sidebar-width: 208px;
   --shell-topbar-height: 64px;
+  --shell-content-width: 1840px;
 
   font-family: var(--font-sans);
   font-synthesis: none;
   color: var(--color-text);
   background: var(--canvas);
+}
+
+/* Let data-rich workspaces grow on 4K and ultrawide displays while retaining
+   a readable maximum line length and centered composition. */
+@media (min-width: 2200px) {
+  :root { --shell-content-width: 2160px; }
+}
+
+@media (min-width: 3200px) {
+  :root { --shell-content-width: 2400px; }
 }
 
 /* Screen boundaries must remain visible on ordinary office displays. Keep

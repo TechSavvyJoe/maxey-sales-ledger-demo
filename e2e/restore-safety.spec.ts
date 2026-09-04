@@ -27,8 +27,8 @@ test("safety backup remains confirmable and a validated restore completes", asyn
   await page.getByRole("button", {
     name: "Monday, August 3 — working. Select to mark day off.",
   }).click();
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.getByText("Settings saved and calculations refreshed.").last()).toBeVisible();
+  await expect(page.getByText("Changes save automatically when you finish typing.")).toBeVisible();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   const closeToasts = page.getByRole("button", { name: "Close toast" });
   await closeToasts.evaluateAll((buttons) => buttons.forEach((button) => (button as HTMLButtonElement).click()));
   await page.waitForTimeout(100);
@@ -36,7 +36,7 @@ test("safety backup remains confirmable and a validated restore completes", asyn
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
   await page.getByLabel("Customer last name").fill("Original");
   await page.getByLabel(/Stock number/).fill("RESTORE-ORIGINAL");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
 
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
@@ -50,15 +50,15 @@ test("safety backup remains confirmable and a validated restore completes", asyn
 
   await openWorkSchedule(page);
   await page.getByRole("button", { name: /Clear Aug .*days off/ }).click();
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.getByText("Settings saved and calculations refreshed.").last()).toBeVisible();
+  await expect(page.getByText("Changes save automatically when you finish typing.")).toBeVisible();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await closeToasts.evaluateAll((buttons) => buttons.forEach((button) => (button as HTMLButtonElement).click()));
   await page.waitForTimeout(100);
 
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
   await page.getByLabel("Customer last name").fill("Newer");
   await page.getByLabel(/Stock number/).fill("RESTORE-NEWER");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
 
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();

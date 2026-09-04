@@ -138,6 +138,17 @@
   min-height: 44px;
 }
 
+.settings-page .settings-dirty-state {
+  min-height: 20px;
+  margin: -4px 0 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+}
+
 .settings-page .settings-category-content :where(input, select, textarea) {
   font-size: 14px;
 }
@@ -209,6 +220,13 @@
 .settings-page .settings-form-grid label,
 .settings-page .pay-plan-field > label {
   font-size: 13px;
+}
+
+/* Keep identity together and goals together; auto-fit created an orphaned
+   fourth field at ordinary laptop widths. */
+.settings-page .settings-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .settings-page .pay-plan-mini {
@@ -331,6 +349,21 @@
   .settings-page .settings-category-button__icon {
     width: 30px;
     height: 30px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1040px) {
+  .settings-page .settings-category-nav {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .settings-page .settings-category-button {
+    grid-column: span 2;
+    min-height: 48px;
+  }
+
+  .settings-page .settings-category-button:nth-child(n + 4) {
+    grid-column: span 3;
   }
 }
 

@@ -9,7 +9,7 @@ import {
   Printer,
   ShieldCheck,
 } from "lucide-react";
-import { toast } from "sonner";
+import { useWorkspaceToast } from "@/hooks/useWorkspaceToast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeading, ReviewState, SectionHeader, StatusBadge } from "@/components/shared";
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
 import { calculateMonth, calculateYear, getBonusMilestone } from "@/domain/commission";
-import { monthLabel, shiftMonth, todayDateOnly, yearForMonth } from "@/domain/date";
+import { formatSaleDate, monthLabel, shiftMonth, todayDateOnly, yearForMonth } from "@/domain/date";
 import { getPaymentMethod, paymentMethodLabel } from "@/domain/financing";
 import {
   getCommissionGoalForMonth,
@@ -51,6 +51,7 @@ import { exportMonthlyCsv, exportSalesWorkbook } from "@/lib/files";
 import { cn } from "@/lib/utils";
 import { formatVehiclePace } from "@/lib/vehiclePace";
 import { FiReportCenter, ReportSaleIdentity, ReportSaleMetadata } from "./FiReportCenter";
+import { ReportMilestoneIndicator, ReportMilestones } from "./ReportMilestones";
 import "./reports-density.css";
 import "./reports-v2.css";
 
@@ -59,7 +60,7 @@ interface ReportsPageProps {
   /** Retained for API compatibility; private recovery backups now live in Settings. */
   auditEvents: AuditEvent[];
   settings: ProfileSettings;
-  onSaveSettings: (settings: ProfileSettings) => Promise<void>;
+  onSaveSettings: (settings: ProfileSettings) => Promise<ProfileSettings>;
   /** Retained for API compatibility; Settings records successful private backups. */
   onBackupExported: () => Promise<void>;
   initialTab?: ReportDestinationTab;
@@ -267,6 +268,7 @@ export function ReportsPage({
   onDirtyChange,
   onOpenSale,
 }: ReportsPageProps) {
+  const toast = useWorkspaceToast();
   const todayDate = todayDateOnly();
   const [activeTab, setActiveTab] = useState<ReportDestinationTab>(initialTab ?? "monthly");
   const [monthSubject, setMonthSubject] = useState<(typeof MONTH_SUBJECTS)[number]["value"]>("overview");
@@ -286,6 +288,10 @@ export function ReportsPage({
   const actualPaidRef = useRef<HTMLInputElement>(null);
   const [actualPaidError, setActualPaidError] = useState<string | null>(null);
   const [isSavingActual, setIsSavingActual] = useState(false);
+  const actualSaveInFlight = useRef(false);
+  const actualSaveRef = useRef<(background?: boolean) => Promise<void>>(async () => {});
+  const [failedActualText, setFailedActualText] = useState<string | null>(null);
+  const activeFailedActualText = isActualPaidDirty ? failedActualText : null;
 
   useEffect(() => {
     onDirtyChange(isActualPaidDirty);
@@ -503,9 +509,13 @@ export function ReportsPage({
     onNavigate({ view: "reports", tab }, { preserveFocus: true });
   }
 
-  async function saveActualPaid() {
-    if (isSavingActual || actualPaidConflict) return;
+  async function saveActualPaid(background = false) {
+    if (actualSaveInFlight.current || actualPaidConflict) return;
     const cents = parseCurrencyToCents(actualPaidInput);
+    if (!isActualPaidDirty && activeFailedActualText === null) {
+      if (!Number.isNaN(cents) && actualPaidDraft !== null) setActualPaidDraft(null);
+      return;
+    }
     const error = Number.isNaN(cents)
       ? "Enter dollars, such as 4500 or 4500.00."
       : cents !== null && (!Number.isSafeInteger(cents) || Math.abs(cents) > 100_000_000)
@@ -513,29 +523,48 @@ export function ReportsPage({
         : null;
     setActualPaidError(error);
     if (error) {
-      actualPaidRef.current?.focus();
+      if (!background) actualPaidRef.current?.focus();
       return;
     }
+    actualSaveInFlight.current = true;
     setIsSavingActual(true);
+    const submittedText = actualPaidInput;
+    const submittedMonth = settings.selectedMonth;
     try {
-      await onSaveSettings({
+      const committed = await onSaveSettings({
         ...settings,
         actualPaidByMonth: {
           ...settings.actualPaidByMonth,
           [settings.selectedMonth]: cents,
         },
       });
-      setActualPaidDraft(null);
-      toast.success("Actual paid amount saved.");
-    } catch {
-      toast.error("Actual paid amount was not saved.", {
-        description: "Your entry is still here. Check your browser storage and try again.",
+      setActualPaidDraft((current) => !current || current.text === submittedText ? null : {
+        ...current, baseCents: committed.actualPaidByMonth[submittedMonth] ?? null,
       });
+      setFailedActualText(null);
+      if (!background) toast.success("Actual paid amount saved.");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Your entry is still here. Check your connection and try again.";
+      setFailedActualText(submittedText);
+      setActualPaidError(message);
+      if (!background) toast.error("Actual paid amount was not saved.", { description: message });
     } finally {
+      actualSaveInFlight.current = false;
       setIsSavingActual(false);
     }
   }
 
+  useEffect(() => { actualSaveRef.current = saveActualPaid; });
+  useEffect(() => {
+    if (!isActualPaidDirty || isSavingActual || actualPaidConflict || actualPaidInput === activeFailedActualText) return;
+    const timer = window.setTimeout(() => void actualSaveRef.current(true), 1200);
+    return () => window.clearTimeout(timer);
+  }, [actualPaidInput, isActualPaidDirty, isSavingActual, actualPaidConflict, activeFailedActualText]);
+  useEffect(() => {
+    const retry = () => setFailedActualText(null);
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, []);
   function downloadCsv() {
     try {
       exportMonthlyCsv(sales, settings, settings.selectedMonth, includeLastNames);
@@ -632,7 +661,7 @@ export function ReportsPage({
               </span>
               <span className="report-generated">
                 <small>As of</small>
-                <strong>{new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</strong>
+                <strong>{formatSaleDate(todayDate)}</strong>
               </span>
             </header>
 
@@ -817,6 +846,7 @@ export function ReportsPage({
                   </dl>
                 </section>
               </details>
+              <ReportMilestones calculatedSales={summary.calculatedSales} includeLastNames={includeLastNames} onOpenSale={onOpenSale} />
               </div>
 
               <div
@@ -846,7 +876,7 @@ export function ReportsPage({
                               const attention = attentionBySale.get(item.sale.id);
                               return (
                                 <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                                  <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /></th>
+                                  <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></th>
                                   <td><ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} stacked /></td>
                                   <td><StatusBadge status={item.sale.status} /></td>
                                   <td><ProductBadges sale={item.sale} /></td>
@@ -873,7 +903,7 @@ export function ReportsPage({
                           return (
                             <article className={cn("report-sale-card report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                               <header>
-                                <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
+                                <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></div>
                                 <StatusBadge status={item.sale.status} />
                               </header>
                               <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
@@ -1049,6 +1079,7 @@ export function ReportsPage({
                           <article className={cn("weekly-deal-row report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                             <div className="weekly-deal-row__identity">
                               <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
+                              <ReportMilestoneIndicator item={item} />
                               <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
                             </div>
                             <StatusBadge status={item.sale.status} />
@@ -1257,7 +1288,6 @@ export function ReportsPage({
                     id="actual-paid"
                     inputMode="decimal"
                     autoComplete="off"
-                    readOnly={isSavingActual}
                     value={actualPaidInput}
                     aria-invalid={Boolean(actualPaidError)}
                     aria-describedby={`actual-paid-help${actualPaidError ? " actual-paid-error" : ""}`}
@@ -1267,6 +1297,7 @@ export function ReportsPage({
                         baseCents: isActualPaidDirty && currentPaidDraft ? currentPaidDraft.baseCents : savedActualPaid,
                       });
                       setActualPaidError(null);
+                      setFailedActualText(null);
                     }}
                     onBlur={() => {
                       const cents = parseCurrencyToCents(actualPaidInput);
@@ -1293,10 +1324,10 @@ export function ReportsPage({
                     </Button>
                   </div>
                 </div>
-              ) : isActualPaidDirty ? <p className="field-help" role="status">Unsaved payroll amount</p> : null}
-              <Button type="submit" disabled={isSavingActual || actualPaidConflict}>
-                {isSavingActual ? "Saving…" : "Save payroll amount"}
-              </Button>
+              ) : <p className="field-help" role="status">{isSavingActual ? "Saving payroll amount…" : actualPaidError ? "Not saved yet — review the amount above." : isActualPaidDirty ? "Payroll amount saves automatically when you finish typing." : "Payroll amount saved. Changes save automatically."}</p>}
+              {(isActualPaidDirty || activeFailedActualText !== null) ? <Button type="submit" disabled={isSavingActual || actualPaidConflict}>
+                {isSavingActual ? "Saving…" : activeFailedActualText !== null ? "Try saving again" : "Save now"}
+              </Button> : null}
               </form>
             </section>
             <section className="panel payroll-comparison">

@@ -72,7 +72,7 @@ test("manual front payout keeps keyboard focus, validates, saves offline without
   const amount = page.getByLabel("Your front commission", { exact: true });
   await expect(amount).toBeFocused();
   await expectPayout(page, "—", "$120.00", "—");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(amount).toBeFocused();
   await expect(amount).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByText("Enter your front commission, or turn off manual payout.", { exact: true })).toBeVisible();
@@ -84,7 +84,7 @@ test("manual front payout keeps keyboard focus, validates, saves offline without
   await amount.press("Tab");
   await expect(amount).toHaveValue("500.25");
   await amount.fill("-25");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(amount).toHaveAttribute("aria-invalid", "true");
   await expectPayout(page, "—", "$120.00", "—");
   await amount.fill("");
@@ -99,7 +99,7 @@ test("manual front payout keeps keyboard focus, validates, saves offline without
   await page.getByRole("button", { name: /^Delivered\./ }).click();
   await expectPayout(page, "$500.00", "$120.00", "$620.00");
   await context.setOffline(true);
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
   await context.setOffline(false);
   expect(await savedSale(page, stock)).toMatchObject({ frontGrossCents: -31661, fiGrossCents: 60000, unitCreditBasis: 500, frontCommissionOverrideCents: 50000 });
@@ -109,15 +109,14 @@ test("manual front payout keeps keyboard focus, validates, saves offline without
   await expect(amount).toHaveValue("500.00");
   await expectPayout(page, "$500.00", "$120.00", "$620.00");
   await amount.fill("550");
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Discard unsaved changes?", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(page.getByText(/Saved (on this device|to cloud)/)).toBeVisible();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await openSavedSale(page, stock);
-  await expect(amount).toHaveValue("500.00");
+  await expect(amount).toHaveValue("550.00");
   await manual.uncheck();
   await expect(amount).toHaveCount(0);
   await expectPayout(page, "$150.00", "$120.00", "$270.00");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
   expect(await savedSale(page, stock)).toMatchObject({ frontGrossCents: -31661, fiGrossCents: 60000, frontCommissionOverrideCents: null });
   await openSavedSale(page, stock);
@@ -145,7 +144,7 @@ test("a manual payout with unknown gross preserves blanks, permits zero, and res
   expect(await page.locator(".sale-sheet").evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
 
-  await page.getByRole("button", { name: "Save & add another", exact: true }).click();
+  await page.getByRole("button", { name: "Add & enter next", exact: true }).click();
   await expect(page.getByLabel(/Stock number/)).toHaveValue("");
   await expect(manual).not.toBeChecked();
   await expect(amount).toHaveCount(0);

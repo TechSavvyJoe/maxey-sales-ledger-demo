@@ -26,7 +26,7 @@ function workingDaysThrough(month: string, asOfDate: string): number {
 
 describe("demonstration data", () => {
   it("keeps its public profile identifier and legacy payment helper stable", () => {
-    expect(DEMO_PROFILE_VERSION).toBe("seasonal-2300-front-1200-fi-v1");
+    expect(DEMO_PROFILE_VERSION).toBe("three-calendar-years-2300-front-1200-fi-v2");
     expect(samplePaymentMethod({ id: "legacy-demo", dealerFinanced: true })).toBe("dealer_financed");
     expect(["cash", "outside_financing"]).toContain(samplePaymentMethod({ id: "legacy-demo", dealerFinanced: false }));
     expect(samplePaymentMethod({ id: "legacy-demo", dealerFinanced: undefined })).toBe(samplePaymentMethod({ id: "legacy-demo", dealerFinanced: undefined }));
@@ -60,9 +60,9 @@ describe("demonstration data", () => {
   });
 
   it("normalizes complete months to the requested front and product F&I averages", () => {
-    const sales = buildDemoSales("2026-09", "2026-09-02", "two-year");
+    const sales = buildDemoSales("2026-09", "2026-09-02", "three-year");
     const completedMonths = [...groupByMonth(sales)].filter(([month]) => month < "2026-09");
-    expect(completedMonths).toHaveLength(24);
+    expect(completedMonths).toHaveLength(32);
     for (const [, rows] of completedMonths) {
       expect(rows.reduce((sum, sale) => sum + (sale.frontGrossCents ?? 0), 0)).toBe(rows.length * 230_000);
       expect(rows.reduce((sum, sale) => sum + (sale.fiGrossCents ?? 0), 0)).toBe(rows.length * 120_000);
@@ -85,6 +85,12 @@ describe("demonstration data", () => {
     const splits = all.filter((sale) => sale.unitCreditBasis === 500);
     expect(splits.length).toBeGreaterThanOrEqual(2);
     expect(splits.length).toBeLessThanOrEqual(3);
+    const spiffs = all.filter((sale) => sale.frontCommissionOverrideCents != null);
+    expect(spiffs.length).toBe(3);
+    expect(spiffs.every((sale) => (
+      (sale.frontCommissionOverrideCents ?? 0) >= 50_000
+      && (sale.frontCommissionOverrideCents ?? 0) <= 80_000
+    ))).toBe(true);
   });
 
   it("keeps finance and product penetration plausible without inventing reserve commission", () => {
@@ -93,10 +99,10 @@ describe("demonstration data", () => {
     const ratio = (rows: Sale[]) => rows.length / sales.length;
     expect(ratio(financed)).toBeGreaterThanOrEqual(0.65);
     expect(ratio(financed)).toBeLessThanOrEqual(0.75);
-    expect(ratio(sales.filter((sale) => sale.serviceContractSold))).toBeGreaterThanOrEqual(0.43);
-    expect(ratio(sales.filter((sale) => sale.serviceContractSold))).toBeLessThanOrEqual(0.47);
-    expect(ratio(sales.filter((sale) => sale.tireWheelSold))).toBeGreaterThanOrEqual(0.08);
-    expect(ratio(sales.filter((sale) => sale.tireWheelSold))).toBeLessThanOrEqual(0.12);
+    expect(ratio(sales.filter((sale) => sale.serviceContractSold))).toBeGreaterThanOrEqual(0.48);
+    expect(ratio(sales.filter((sale) => sale.serviceContractSold))).toBeLessThanOrEqual(0.52);
+    expect(ratio(sales.filter((sale) => sale.tireWheelSold))).toBeGreaterThanOrEqual(0.25);
+    expect(ratio(sales.filter((sale) => sale.tireWheelSold))).toBeLessThanOrEqual(0.29);
     const gapRatio = financed.filter((sale) => sale.gapSold).length / financed.length;
     expect(gapRatio).toBeGreaterThanOrEqual(0.40);
     expect(gapRatio).toBeLessThanOrEqual(0.46);
@@ -110,8 +116,8 @@ describe("demonstration data", () => {
     expect(sales.some((sale) => productCount(sale) > 1)).toBe(true);
   });
 
-  it("varies monthly financing within an illustrative 70/20/10 two-year payment mix", () => {
-    const sales = buildDemoSales("2026-09", "2026-09-03", "two-year");
+  it("varies monthly financing within an illustrative 70/20/10 three-year payment mix", () => {
+    const sales = buildDemoSales("2026-09", "2026-09-03", "three-year");
     for (const [method, lower, upper] of [
       ["dealer_financed", 0.65, 0.75],
       ["cash", 0.17, 0.23],
@@ -140,19 +146,19 @@ describe("demonstration data", () => {
     expect(current.every((sale) => sale.status === "delivered" && sale.saleDate <= asOfDate)).toBe(true);
     expect(current.every((sale) => sale.fiGrossCents === null && typeof sale.serviceContractSold === "boolean" && sale.paymentMethod !== undefined)).toBe(true);
     expect(current).toEqual(completedMonth.filter((sale) => sale.saleDate <= asOfDate));
-    expect(buildDemoSales("2026-11", "2026-11-01", "two-year").filter((sale) => sale.saleDate.startsWith("2026-11"))).toHaveLength(0);
+    expect(buildDemoSales("2026-11", "2026-11-01", "three-year").filter((sale) => sale.saleDate.startsWith("2026-11"))).toHaveLength(0);
   });
 
   it("preserves delivered records as the current month advances", () => {
-    const earlier = buildDemoSales("2026-09", "2026-09-02", "two-year");
-    const later = buildDemoSales("2025-02", "2026-09-18", "two-year");
+    const earlier = buildDemoSales("2026-09", "2026-09-02", "three-year");
+    const later = buildDemoSales("2025-02", "2026-09-18", "three-year");
     expect(later.filter((sale) => sale.saleDate <= "2026-09-02")).toEqual(earlier);
     expect(later.length).toBeGreaterThan(earlier.length);
   });
 
   it("keeps delivered dates nonfuture and Sunday-free and only future full-year months pending", () => {
     const asOfDate = "2026-09-02";
-    for (const scope of ["full-year", "two-year"] as const) {
+    for (const scope of ["full-year", "three-year"] as const) {
       const sales = buildDemoSales("2026-10", asOfDate, scope);
       expect(sales.filter((sale) => sale.status === "delivered").every((sale) => sale.saleDate <= asOfDate)).toBe(true);
       expect(sales.every((sale) => new Date(`${sale.saleDate}T12:00:00Z`).getUTCDay() !== 0)).toBe(true);
@@ -166,16 +172,45 @@ describe("demonstration data", () => {
         expect(sales.filter((sale) => sale.saleDate.startsWith("2026-10")).every((sale) => sale.status === "pending")).toBe(true);
       } else {
         expect(sales.every((sale) => sale.status === "delivered")).toBe(true);
-        expect(groupByMonth(sales).size).toBe(25);
+        expect(groupByMonth(sales).size).toBe(33);
         expect(sales).toEqual(buildDemoSales("2025-02", asOfDate, scope));
       }
+    }
+  });
+
+  it("uses three calendar years, varied fictional people and age-valid vehicles", () => {
+    const sales = buildDemoSales("2026-09", "2026-09-03", "three-year");
+    expect(sales[0]?.saleDate).toMatch(/^2024-01-/);
+    expect(sales.at(-1)?.saleDate).toMatch(/^2026-09-/);
+    expect([...groupByMonth(sales).keys()]).toEqual([
+      ...Array.from({ length: 12 }, (_, index) => `2024-${String(index + 1).padStart(2, "0")}`),
+      ...Array.from({ length: 12 }, (_, index) => `2025-${String(index + 1).padStart(2, "0")}`),
+      ...Array.from({ length: 9 }, (_, index) => `2026-${String(index + 1).padStart(2, "0")}`),
+    ]);
+    expect(new Set(sales.map((sale) => sale.customerLastName)).size).toBeGreaterThan(35);
+    expect(new Set(sales.map((sale) => sale.vehicleDescription)).size).toBeGreaterThan(75);
+    expect(sales.every((sale) => {
+      const modelYear = Number(sale.vehicleDescription.slice(0, 4));
+      return modelYear <= Number(sale.saleDate.slice(0, 4));
+    })).toBe(true);
+    expect(sales.every((sale) => sale.stockNumber.startsWith("DEMO-") && sale.source === "demo")).toBe(true);
+
+    for (const [vehicleLine, lastModelYear] of [
+      ["Ford Escape Active", 2025],
+      ["Ford Escape SEL", 2025],
+      ["Ford Edge SEL", 2024],
+      ["Ford Transit Connect XLT", 2023],
+    ] as const) {
+      const matchingSales = sales.filter((sale) => sale.vehicleDescription.endsWith(vehicleLine));
+      expect(matchingSales.length).toBeGreaterThan(0);
+      expect(matchingSales.every((sale) => Number(sale.vehicleDescription.slice(0, 4)) <= lastModelYear)).toBe(true);
     }
   });
 
   it("uses a clearly named fictional plan for historic public demo records", () => {
     expect(createPublicDemoHistoricPlan("2026-09-02")).toMatchObject({
       version: "Sample 2024–26 plan",
-      effectiveMonth: "2024-09",
+      effectiveMonth: "2024-01",
     });
   });
 });

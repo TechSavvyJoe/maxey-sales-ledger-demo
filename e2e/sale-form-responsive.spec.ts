@@ -28,11 +28,8 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await openNewSale(page);
 
-    const sheet = page.locator(".sale-sheet");
     const scrollArea = page.locator(".sale-form__scroll");
     const footer = page.locator(".sale-form__footer");
-    const close = sheet.getByRole("button", { name: "Close" });
-
     await expect(page.getByLabel("Customer last name")).toBeVisible();
     await expect(page.getByLabel(/Stock number/)).toBeVisible();
     await expect(page.getByLabel("Front gross")).toBeVisible();
@@ -87,6 +84,14 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
         paymentHeights: [...document.querySelectorAll<HTMLElement>(".sale-payment-choice")]
           .map((label) => label.getBoundingClientRect().height),
         split: bounds(".sale-split-credit"),
+        clippedControls: [...document.querySelectorAll<HTMLElement>([
+          ".sale-form .form-section", ".sale-form input:not([type='checkbox']):not([type='radio'])", ".sale-form textarea",
+          ".sale-form .status-choice", ".sale-form .sale-split-credit",
+          ".sale-form .sale-fi-products > .grid > label", ".sale-form .sale-payment-choice",
+        ].join(","))].filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && (rect.left < -0.5 || rect.right > document.documentElement.clientWidth + 0.5);
+        }).map((element) => element.id || element.className || element.tagName),
       };
     });
 
@@ -107,6 +112,7 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
     expect(geometry.paymentHeights).toHaveLength(3);
     expect(geometry.paymentHeights.every((height) => height >= 44)).toBe(true);
     expect(geometry.split?.height ?? 0).toBeGreaterThanOrEqual(44);
+    expect(geometry.clippedControls, `${viewport.name} clipped form controls`).toEqual([]);
     expect(geometry.scrollHeight).toBeGreaterThanOrEqual(geometry.scrollClientHeight);
 
     await splitDeal.check();
@@ -127,7 +133,7 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
     await expect(notes).toBeInViewport();
     await notes.fill("Sample vehicle and notes remain available without opening another section.");
     await scrollArea.evaluate((element) => { element.scrollTop = element.scrollHeight; });
-    await expect(footer.getByRole("button", { name: "Save sale", exact: true })).toBeInViewport();
+    await expect(footer.getByRole("button", { name: "Add sale", exact: true })).toBeInViewport();
 
     const internalOverflow = await page.evaluate(() => {
       const sheetElement = document.querySelector<HTMLElement>(".sale-sheet");
@@ -140,8 +146,9 @@ test("sale entry stays usable without clipping across laptop, tablet, and phone 
     expect(internalOverflow.sheet, `${viewport.name} sheet overflow`).toBeLessThanOrEqual(1);
     expect(internalOverflow.form, `${viewport.name} form overflow`).toBeLessThanOrEqual(1);
 
-    await close.click();
-    await page.getByRole("button", { name: "Discard changes" }).click();
+    await page.getByLabel("Customer last name").fill(`Responsive ${viewport.width}`);
+    await page.getByLabel(/Stock number/).fill(`RESPONSIVE-${viewport.width}`);
+    await footer.getByRole("button", { name: "Add sale", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
   }
 });

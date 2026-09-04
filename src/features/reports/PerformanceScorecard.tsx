@@ -85,7 +85,7 @@ const ROWS: readonly ScorecardRow[] = [
     read: (analytics) => outcomeValue(analytics.products.tireWheel),
   },
   {
-    label: "GAP on dealer-financed sales",
+    label: "GAP on Finance sales",
     kind: "rate",
     read: (analytics) => {
       const value = outcomeValue(analytics.finance.gapOnDealerFinanced);

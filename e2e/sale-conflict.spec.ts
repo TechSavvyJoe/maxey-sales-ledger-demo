@@ -37,7 +37,7 @@ test("blocks a stale sale edit and loads the newer committed values", async ({ c
   await page.getByLabel(/Stock number/).fill(STOCK_NUMBER);
   await page.getByRole("textbox", { name: "Front gross", exact: true }).fill("2500");
   await page.getByRole("textbox", { name: "Total F&I gross", exact: true }).fill("600");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
   await openSalesLog(page);
 
@@ -68,22 +68,26 @@ test("blocks a stale sale edit and loads the newer committed values", async ({ c
   // Tab B has revision 1 in memory. Tab A then commits revision 2.
   await openSaleEditor(page);
   await page.getByRole("textbox", { name: "Front gross", exact: true }).fill("3100");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
-  await expect(page.getByText("Sale updated.")).toBeVisible();
+  await expect.poll(() => page.evaluate(async (stockNumber) => {
+    const databasePath = "/src/persistence/database.ts";
+    const { db } = await import(databasePath);
+    return (await db.sales.where("stockNumber").equals(stockNumber).first())?.frontGrossCents;
+  }, STOCK_NUMBER)).toBe(310000);
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
 
   // Tab B opens its stale copy and changes a different field.
   await openSaleEditor(stalePage);
   await stalePage.getByRole("textbox", { name: "Total F&I gross", exact: true }).fill("999");
-  await stalePage.getByRole("button", { name: "Save changes", exact: true }).click();
 
-  const conflictAlert = stalePage.getByRole("alert").filter({ hasText: "Sale not saved" });
-  await expect(conflictAlert).toContainText(`${STOCK_NUMBER} changed in another tab.`);
+  const conflictAlert = stalePage.getByRole("alert").filter({ hasText: "Changes need attention" });
+  await expect(conflictAlert).toContainText(`${STOCK_NUMBER} changed in another tab or device.`);
   await expect(conflictAlert).toContainText("Your entries were not saved.");
-  await expect(stalePage.getByText("Newer sale changes found.")).toBeVisible();
+  await expect(stalePage.getByRole("button", { name: "Done", exact: true })).toBeDisabled();
 
   // The failed draft remains available until the salesperson chooses recovery.
   await expect(stalePage.getByRole("textbox", { name: "Front gross", exact: true })).toHaveValue("2500.00");
-  await expect(stalePage.getByRole("textbox", { name: "Total F&I gross", exact: true })).toHaveValue("999.00");
+  await expect(stalePage.getByRole("textbox", { name: "Total F&I gross", exact: true })).toHaveValue("999");
 
   const committedRow = page.locator(".sales-table tbody tr").filter({ hasText: STOCK_NUMBER });
   await expect(committedRow).toContainText("$3,100");
@@ -91,6 +95,9 @@ test("blocks a stale sale edit and loads the newer committed values", async ({ c
   await expect(committedRow).not.toContainText("$999");
 
   await stalePage.getByRole("button", { name: "Load latest", exact: true }).click();
+  const replaceDialog = stalePage.getByRole("dialog", { name: "Replace this draft with the saved sale?" });
+  await expect(replaceDialog).toBeVisible();
+  await replaceDialog.getByRole("button", { name: "Load latest", exact: true }).click();
   await expect(stalePage.getByRole("textbox", { name: "Front gross", exact: true })).toHaveValue("3100.00");
   await expect(stalePage.getByRole("textbox", { name: "Total F&I gross", exact: true })).toHaveValue("600.00");
 

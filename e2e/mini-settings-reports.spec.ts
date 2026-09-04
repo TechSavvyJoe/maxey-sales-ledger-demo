@@ -65,8 +65,7 @@ test("Mini settings safely preview and save the effective range while manual pay
   await testInfo.attach("mini-settings", { body: await page.screenshot({ fullPage: true }), contentType: "image/png" });
   await expect(new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze().then((result) => result.violations)).resolves.toEqual([]);
 
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await page.reload();
   await openPayPlan(page);
   await expect(mini).toHaveValue("400");
@@ -95,7 +94,7 @@ test("Dashboard, sales, reports, and payroll preserve signed gross but use Mini 
   await expect(breakdown).toContainText("$1,090");
   await expect(breakdown).toContainText("2 Mini");
   await expect(breakdown).toContainText("1 manual/spiff");
-  await expect(page.locator(".dashboard-v2-review")).toContainText("Everything is up to date");
+  await expect(page.locator(".dashboard-v2-review")).toContainText("No sales need review");
   await expect(page.getByRole("region", { name: "Monthly goal and commission outlook" })).not.toContainText("Awaiting front gross");
   await expect(page.getByRole("region", { name: "Monthly goal and commission outlook" })).toContainText("Projection from entered gross");
   await expect(page.getByRole("region", { name: "Monthly goal and commission outlook" })).toContainText("Partial projection");

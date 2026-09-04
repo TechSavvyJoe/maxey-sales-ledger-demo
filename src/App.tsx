@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, FlaskConical, RefreshCw } from "lucide-react";
 import { ThemeProvider } from "next-themes";
-import { toast } from "sonner";
+import { WorkspaceToastProvider, useWorkspaceToast } from "@/hooks/useWorkspaceToast";
 import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,8 +22,9 @@ import type { AppView, Sale } from "@/domain/types";
 import { getPayPlanSchedule, hasPayPlanCoverage } from "@/domain/payPlan";
 import { useAutomaticBackup } from "@/hooks/useAutomaticBackup";
 import { useTrackerData } from "@/hooks/useTrackerData";
-import { loadDemoSales, recordBackupExport } from "@/persistence/database";
-import { isSaleWriteConflictError } from "@/persistence/errors";
+import { CLOUD_BUILD, captureStorageContext, getCloudStorageState, loadDemoSales, recordBackupExport } from "@/persistence/database";
+import { CloudAccountBar, type CloudAccount } from "@/cloud/CloudAccountBar";
+import { isSaleWriteConflictError, type SaleVersionToken } from "@/persistence/errors";
 import { activateWaitingServiceWorker } from "@/registerServiceWorker";
 
 const Dashboard = lazy(async () => ({
@@ -57,7 +58,9 @@ function PageLoading() {
   );
 }
 
-function AppContent() {
+function AppContent({ cloudAccount }: { cloudAccount?: CloudAccount }) {
+  const toast = useWorkspaceToast();
+  const [assertBackupContext] = useState(captureStorageContext);
   const {
     settings: persistedSettings,
     sales,
@@ -71,13 +74,15 @@ function AppContent() {
     saveSettings,
     saveContext,
   } = useTrackerData();
-  const automaticBackup = useAutomaticBackup(auditEvents);
+  const automaticBackup = useAutomaticBackup(auditEvents, !CLOUD_BUILD);
   const [saleFormOpen, setSaleFormOpen] = useState(false);
+  const [saleFormUnsaved, setSaleFormUnsaved] = useState(false);
   const [saleToEdit, setSaleToEdit] = useState<Sale | null>(null);
   const [saleFormInstance, setSaleFormInstance] = useState(0);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [payrollDirty, setPayrollDirty] = useState(false);
+  const [isResettingDemo, setIsResettingDemo] = useState(false);
   const [destination, setDestination] = useState<AppDestination>({ view: "dashboard" });
   const [tabContext, setTabContext] = useState<TabContext | null>(null);
   const saleFormReturnFocusRef = useRef<HTMLElement | null>(null);
@@ -165,7 +170,7 @@ function AppContent() {
     };
     window.addEventListener("sales-ledger-update-ready", handleUpdate);
     return () => window.removeEventListener("sales-ledger-update-ready", handleUpdate);
-  }, []);
+  }, [toast]);
 
   const monthsWithSales = useMemo(
     () =>
@@ -184,6 +189,7 @@ function AppContent() {
         <AlertTriangle aria-hidden="true" />
         <h1>Sales Ledger could not open your saved workspace</h1>
         <p>{error}</p>
+        {cloudAccount ? <CloudAccountBar account={cloudAccount} isOnline={isOnline} /> : null}
         <Button onClick={() => window.location.reload()}><RefreshCw aria-hidden="true" /> Reload app</Button>
         <small>If this continues, try the supported hosted URL in a current Chrome, Edge, Safari, or Firefox browser.</small>
       </div>
@@ -201,6 +207,7 @@ function AppContent() {
   }
 
   function openNewSale() {
+    toast.dismiss();
     saleFormReturnFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -210,6 +217,7 @@ function AppContent() {
   }
 
   function openEditSale(sale: Sale) {
+    toast.dismiss();
     saleFormReturnFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -239,23 +247,24 @@ function AppContent() {
     });
   }
 
-  async function handleSaveSale(sale: Sale, isNew: boolean) {
+  async function handleSaveSale(sale: Sale, isNew: boolean, options: { silent?: boolean; expectedVersion?: SaleVersionToken } = {}) {
     try {
-      await saveSale(sale, isNew);
+      const saved = await saveSale(sale, isNew, options.expectedVersion);
       latestConflictSalesRef.current.delete(sale.id);
-      toast.success(isNew ? "Sale added." : "Sale updated.", {
+      if (!options.silent) toast.success(isNew ? "Sale added." : "Sale updated.", {
         description: `${sale.stockNumber || "Missing stock"} · ${sale.status}`,
       });
+      return saved;
     } catch (caughtError) {
       if (isSaleWriteConflictError(caughtError)) {
         const refreshed = await refreshAfterExternalMutation();
         const latest = refreshed?.sales.find((sale) => sale.id === caughtError.saleId);
         if (latest) latestConflictSalesRef.current.set(caughtError.saleId, latest);
-        toast.error("Newer sale changes found.", {
+        if (!options.silent) toast.error("Newer sale changes found.", {
           description: "Use Load latest in the open sale to review the saved version.",
         });
       } else {
-        toast.error("Sale could not be saved.", {
+        if (!options.silent) toast.error("Sale could not be saved.", {
           description: "Your entries are still open. Check the fields and try again.",
         });
       }
@@ -289,12 +298,15 @@ function AppContent() {
   }
 
   async function handleBackupExported() {
+    assertBackupContext();
     await recordBackupExport();
     await refreshAfterExternalMutation();
   }
 
   async function handleLoadDemo() {
-    if (!settings) return;
+    if (!settings || CLOUD_BUILD || isResettingDemo) return;
+    const demoWasActive = sales.some((sale) => !sale.deletedAt && sale.source === "demo");
+    setIsResettingDemo(true);
     try {
       const asOfDate = todayDateOnly();
       const result = await loadDemoSales(
@@ -305,15 +317,17 @@ function AppContent() {
       const restoredDetail = result.restored > 0
         ? ` ${result.restored} previously removed record${result.restored === 1 ? " was" : "s were"} restored.`
         : "";
-      toast.success(`${DEMO_DATASET_TITLE} demonstration loaded.`, {
-        description: `${demoRangeDescription(asOfDate)} · fictional records only. Remove them anytime from Settings.${restoredDetail}`,
+      toast.success(demoWasActive ? "Sample data reset." : IS_PUBLIC_DEMO_BUILD ? "Sample history loaded." : `${DEMO_DATASET_TITLE} demo loaded.`, {
+        description: `${demoRangeDescription(asOfDate)} · fictional sales only.${restoredDetail}`,
       });
     } catch (caughtError) {
       toast.error(
         caughtError instanceof Error
-          ? `Could not load the ${DEMO_DATASET_TITLE.toLowerCase()} demo: ${caughtError.message}`
-          : `Could not load the ${DEMO_DATASET_TITLE.toLowerCase()} demo.`,
+          ? `Could not load ${IS_PUBLIC_DEMO_BUILD ? "the sample history" : `the ${DEMO_DATASET_TITLE.toLowerCase()} demo`}: ${caughtError.message}`
+          : `Could not load ${IS_PUBLIC_DEMO_BUILD ? "the sample history" : `the ${DEMO_DATASET_TITLE.toLowerCase()} demo`}.`,
       );
+    } finally {
+      setIsResettingDemo(false);
     }
   }
 
@@ -390,6 +404,15 @@ function AppContent() {
 
   const demoSalesCount = sales.filter((sale) => !sale.deletedAt && sale.source === "demo").length;
 
+  const guardedCloudAccount = cloudAccount ? {
+    ...cloudAccount,
+    onSignOut: async () => {
+      if ((getCloudStorageState()?.pending ?? 0) > 0) return;
+      if ((saleFormUnsaved || settingsDirty || payrollDirty) && !window.confirm("Some changes have not finished saving. Sign out and discard those changes? Saved sales and saved drafts will remain in your account.")) return;
+      await cloudAccount.onSignOut();
+    },
+  } : undefined;
+
   return (
     <>
       <AppShell
@@ -399,16 +422,30 @@ function AppContent() {
         onViewChange={(view) => navigate(view)}
         onMonthChange={setMonth}
         onAddSale={openNewSale}
+        cloudMode={Boolean(cloudAccount)}
       >
-        {demoSalesCount > 0 ? (
-          <aside className="workspace-notice workspace-notice--demo" aria-label="Demo data active">
+        {guardedCloudAccount ? <CloudAccountBar account={guardedCloudAccount} isOnline={isOnline} /> : null}
+        {!CLOUD_BUILD && demoSalesCount > 0 ? (
+          <aside
+            className="workspace-notice workspace-notice--demo"
+            aria-label="Demo data active"
+            aria-busy={isResettingDemo}
+          >
             <FlaskConical aria-hidden="true" />
             <span>
-              <strong>Demo data is active</strong>
-              <small>{demoSalesCount} fictional {demoSalesCount === 1 ? "record is" : "records are"} included in totals and exports.</small>
+              <strong>{IS_PUBLIC_DEMO_BUILD ? "Sample history is ready" : "Demo data is ready"}</strong>
+              <small>{demoSalesCount} fictional sales · {demoRangeDescription()} · included in totals and reports.</small>
             </span>
-            <Button type="button" variant="outline" size="sm" onClick={() => navigate({ view: "settings", section: "data" })}>
-              Manage demo data
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isResettingDemo}
+              aria-label={IS_PUBLIC_DEMO_BUILD ? "Reset sample data to its original records" : "Reset demo to its original sample data"}
+              onClick={() => void handleLoadDemo()}
+            >
+              <RefreshCw aria-hidden="true" />
+              {isResettingDemo ? "Resetting…" : IS_PUBLIC_DEMO_BUILD ? "Reset sample data" : "Reset demo"}
             </Button>
           </aside>
         ) : null}
@@ -480,17 +517,18 @@ function AppContent() {
           if (!open) setSaleToEdit(null);
         }}
         onSave={handleSaveSale}
+        onUnsavedChange={setSaleFormUnsaved}
         onLoadLatestSale={handleLoadLatestSale}
       />
-      <Toaster richColors position="top-right" closeButton />
+      <Toaster richColors position="top-right" closeButton offset={{ top: 88, right: 24 }} mobileOffset={{ top: 144, right: 16, left: 16 }} />
     </>
   );
 }
 
-export default function App() {
+export default function App({ cloudAccount }: { cloudAccount?: CloudAccount } = {}) {
   return (
     <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" enableSystem={false}>
-      <AppContent />
+      <WorkspaceToastProvider><AppContent cloudAccount={cloudAccount} /></WorkspaceToastProvider>
     </ThemeProvider>
   );
 }

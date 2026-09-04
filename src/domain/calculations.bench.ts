@@ -7,12 +7,12 @@ import { calculateWeeklyPerformance } from "@/domain/weeklyPerformance";
 // Run on demand: pnpm exec vitest bench --run src/domain/calculations.bench.ts
 vi.useFakeTimers({ toFake: ["Date"] });
 vi.setSystemTime(new Date("2026-09-02T16:00:00.000Z"));
-const demoSales = buildDemoSales("2026-09", "2026-09-02", "two-year");
+const demoSales = buildDemoSales("2026-09", "2026-09-02", "three-year");
 const plans = [createPublicDemoHistoricPlan("2026-09-02"), DEFAULT_PAY_PLAN];
 const month = calculateMonth(demoSales, "2026-08", plans);
 const year = calculateYear(demoSales, 2026, plans, {});
 
-describe("two-year public demo calculations", () => {
+describe("three-year public demo calculations", () => {
   bench("monthly commission", () => { calculateMonth(demoSales, "2026-08", plans); });
   bench("yearly commission", () => { calculateYear(demoSales, 2026, plans, {}); });
   bench("monthly report analytics", () => { calculateMonthReportAnalytics(month); });

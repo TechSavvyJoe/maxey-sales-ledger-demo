@@ -19,6 +19,8 @@
 }
 
 .reports-page .report-command-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 52px;
   padding: 6px;
   border: 1px solid var(--report-line);
@@ -28,6 +30,10 @@
 }
 
 .reports-page .report-command-bar [role="tablist"] {
+  width: 100%;
+  max-width: 580px;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr);
   gap: 3px;
   min-height: 40px;
   padding: 3px;
@@ -37,14 +43,17 @@
 }
 
 .reports-page .report-command-bar [role="tab"] {
-  min-height: 36px;
-  padding: 0 15px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 0 10px;
   border-radius: 7px;
   color: var(--report-muted);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: none;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .reports-page .report-command-bar [role="tab"][data-state="active"] {
@@ -77,6 +86,7 @@
 .reports-page .report-document,
 .reports-page .weekly-report,
 .reports-page .year-report {
+  max-width: none;
   padding: 16px;
 }
 
@@ -1048,7 +1058,7 @@
   line-height: 1.45;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .reports-page .report-table-wrap,
   .reports-page .year-fi-trend__table-wrap,
   .reports-page .year-table-wrap,
@@ -1087,7 +1097,7 @@
 
 /* Five compact F&I KPIs fit cleanly across a tablet report canvas. Keep the
    middle range balanced instead of leaving its fifth KPI on an orphaned row. */
-@media (min-width: 961px) and (max-width: 1180px) {
+@media (min-width: 961px) and (max-width: 1280px) {
   .reports-page .fi-center-kpis {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
@@ -1212,7 +1222,9 @@
   }
 
   .reports-page .report-export-trigger {
-    width: 42px;
+    width: 44px;
+    min-width: 44px;
+    grid-template-columns: 1fr;
     padding: 0;
   }
 
@@ -1246,7 +1258,7 @@
   .report-subject-tabs button,
   .fi-center-jump-nav button {
     min-width: 0;
-    min-height: 42px;
+    min-height: 44px;
     padding: 0 7px;
     font-size: 13px;
     overflow: hidden;
@@ -1417,7 +1429,7 @@
 
   .report-subject-tabs button,
   .fi-center-jump-nav button {
-    min-height: 42px;
+    min-height: 44px;
     padding-inline: 10px;
   }
 }

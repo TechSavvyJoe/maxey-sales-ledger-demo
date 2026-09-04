@@ -37,7 +37,7 @@ async function addDeliveredFiSale(page: Page, stockNumber = "WEEK-FI-001") {
   }
   await page.getByRole("radio", { name: "Finance", exact: true }).check();
 
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
   return stockNumber;
 }
@@ -48,7 +48,7 @@ async function addOverduePendingSale(page: Page, stockNumber = "PENDING-OVERDUE"
   await page.getByLabel("Expected delivery date").fill("2026-08-01");
   await page.getByLabel(/Customer last name/).fill("Followup");
   await page.getByLabel(/Stock number/).fill(stockNumber);
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
   return stockNumber;
 }
@@ -81,7 +81,7 @@ test("tracks F&I products and carries the current-week requirement into the Week
   await expect(fiPanel.locator("dl > div").filter({ hasText: "GAP" })).toContainText("100%");
   await expect(fiPanel.locator("dl > div").filter({ hasText: "Finance Penetration" })).toContainText("100%");
 
-  await expect(page.getByText("This week · 1 sold · 14 more needed by 08/31", { exact: true })).toBeVisible();
+  await expect(page.getByText("This week · 1 sold · 14 more needed by 08/31/2026", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Weekly performance", exact: true }).click();
 
   const weekTab = page.getByRole("tab", { name: "Weekly performance report", exact: true });
@@ -109,7 +109,7 @@ test("dashboard task links preserve Data, review, and paid-versus-estimate desti
   await page.getByRole("button", { name: "Import Excel tracker", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
   const dataSettings = await openDataSettings(page);
-  await expect(dataSettings.getByRole("button", { name: /^Import from Excel/ })).toBeVisible();
+  await expect(dataSettings.getByRole("button", { name: /^Import sales/ })).toBeVisible();
 
   const stockNumber = await addOverduePendingSale(page);
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
@@ -205,8 +205,8 @@ test("mobile Year report uses month cards without page-level horizontal overflow
   await openWorkspace(page);
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   const dataSettings = await openDataSettings(page);
-  await dataSettings.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+  await dataSettings.getByRole("button", { name: /^(?:Load sample history|Load full-year demo)$/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
 
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   await page.getByRole("tab", { name: "Full-year report", exact: true }).click();

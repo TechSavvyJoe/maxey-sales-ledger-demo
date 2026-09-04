@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
 import { calculateMonth, calculateYear, getBonusMilestone } from "@/domain/commission";
-import { isValidDateOnly, monthKeyFromDate, monthLabel, todayDateOnly, yearForMonth } from "@/domain/date";
+import { formatSaleDate, isValidDateOnly, monthKeyFromDate, monthLabel, todayDateOnly, yearForMonth } from "@/domain/date";
 import { dealerFinancingOutcome, normalizeSaleFinancing, paymentMethodLabel } from "@/domain/financing";
 import { getCommissionGoalForMonth, getDeliveryGoalForMonth } from "@/domain/goals";
 import { formatCurrency, formatPercent, formatUnitCredit } from "@/domain/money";
@@ -68,7 +68,7 @@ const daysOffByMonthSchema = z.record(
     .map(([monthKey, dates]) => [monthKey, [...dates].sort()]),
 ));
 
-const saleSchema = z.object({
+export const saleSchema = z.object({
   id: z.string().min(1).max(160),
   profileId: z.string().min(1).max(80),
   saleDate: z.string().refine(isValidDateOnly, "Invalid sale date."),
@@ -116,7 +116,7 @@ const payPlanSchema: z.ZodType<PayPlan> = z.object({
   }
 });
 
-const profileSchema = z.object({
+export const profileSchema = z.object({
   id: z.string(),
   salespersonName: z.string().max(80),
   storeName: z.string().max(120),
@@ -145,7 +145,7 @@ const profileSchema = z.object({
   updatedAt: dateTimeSchema,
 });
 
-const auditEventSchema = z.object({
+export const auditEventSchema = z.object({
   id: z.number().int().optional(),
   profileId: z.string(),
   action: z.enum([
@@ -394,7 +394,7 @@ function monthlyCsvRows(
     "Service Contract / Warranty Sold",
     "Tire & Wheel Sold",
     "GAP Sold",
-    "Dealer Financed",
+    "Financed",
     "Payment Method",
     "Front Rate",
     "Commissionable Front Gross",
@@ -404,6 +404,7 @@ function monthlyCsvRows(
     "F&I Commission",
     "Sale Commission (Monthly Bonus Excluded)",
     "Review Status",
+    ...Object.keys(milestoneExportFields(null)),
   ];
   const rows = summary.calculatedSales.map((item) => [
     csvText(item.sale.saleDate),
@@ -430,6 +431,7 @@ function monthlyCsvRows(
     csvText(attentionBySale.has(item.sale.id)
       ? attentionSummary(attentionBySale.get(item.sale.id)!)
       : "No attention items"),
+    ...Object.values(milestoneExportFields(item)).map((value) => typeof value === "number" ? String(value) : csvText(value)),
   ]);
   return { headings, rows };
 }
@@ -483,6 +485,10 @@ const CURRENCY_REPORT_METRICS = new Set([
   "commissionable front gross",
   "manual front commission (personal)",
   "mini (full deal)",
+  "prior-sales retroactive commission",
+  "volume bonus added",
+  "extra earnings unlocked (already included)",
+  "milestone impact (already included)",
   "f&i commission",
   "sale commission",
   "sales commission",
@@ -690,7 +696,7 @@ export function buildReportAnalyticsExportTables(
     { Section: "Outcome tracking", Metric: "Financing outcomes not marked", Value: analytics.quality.unmarkedFinanceOutcomeCount, Interpretation: "Unmarked financing remains unknown." },
     { Section: "Payment method", Metric: "Cash sales", Value: analytics.finance.segments.cash.dealCount, Interpretation: "Delivered sales explicitly marked Cash. Older No financing answers are not assumed to be cash." },
     { Section: "Payment method", Metric: "Outside-financed sales", Value: analytics.finance.segments.outsideFinancing.dealCount, Interpretation: "Delivered sales explicitly marked Outside financing." },
-    { Section: "Payment method", Metric: "Cash / outside not specified", Value: analytics.finance.segments.notDealerFinanced.dealCount, Interpretation: "Older delivered sales marked not dealer financed, without a cash or outside-financing choice." },
+    { Section: "Payment method", Metric: "Cash / outside not specified", Value: analytics.finance.segments.notDealerFinanced.dealCount, Interpretation: "Older delivered sales marked No for Finance, without a Cash or Outside Finance choice." },
     { Section: "Payment method", Metric: "Payment method not marked", Value: analytics.finance.segments.financeOutcomeUnmarked.dealCount, Interpretation: "Delivered sales without a payment method or a legacy financing answer." },
     { Section: "Outcome tracking", Metric: "All-outcome tracking completion", Value: totalAllOutcomeSlots > 0 ? (analytics.quality.recordedProductOutcomeCount + analytics.quality.recordedFinanceOutcomeCount) / totalAllOutcomeSlots : "", Interpretation: "Recorded product and financing outcomes divided by all possible fields." },
     { Section: "Gross coverage", Metric: "Front gross entered", Value: analytics.quality.frontGrossEnteredCount, Interpretation: "Valid delivered deals with a front gross amount." },
@@ -700,13 +706,13 @@ export function buildReportAnalyticsExportTables(
     { Section: "Gross coverage", Metric: "F&I gross coverage", Value: analytics.population.deliveredDealCount > 0 ? analytics.gross.fi.enteredCount / analytics.population.deliveredDealCount : "", Interpretation: "Deals with an entered F&I amount divided by delivered deals. Entered $0 counts as complete; a blank amount does not." },
     { Section: "Performance metrics", Metric: "Recorded F&I gross per delivered sale (PVR)", Value: dollarsOrBlank(analytics.gross.fi.averagePerDeliveredDealCents), Interpretation: "Recorded total F&I gross divided by every delivered sale, including sales with $0. Missing amounts keep the result incomplete; blank when no amounts are entered. Only gross entered in this tracker is included." },
     { Section: "Performance metrics", Metric: "Estimated F&I commission per delivered sale", Value: dollarsOrBlank(analytics.commission.averageFiCommissionPerDeliveredDealCents), Interpretation: "Estimated F&I commission using each month's pay plan divided by every delivered sale. Incomplete while F&I amounts are missing." },
-    { Section: "Performance metrics", Metric: "Tracked products per delivered sale (PPD)", Value: analytics.products.averageProductsPerDeliveredDeal ?? "", Interpretation: "Service contract, Tire & Wheel, and GAP marked Yes divided by all delivered sales. Dealer financing is not a product. Unmarked products can make this result incomplete." },
+    { Section: "Performance metrics", Metric: "Tracked products per delivered sale (PPD)", Value: analytics.products.averageProductsPerDeliveredDeal ?? "", Interpretation: "Service contract, Tire & Wheel, and GAP marked Yes divided by all delivered sales. Finance is a payment method, not a product. Unmarked products can make this result incomplete." },
     { Section: "Performance metrics", Metric: "Finance Penetration", Value: rateOrBlank(analytics.finance.dealerFinance.penetrationRate), Interpretation: "Delivered sales marked financed through the dealership divided by all delivered sales. Unmarked financing stays in the denominator." },
     { Section: "Performance metrics", Metric: "GAP penetration - all delivered sales", Value: rateOrBlank(analytics.products.gap.penetrationRate), Interpretation: "GAP marked Yes divided by all delivered sales. This is an all-sales view, not a GAP-eligibility rate." },
-    { Section: "Performance metrics", Metric: "GAP penetration - dealer-financed sales", Value: rateOrBlank(analytics.finance.gapOnDealerFinanced.penetrationRate), Interpretation: "GAP marked Yes on dealer-financed sales divided by all dealer-financed delivered sales. Outside-financed and unmarked-financing sales are excluded; this is not a measure of GAP eligibility." },
-    { Section: "Performance metrics", Metric: "Dealer-financed sales (GAP denominator)", Value: analytics.finance.gapOnDealerFinanced.eligibleDealCount, Interpretation: "Delivered sales explicitly marked dealer financed." },
-    { Section: "Performance metrics", Metric: "GAP sold on dealer-financed sales", Value: analytics.finance.gapOnDealerFinanced.yesCount, Interpretation: "Dealer-financed delivered sales with GAP marked Yes." },
-    { Section: "Performance metrics", Metric: "GAP not marked on dealer-financed sales", Value: analytics.finance.gapOnDealerFinanced.unmarkedCount, Interpretation: "Missing GAP answers remain unknown and stay in the dealer-financed denominator." },
+    { Section: "Performance metrics", Metric: "GAP penetration - Finance sales", Value: rateOrBlank(analytics.finance.gapOnDealerFinanced.penetrationRate), Interpretation: "GAP marked Yes on Finance sales divided by all delivered sales arranged through the dealership. Cash, Outside Finance, and unmarked payment methods are excluded; this is not a measure of GAP eligibility." },
+    { Section: "Performance metrics", Metric: "Finance sales (GAP report base)", Value: analytics.finance.gapOnDealerFinanced.eligibleDealCount, Interpretation: "Delivered sales with the Finance payment method." },
+    { Section: "Performance metrics", Metric: "GAP sold on Finance sales", Value: analytics.finance.gapOnDealerFinanced.yesCount, Interpretation: "Finance sales with GAP marked Yes." },
+    { Section: "Performance metrics", Metric: "GAP not marked on Finance sales", Value: analytics.finance.gapOnDealerFinanced.unmarkedCount, Interpretation: "Missing GAP answers remain unknown and stay in the Finance-sales report base." },
     { Section: "Calculation source", Metric: "F&I report and commission amount", Value: "Total F&I gross", Interpretation: "This authoritative deal total drives F&I money reporting and commission estimates." },
   ];
 
@@ -724,6 +730,40 @@ function frontCommissionMethodLabel(item: CalculatedSale): string {
   if (item.frontCommissionMethod === "mini") return "Mini";
   if (!item.commissionReady) return "Awaiting front gross";
   return "Gross percentage";
+}
+
+const MILESTONE_EXPORT_NOTE = "Already included in the monthly estimate; do not add again. Extra unlocked = the rate increase on earlier sales + the added bonus. Milestone impact = this sale’s commission + extra unlocked. Delivery order follows delivery date, then entry order for same-day sales.";
+
+/** Explanatory derived values only. These never enter raw backups or import payouts. */
+function milestoneExportFields(item: CalculatedSale | null): WorksheetRow {
+  const milestone = item?.milestone;
+  return {
+    "Delivery Number": item?.deliveryOrdinal ?? "",
+    Milestone: milestone ? [
+      milestone.unlocksHigherRate ? `${formatPercent(milestone.frontRateBps, milestone.frontRateBps % 100 === 0 ? 0 : milestone.frontRateBps % 10 === 0 ? 1 : 2)} front rate` : "",
+      milestone.bonusAddedCents > 0 ? "Volume bonus" : "",
+    ].filter(Boolean).join(" + ") : "",
+    "Prior-sales Retroactive Commission": dollarsOrBlank(milestone?.priorSalesRetroactiveCents),
+    "Volume Bonus Added": dollarsOrBlank(milestone?.bonusAddedCents),
+    "Extra Earnings Unlocked (Already Included)": dollarsOrBlank(milestone?.extraEarningsUnlockedCents),
+    "Milestone Impact (Already Included)": dollarsOrBlank(milestone?.totalMilestoneImpactCents),
+    "Milestone Amount Status": milestone ? milestone.isPartial ? "Partial — gross amounts pending" : "Recorded amounts" : "",
+    "Earlier Sales Awaiting Front Gross": milestone?.missingPriorFrontGrossCount ?? "",
+    "Milestone Calculation Note": milestone ? MILESTONE_EXPORT_NOTE : "",
+  };
+}
+
+export function buildMilestoneExportRows(calculatedSales: CalculatedSale[], includeLastNames: boolean): WorksheetRow[] {
+  return calculatedSales.filter((item) => item.milestone != null)
+    .sort((a, b) => a.deliveryOrdinal! - b.deliveryOrdinal!)
+    .map((item) => ({
+      ...(includeLastNames ? { "Customer Last Name": item.sale.customerLastName } : {}),
+      Vehicle: item.sale.vehicleDescription,
+      "Stock Number": item.sale.stockNumber,
+      "Delivery Date": formatSaleDate(item.sale.saleDate),
+      "Sale Commission": item.estimatedCommissionCents / 100,
+      ...milestoneExportFields(item),
+    }));
 }
 
 /** Builds the identifier-bearing workbook table under the report privacy choice. */
@@ -749,7 +789,7 @@ export function buildSalesDetailExportRows(
     "Service Contract / Warranty Sold": trackedOutcomeLabel(item.sale.serviceContractSold),
     "Tire & Wheel Sold": trackedOutcomeLabel(item.sale.tireWheelSold),
     "GAP Sold": trackedOutcomeLabel(item.sale.gapSold),
-    "Dealer Financed": trackedOutcomeLabel(dealerFinancingOutcome(item.sale)),
+    Financed: trackedOutcomeLabel(dealerFinancingOutcome(item.sale)),
     "Payment Method": paymentMethodLabel(item.sale),
     "Front Rate": item.frontRateBps / 10_000,
     "Commissionable Front Gross": item.commissionableFrontGrossCents / 100,
@@ -761,6 +801,7 @@ export function buildSalesDetailExportRows(
     "Attention Status": attentionBySale.has(item.sale.id)
       ? attentionSummary(attentionBySale.get(item.sale.id)!)
       : "No attention items",
+    ...milestoneExportFields(item),
   }));
 }
 
@@ -833,6 +874,7 @@ export async function exportSalesWorkbook(
     ["Front commission calculation", "Per sale: the higher of nonnegative entered front gross × month rate or Mini × deal credit. Entered gross already represents your share. A manual front amount replaces that payout and is not split again."],
     ["Reported gross", "Actual signed gross is retained in gross totals. A negative front gross never offsets another sale’s commission."],
     ["Manual / spiff amount", "Personal front commission, not an extra bonus. F&I commission and monthly volume bonuses remain separate."],
+    ["Milestone earnings", MILESTONE_EXPORT_NOTE],
     [],
     ["Metric", "Value"],
     ["Delivered", selected.deliveredCount],
@@ -870,10 +912,10 @@ export async function exportSalesWorkbook(
     ["Service contract / warranty penetration", formatPenetration(selectedFiMetrics.serviceContractSoldCount, selectedFiMetrics.deliveredCount)],
     ["Tire & Wheel penetration", formatPenetration(selectedFiMetrics.tireWheelSoldCount, selectedFiMetrics.deliveredCount)],
     ["GAP penetration - all delivered sales", formatPenetration(selectedFiMetrics.gapSoldCount, selectedFiMetrics.deliveredCount)],
-    ["GAP penetration - dealer-financed sales", formatPenetration(selectedAnalytics.finance.gapOnDealerFinanced.yesCount, selectedAnalytics.finance.gapOnDealerFinanced.eligibleDealCount)],
-    ["Dealer-financed sales (GAP denominator)", selectedAnalytics.finance.gapOnDealerFinanced.eligibleDealCount],
-    ["GAP sold on dealer-financed sales", selectedAnalytics.finance.gapOnDealerFinanced.yesCount],
-    ["GAP not marked on dealer-financed sales", selectedAnalytics.finance.gapOnDealerFinanced.unmarkedCount],
+    ["GAP penetration - Finance sales", formatPenetration(selectedAnalytics.finance.gapOnDealerFinanced.yesCount, selectedAnalytics.finance.gapOnDealerFinanced.eligibleDealCount)],
+    ["Finance sales (GAP report base)", selectedAnalytics.finance.gapOnDealerFinanced.eligibleDealCount],
+    ["GAP sold on Finance sales", selectedAnalytics.finance.gapOnDealerFinanced.yesCount],
+    ["GAP not marked on Finance sales", selectedAnalytics.finance.gapOnDealerFinanced.unmarkedCount],
     ["Finance Penetration", formatPenetration(selectedFiMetrics.dealerFinancedCount, selectedFiMetrics.deliveredCount)],
     ["Cash sales", selectedAnalytics.finance.segments.cash.dealCount],
     ["Outside-financed sales", selectedAnalytics.finance.segments.outsideFinancing.dealCount],
@@ -882,7 +924,7 @@ export async function exportSalesWorkbook(
     ["Service contract / warranty not marked", selectedFi.serviceContract.unrecordedCount],
     ["Tire & Wheel not marked", selectedFi.tireWheel.unrecordedCount],
     ["GAP not marked", selectedFi.gap.unrecordedCount],
-    ["Dealer financing not marked", selectedFi.dealerFinanced.unrecordedCount],
+    ["Finance not marked", selectedFi.dealerFinanced.unrecordedCount],
     ["Any tracked F&I product penetration", formatPenetration(selectedFiMetrics.anyTrackedProductSoldCount, selectedFiMetrics.deliveredCount)],
     ["Tracked F&I products sold", selectedFiMetrics.trackedProductsSoldCount],
     ["Tracked products per delivered sale (PPD)", selectedFiMetrics.deliveredCount === 0 ? "" : selectedFiMetrics.trackedProductsSoldCount / selectedFiMetrics.deliveredCount],
@@ -920,6 +962,7 @@ export async function exportSalesWorkbook(
     selected.calculatedSales,
     includeLastNames,
   );
+  const milestoneRows = buildMilestoneExportRows(selected.calculatedSales, includeLastNames);
 
   const weeklyRows = weekly.weeks.map((week, index) => {
     const weekAnalytics = calculateReportAnalytics(
@@ -958,11 +1001,11 @@ export async function exportSalesWorkbook(
       "Tire & Wheel Sold": week.fi.tireWheel.soldCount,
       "GAP Sold": week.fi.gap.soldCount,
       "GAP Penetration - All Delivered Sales": rateOrBlank(weekAnalytics.products.gap.penetrationRate),
-      "GAP Penetration - Dealer-Financed Sales": rateOrBlank(weekAnalytics.finance.gapOnDealerFinanced.penetrationRate),
-      "Dealer-Financed Sales (GAP Denominator)": weekAnalytics.finance.gapOnDealerFinanced.eligibleDealCount,
-      "GAP Sold on Dealer-Financed Sales": weekAnalytics.finance.gapOnDealerFinanced.yesCount,
-      "GAP Not Marked on Dealer-Financed Sales": weekAnalytics.finance.gapOnDealerFinanced.unmarkedCount,
-      "Dealer Financed": week.fi.dealerFinanced.soldCount,
+      "GAP Penetration - Finance Sales": rateOrBlank(weekAnalytics.finance.gapOnDealerFinanced.penetrationRate),
+      "Finance Sales (GAP Denominator)": weekAnalytics.finance.gapOnDealerFinanced.eligibleDealCount,
+      "GAP Sold on Finance Sales": weekAnalytics.finance.gapOnDealerFinanced.yesCount,
+      "GAP Not Marked on Finance Sales": weekAnalytics.finance.gapOnDealerFinanced.unmarkedCount,
+      "Finance Sales": week.fi.dealerFinanced.soldCount,
       "Cash Sales": weekAnalytics.finance.segments.cash.dealCount,
       "Outside-Financed Sales": weekAnalytics.finance.segments.outsideFinancing.dealCount,
       "Cash / Outside Not Specified": weekAnalytics.finance.segments.notDealerFinanced.dealCount,
@@ -1004,11 +1047,11 @@ export async function exportSalesWorkbook(
       "Tire & Wheel Penetration": penetrationRate(fiMetrics.tireWheelSoldCount, fiMetrics.deliveredCount),
       "GAP Sold": fiMetrics.gapSoldCount,
       "GAP Penetration - All Delivered Sales": penetrationRate(fiMetrics.gapSoldCount, fiMetrics.deliveredCount),
-      "GAP Penetration - Dealer-Financed Sales": rateOrBlank(report.finance.gapOnDealerFinanced.penetrationRate),
-      "Dealer-Financed Sales (GAP Denominator)": report.finance.gapOnDealerFinanced.eligibleDealCount,
-      "GAP Sold on Dealer-Financed Sales": report.finance.gapOnDealerFinanced.yesCount,
-      "GAP Not Marked on Dealer-Financed Sales": report.finance.gapOnDealerFinanced.unmarkedCount,
-      "Dealer Financed": fiMetrics.dealerFinancedCount,
+      "GAP Penetration - Finance Sales": rateOrBlank(report.finance.gapOnDealerFinanced.penetrationRate),
+      "Finance Sales (GAP Denominator)": report.finance.gapOnDealerFinanced.eligibleDealCount,
+      "GAP Sold on Finance Sales": report.finance.gapOnDealerFinanced.yesCount,
+      "GAP Not Marked on Finance Sales": report.finance.gapOnDealerFinanced.unmarkedCount,
+      "Finance Sales": fiMetrics.dealerFinancedCount,
       "Cash Sales": report.finance.segments.cash.dealCount,
       "Outside-Financed Sales": report.finance.segments.outsideFinancing.dealCount,
       "Cash / Outside Not Specified": report.finance.segments.notDealerFinanced.dealCount,
@@ -1035,6 +1078,10 @@ export async function exportSalesWorkbook(
   const workbook = XLSX.utils.book_new();
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
   const detailSheet = XLSX.utils.json_to_sheet(detailRows);
+  const milestoneSheet = XLSX.utils.json_to_sheet(milestoneRows.length ? milestoneRows : [{
+    "Milestone Earnings": "No earnings milestone reached this month.",
+    Explanation: MILESTONE_EXPORT_NOTE,
+  }]);
   const yearSheet = XLSX.utils.json_to_sheet(yearRows);
   const weeklySheet = XLSX.utils.json_to_sheet(weeklyRows);
   const bonusScheduleSheet = XLSX.utils.json_to_sheet(bonusScheduleRows);
@@ -1048,6 +1095,7 @@ export async function exportSalesWorkbook(
   const dataQualitySheet = XLSX.utils.json_to_sheet(analyticsTables.dataQualityRows);
   summarySheet["!cols"] = [{ wch: 30 }, { wch: 28 }];
   detailSheet["!cols"] = Array.from({ length: Object.keys(detailRows[0] ?? {}).length }, () => ({ wch: 20 }));
+  milestoneSheet["!cols"] = Object.keys(milestoneRows[0] ?? { "Milestone Earnings": "", Explanation: "" }).map((label) => ({ wch: /Note|Explanation/.test(label) ? 80 : label === "Vehicle" ? 32 : 24 }));
   yearSheet["!cols"] = Array.from({ length: Object.keys(yearRows[0] ?? {}).length }, () => ({ wch: 21 }));
   weeklySheet["!cols"] = Array.from({ length: Object.keys(weeklyRows[0] ?? {}).length }, () => ({ wch: 19 }));
   bonusScheduleSheet["!cols"] = [{ wch: 22 }, { wch: 22 }, { wch: 24 }, { wch: 24 }];
@@ -1066,6 +1114,7 @@ export async function exportSalesWorkbook(
   dataQualitySheet["!cols"] = [{ wch: 26 }, { wch: 48 }, { wch: 22 }, { wch: 78 }];
   XLSX.utils.book_append_sheet(workbook, summarySheet, "Monthly Summary");
   XLSX.utils.book_append_sheet(workbook, detailSheet, "Sales Detail");
+  XLSX.utils.book_append_sheet(workbook, milestoneSheet, "Milestone Earnings");
   XLSX.utils.book_append_sheet(workbook, productPerformanceSheet, "Product Performance");
   XLSX.utils.book_append_sheet(workbook, financingSheet, "Financing");
   XLSX.utils.book_append_sheet(workbook, productMixBundleSheet, "Product Mix & Bundles");

@@ -17,7 +17,7 @@ async function createAwaitingSale(page: Page) {
   await page.getByRole("checkbox", { name: "Service contract / warranty", exact: true }).check();
   await page.getByRole("radio", { name: "Outside Finance", exact: true }).check();
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
 }
 
@@ -86,7 +86,7 @@ test("monthly report rows and phone cards open a sale and retain report context 
   await expectSaleEditor(page);
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("");
   await page.getByLabel("Total F&I gross", { exact: true }).fill("600");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
 
   await expect(panel).toBeVisible();
@@ -109,7 +109,7 @@ test("report stock buttons support keyboard activation and restore focus on clos
   await button.focus();
   await button.press("Enter");
   await expectSaleEditor(page);
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("dialog", { name: "Edit sale" }).getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
   await expect(button).toBeFocused();
   await expect(panel).toBeVisible();
@@ -133,7 +133,7 @@ test("filtered F&I evidence opens the same sale without losing filters or paymen
   else await sale.locator(".report-sale-identity__vehicle").click();
   await expectSaleEditor(page);
   await expect(page.getByRole("checkbox", { name: "Service contract / warranty", exact: true })).toBeChecked();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("dialog", { name: "Edit sale" }).getByRole("button", { name: "Close" }).click();
   await expect(evidence).toBeVisible();
   await expect(center.getByRole("tab", { name: "Deals", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(evidence.getByRole("combobox", { name: "Show", exact: true })).toHaveValue("serviceContract");
@@ -164,7 +164,7 @@ test("report privacy hides last names while keeping vehicle identity, dates, and
   await (await visibleEvidenceSale(evidence)).getByRole("button", { name: `Open sale ${STOCK}`, exact: true }).click();
   await expectSaleEditor(page);
   await expect(page.getByLabel("Customer last name", { exact: true })).toHaveValue("Example");
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("dialog", { name: "Edit sale" }).getByRole("button", { name: "Close" }).click();
 
   await setNamesIncluded(true);
   await expectReportIdentity(await visibleEvidenceSale(evidence));
@@ -177,8 +177,7 @@ test("a closed month awaiting F&I gross keeps its earnings provisional while pro
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel("Salesperson name *").fill("Report Test");
   await page.getByLabel(/commission goal/).fill("5000");
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
   const outlook = page.getByRole("region", { name: "Monthly goal and commission outlook" });
   await expect(outlook).toContainText("Awaiting F&I gross");

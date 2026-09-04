@@ -219,7 +219,8 @@ function calculatePreparedMonth(
   const payPlan = getPayPlanForMonth(payPlanOrSchedule, monthKey);
   const monthSales = activeSales
     .filter((sale) => monthKeyFromDate(sale.saleDate) === monthKey)
-    .sort((a, b) => a.saleDate.localeCompare(b.saleDate) || a.createdAt.localeCompare(b.createdAt));
+    .sort((a, b) => a.saleDate.localeCompare(b.saleDate)
+      || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 
   const countableDelivered = monthSales.filter((sale) => {
     const key = normalizeStock(sale.stockNumber);
@@ -231,7 +232,7 @@ function calculatePreparedMonth(
       deliveredStockCounts.get(key) === 1
     );
   });
-  const countableDeliveredIds = new Set(countableDelivered.map((sale) => sale.id));
+  const deliveryOrdinals = new Map(countableDelivered.map((sale, index) => [sale.id, index + 1]));
 
   const deliveredCount = countableDelivered.length;
   const frontRateBps =
@@ -248,7 +249,8 @@ function calculatePreparedMonth(
   const calculatedSales: CalculatedSale[] = monthSales.map((sale) => {
     const key = normalizeStock(sale.stockNumber);
     const flags = reviewFlagsForSale(sale, deliveredStockCounts, today);
-    const countsTowardVolume = countableDeliveredIds.has(sale.id);
+    const deliveryOrdinal = deliveryOrdinals.get(sale.id) ?? null;
+    const countsTowardVolume = deliveryOrdinal !== null;
     const front = calculateFrontCommission(sale, frontRateBps, payPlan);
     const frontCommissionCents = countsTowardVolume ? front.frontCommissionCents : 0;
     const fiCommissionCents = countsTowardVolume ? (fiAllocations.get(sale.id) ?? 0) : 0;
@@ -257,6 +259,8 @@ function calculatePreparedMonth(
       normalizedStock: key,
       monthKey,
       countsTowardVolume,
+      deliveryOrdinal,
+      milestone: null,
       commissionReady: countsTowardVolume && front.frontCommissionMethod !== "awaiting",
       frontRateBps,
       frontCommissionCents,
@@ -268,6 +272,37 @@ function calculatePreparedMonth(
       flags,
     };
   });
+
+  // Attribute rewards to the delivery that crossed the threshold. The triggering
+  // sale already receives its own higher-rate commission above, so only the rate
+  // increase on EARLIER sales is unlocked here. These figures never feed totals.
+  for (const item of calculatedSales) {
+    const ordinal = item.deliveryOrdinal;
+    if (ordinal === null) continue;
+    const unlocksHigherRate = ordinal === payPlan.acceleratedThresholdExclusive + 1
+      && payPlan.acceleratedFrontRateBps > payPlan.baseFrontRateBps;
+    const bonusAddedCents = getPotentialBonus(ordinal, payPlan.bonusTiers)
+      - getPotentialBonus(ordinal - 1, payPlan.bonusTiers);
+    if (!unlocksHigherRate && bonusAddedCents <= 0) continue;
+    const priorSales = unlocksHigherRate ? countableDelivered.slice(0, ordinal - 1) : [];
+    const priorSalesRetroactiveCents = priorSales.reduce((sum, sale) => sum
+      + calculateFrontCommission(sale, payPlan.acceleratedFrontRateBps, payPlan).frontCommissionCents
+      - calculateFrontCommission(sale, payPlan.baseFrontRateBps, payPlan).frontCommissionCents, 0);
+    const missingPriorFrontGrossCount = priorSales.filter((sale) =>
+      sale.frontGrossCents === null && sale.frontCommissionOverrideCents == null).length;
+    const extraEarningsUnlockedCents = priorSalesRetroactiveCents + bonusAddedCents;
+    item.milestone = {
+      deliveryOrdinal: ordinal,
+      unlocksHigherRate,
+      frontRateBps: item.frontRateBps,
+      priorSalesRetroactiveCents,
+      bonusAddedCents,
+      extraEarningsUnlockedCents,
+      totalMilestoneImpactCents: item.estimatedCommissionCents + extraEarningsUnlockedCents,
+      missingPriorFrontGrossCount,
+      isPartial: !item.commissionReady || item.sale.fiGrossCents === null || missingPriorFrontGrossCount > 0,
+    };
+  }
 
   const frontGrossCents = countableDelivered.reduce(
     (sum, sale) => sum + (sale.frontGrossCents ?? 0),

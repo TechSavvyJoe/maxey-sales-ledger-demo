@@ -10,10 +10,11 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
+  TrendingUp,
   Undo2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { useWorkspaceToast } from "@/hooks/useWorkspaceToast";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -108,6 +109,21 @@ function SaleProductBadges({ sale }: { sale: Sale }) {
   );
 }
 
+function SaleMilestoneLink({ item, onOpen }: { item: CalculatedSale; onOpen: (sale: Sale) => void }) {
+  if (!item.milestone) return null;
+  return (
+    <button
+      type="button"
+      className="sale-milestone-link"
+      onClick={() => onOpen(item.sale)}
+      aria-label={`View delivery ${item.milestone.deliveryOrdinal} milestone for ${item.sale.customerLastName || item.sale.stockNumber}`}
+    >
+      <TrendingUp aria-hidden="true" />
+      <span>Milestone <span className="sale-milestone-link__amount">+{formatCurrency(item.milestone.extraEarningsUnlockedCents)}{item.milestone.missingPriorFrontGrossCount > 0 ? " so far" : ""}</span></span>
+    </button>
+  );
+}
+
 export function SalesPage({
   sales,
   settings,
@@ -117,6 +133,7 @@ export function SalesPage({
   onRestoreSale,
   initialFilter,
 }: SalesPageProps) {
+  const toast = useWorkspaceToast();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>(initialFilter ?? "all");
   const [sort, setSort] = useState<Sort>("newest");
@@ -421,7 +438,8 @@ export function SalesPage({
                         <span className="status-badge status-badge--deleted">Deleted</span>
                       </span>
                       <strong>{sale.customerLastName || "No last name"}</strong>
-                      <span>{sale.stockNumber || "Missing stock"} · {sale.vehicleDescription || "Vehicle not entered"}</span>
+                      <span className="sale-card__vehicle">{sale.vehicleDescription || "Vehicle not entered"}</span>
+                      <span className="sale-card__stock">Stock {sale.stockNumber || "not entered"}</span>
                     </div>
                     <Button type="button" variant="outline" disabled={restoringSaleId === sale.id} onClick={() => void restoreDeletedSale(sale)}>
                       <Undo2 aria-hidden="true" /> {restoringSaleId === sale.id ? "Restoring…" : "Restore sale"}
@@ -484,6 +502,7 @@ export function SalesPage({
                       <td className="numeric estimate-cell">
                         <strong>{formatCurrency(item.estimatedCommissionCents)}</strong>
                         {item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}
+                        <SaleMilestoneLink item={item} onOpen={onEditSale} />
                         {attentionBySaleId.has(item.sale.id) ? (
                           <span
                             className="table-review"
@@ -510,7 +529,8 @@ export function SalesPage({
                       <StatusBadge status={item.sale.status} />
                     </span>
                     <strong>{item.sale.customerLastName || "No last name"}</strong>
-                    <span>{item.sale.stockNumber || "Missing stock"} · {item.sale.vehicleDescription || "Vehicle not entered"}{item.sale.source === "demo" ? " · Demo" : ""}</span>
+                    <span className="sale-card__vehicle">{item.sale.vehicleDescription || "Vehicle not entered"}</span>
+                    <span className="sale-card__stock">Stock {item.sale.stockNumber || "not entered"}{item.sale.source === "demo" ? " · Demo" : ""}</span>
                     <dl>
                       <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                       <div><dt>F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
@@ -519,7 +539,8 @@ export function SalesPage({
                     <SaleProductBadges sale={item.sale} />
                   </button>
                   <div className="sale-card__actions">
-                    {attentionBySaleId.has(item.sale.id) ? (
+                    <div className="sale-card__indicators">
+                      {attentionBySaleId.has(item.sale.id) ? (
                       <span
                         className="table-review"
                         aria-label={`Needs review: ${attentionBySaleId.get(item.sale.id)?.reasons.map((reason) => reason.label).join(", ")}`}
@@ -527,7 +548,9 @@ export function SalesPage({
                       >
                         <CircleAlert aria-hidden="true" /> {reviewReason(item)}
                       </span>
-                    ) : item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : <span />}
+                      ) : item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}
+                      <SaleMilestoneLink item={item} onOpen={onEditSale} />
+                    </div>
                     <SaleActions item={item} />
                   </div>
                 </article>

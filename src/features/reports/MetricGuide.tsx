@@ -11,7 +11,7 @@ export function MetricGuide() {
           <dt>Products per sale (PPD) and penetration</dt>
           <dd>PPD counts the three tracked products: Service contract, Tire &amp; Wheel, and GAP. Each product’s penetration is its sold count divided by delivered sales. Missing answers remain in that denominator.</dd>
           <dt>Finance Penetration and GAP</dt>
-          <dd>Finance Penetration is dealership-arranged financing divided by all delivered sales. Cash and outside financing are shown separately when recorded. Older entries without that distinction stay in “Cash / outside not specified.” GAP on dealer-financed sales uses only that financing group; it does not measure product eligibility.</dd>
+          <dd>Finance Penetration is dealership-arranged financing divided by all delivered sales. Cash and Outside Finance are shown separately when recorded. Older entries without that distinction stay in “Cash / outside not specified.” GAP on Finance sales uses only that payment group; it does not measure product eligibility.</dd>
           <dt>Your baseline</dt>
           <dd>Recent delivered sales provide a personal comparison. Combined totals determine the averages and rates; incomplete entries suppress changes.</dd>
         </dl>

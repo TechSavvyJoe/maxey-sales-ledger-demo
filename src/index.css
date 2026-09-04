@@ -569,6 +569,11 @@ button:not(:disabled),
   color: #6e5715;
 }
 
+.workspace-notice > button,
+.demo-data-callout button {
+  min-height: 44px;
+}
+
 @media (max-width: 720px) {
   .workspace-notice {
     align-items: flex-start;
@@ -581,6 +586,51 @@ button:not(:disabled),
 
   .workspace-notice > button {
     width: 100%;
+  }
+}
+
+@media (min-width: 371px) and (max-width: 720px) {
+  .workspace-notice {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 9px;
+    padding-block: 7px;
+  }
+
+  .workspace-notice > span {
+    width: auto;
+  }
+
+  .workspace-notice > button {
+    width: auto;
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 370px) {
+  .workspace-notice {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    min-height: 52px;
+    padding: 6px 9px;
+  }
+
+  .workspace-notice > span {
+    width: auto;
+  }
+
+  .workspace-notice small {
+    display: none;
+  }
+
+  .workspace-notice > button {
+    width: auto;
+    min-height: 44px;
+    padding-inline: 8px;
+    font-size: 12px;
   }
 }
 

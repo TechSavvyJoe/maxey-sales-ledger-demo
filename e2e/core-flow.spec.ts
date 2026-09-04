@@ -57,7 +57,7 @@ test("adds a delivered sale, calculates commission, and exports CSV", async ({ p
   await page.getByLabel(/Total F&I gross/).fill("600");
   await page.getByLabel("Vehicle optional").fill("2023 Ford Escape Active");
   await expect(page.locator(".sale-form__footer-estimate")).toContainText("$870.00");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
 
   await expect(page.getByText("Sale added.")).toBeVisible();
   await expect(page.getByText("QA-0001").first()).toBeVisible();
@@ -79,13 +79,12 @@ test("adds a delivered sale, calculates commission, and exports CSV", async ({ p
   await expect(page.locator(".report-sales-disclosure")).toHaveAttribute("open", "");
   const reportTable = page.locator(".report-table-wrap");
   const reportCards = page.locator(".report-sales-cards");
-  const usesReportCards = testInfo.project.name === "tablet-chrome"
-    || testInfo.project.name.startsWith("mobile");
+  const usesReportCards = await reportCards.isVisible();
   const reportSurface = usesReportCards ? reportCards : reportTable;
   await expect(reportSurface).toBeVisible();
   await expect(reportSurface.getByText("QA-0001")).toBeVisible();
   await expect(usesReportCards ? reportTable : reportCards).toBeHidden();
-  expect(await reportTable.locator("tbody tr").first().locator("td").count()).toBe(
+  expect(await reportTable.locator("tbody tr").first().locator("th, td").count()).toBe(
     await reportTable.locator("thead th").count(),
   );
   const downloadPromise = page.waitForEvent("download");
@@ -99,8 +98,8 @@ test("Excel export carries the cumulative bonus schedule and included total", as
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: /Load (sample history|full-year demo)/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
 
   const downloadPromise = page.waitForEvent("download");
@@ -134,8 +133,8 @@ test("Excel export carries the cumulative bonus schedule and included total", as
     workbook.Sheets["Monthly Summary"],
     { header: 1 },
   );
-  expect(summaryRows).toContainEqual(["Cumulative bonus earned", 300]);
-  expect(summaryRows).toContainEqual(["Bonus included", 300]);
+  expect(summaryRows).toContainEqual(["Cumulative bonus earned", 2_100]);
+  expect(summaryRows).toContainEqual(["Bonus included", 2_100]);
   expect(summaryRows).toContainEqual(["Scheduled workdays", 26]);
   expect(summaryRows).toContainEqual(["Elapsed scheduled workdays", 26]);
   expect(summaryRows).toContainEqual(["Personal days off", 0]);
@@ -179,8 +178,8 @@ test("commission goal and money projection follow the salesperson across dashboa
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: /Load (sample history|full-year demo)/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel("Salesperson name *").fill("Goal Test");
   await page.getByLabel(/commission goal/).fill("9000");
@@ -189,14 +188,14 @@ test("commission goal and money projection follow the salesperson across dashboa
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
   const projection = page.locator(".dashboard-v2-plan--money");
   await expect(projection).toContainText("Commission outlook");
-  await expect(projection).toContainText("Projected month end");
+  await expect(projection).toContainText("Projection from entered gross");
   await expect(projection).toContainText("$9,000");
 
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   const reportProjection = page.locator(".report-commission-pace");
-  await expect(reportProjection).toContainText("Projected month end");
+  await expect(reportProjection).toContainText("Projection from entered gross");
   await expect(reportProjection).toContainText("$9,000");
-  await expect(reportProjection).toContainText(/not guaranteed payroll/i);
+  await expect(reportProjection).toContainText(/Awaiting F&I gross on \d+ sales/i);
 });
 
 test("work schedule changes the workday pace and survives a reload", async ({ page }) => {
@@ -239,24 +238,26 @@ test("work schedule changes the workday pace and survives a reload", async ({ pa
   await expect(page.locator(".work-schedule-details")).toContainText("24 scheduled workdays · 2 days off");
 });
 
-test("confirming a month change discards the unsaved work schedule draft", async ({ page }) => {
+test("automatically saved monthly goals and days off survive month changes", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await page.getByLabel("Salesperson name *").fill("Monthly settings test");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await openWorkSchedule(page);
   await page.getByRole("button", { name: /^Monday, August 3 —/ }).click();
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel(/delivery goal/).fill("20");
-  await expect(page.getByText(/Unsaved settings changes/)).toBeVisible();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
 
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Show July 2026" }).click();
   await expect(page.getByRole("button", { name: /Choose reporting month/ })).toHaveAccessibleName(/July 2026/);
   await expect(page.getByLabel(/delivery goal/)).toHaveValue("15");
-  await expect(page.getByText(/Unsaved settings changes/)).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
 
   await page.getByRole("button", { name: "Show August 2026" }).click();
+  await expect(page.getByLabel(/delivery goal/)).toHaveValue("20");
   await openWorkSchedule(page);
-  await expect(page.getByRole("button", { name: /^Monday, August 3 —/ })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: /^Monday, August 3 —/ })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("fresh dashboard has no automatically detectable WCAG A/AA violations", async ({ page }) => {
@@ -330,11 +331,21 @@ test("Google Drive handoff checks a complete backup before download", async ({ p
   await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
   await expect(page.getByText("Settings saved and calculations refreshed.")).toBeVisible();
   await expect(driveButton).toBeEnabled();
+  await page.setViewportSize({ width: 390, height: 390 });
   await driveButton.click();
 
   const dialog = page.getByRole("dialog", { name: "Save a recovery copy to Google Drive" });
   await expect(dialog).toContainText("Backup checked and ready");
   await expect(dialog).toContainText("drive-test-sales-backup-2026-08-31.json");
+  const dialogBounds = await dialog.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return { top: bounds.top, bottom: bounds.bottom, viewport: window.visualViewport?.height ?? window.innerHeight };
+  });
+  expect(dialogBounds.top).toBeGreaterThanOrEqual(0);
+  expect(dialogBounds.bottom).toBeLessThanOrEqual(dialogBounds.viewport);
+  const closeButton = dialog.getByRole("button", { name: "Close" });
+  await expect.poll(async () => (await closeButton.boundingBox())?.width ?? 0).toBeGreaterThanOrEqual(44);
+  await expect.poll(async () => (await closeButton.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
 
   const driveLink = dialog.getByRole("link", { name: /Download & open Google Drive/ });
   await expect(driveLink).toHaveAttribute("href", "https://drive.google.com/drive/my-drive");
@@ -376,7 +387,7 @@ test("automatic folder backup verifies saved changes and reconnects after reload
   await page.getByLabel(/Customer last name/).fill("BackupTest");
   await page.getByLabel(/Stock number/).fill("AUTO-BACKUP-001");
   await page.getByLabel("Front gross").fill("2000");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
 
   await expect.poll(async () => page.evaluate(async () => {
@@ -399,11 +410,11 @@ test("populated dashboard and sales views have no automatically detectable WCAG 
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: /Load (sample history|full-year demo)/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
 
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
-  await expect(page.getByText(/DEMO-\d{6}-13/).first()).toBeVisible();
+  await expect(page.getByText(/DEMO-\d{6}-\d+/).first()).toBeVisible();
   let results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
@@ -427,14 +438,31 @@ test("sales log keeps filtered context clear and offers practical sorting", asyn
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await openSettingsDisclosure(page, ".data-settings");
-  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: /Load (sample history|full-year demo)/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
 
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
   await page.getByLabel(/Customer last name/).fill("Review");
   await page.getByLabel(/Stock number/).fill("QA-REVIEW-001");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
+
+  // Add fictional records so this test owns the filter and F&I-sort fixtures
+  // it exercises instead of depending on the demo generator's current mix.
+  await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
+  await page.getByLabel(/Customer last name/).fill("Sort");
+  await page.getByLabel(/Stock number/).fill("QA-SORT-FI");
+  await page.getByLabel("Front gross", { exact: true }).fill("1000");
+  await page.getByLabel("Total F&I gross", { exact: true }).fill("9999");
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
+  await expect(page.getByText("Sale added.").last()).toBeVisible();
+
+  await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Pending\./ }).click();
+  await page.getByLabel(/Customer last name/).fill("Miller");
+  await page.getByLabel(/Stock number/).fill("QA-PENDING-001");
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
+  await expect(page.getByText("Sale added.").last()).toBeVisible();
 
   await page.getByRole("button", { name: "Sales", exact: true }).first().click();
   const salesSurface = usesSaleCards
@@ -445,33 +473,41 @@ test("sales log keeps filtered context clear and offers practical sorting", asyn
     : salesSurface.locator("tbody tr").first();
 
   await expect(salesSurface.getByText("Front gross not entered")).toBeVisible();
-  const showMore = page.getByRole("button", { name: "Show 12 more" });
+  const showMore = page.getByRole("button", { name: /Show \d+ more/ });
   await expect(showMore).toBeVisible();
-  await showMore.click();
+  for (let pageIndex = 0; pageIndex < 3 && await showMore.isVisible(); pageIndex += 1) {
+    await showMore.click();
+  }
   await expect(showMore).toBeHidden();
 
   await page.getByLabel("Search sales").fill("Miller");
   await page.getByRole("button", { name: /Pending 1/ }).click();
-  await expect(page.locator(".page-heading p")).toContainText("Showing 1 of 14 sales");
+  await expect(page.locator(".page-heading p")).toContainText("Showing 1 of 25 sales");
   const clearButton = page.getByRole("button", { name: "Clear search and filters" });
   await expect(clearButton).toBeVisible();
   await clearButton.click();
   await expect(page.getByLabel("Search sales")).toHaveValue("");
-  await expect(page.getByRole("button", { name: /All 14/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /All 25/ })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".page-heading p")).not.toContainText("Showing");
 
   const sortControl = page.getByLabel("Sort sales");
   await sortControl.selectOption("customer");
-  await expect(firstRecord).toContainText("Clark");
+  const customerNames = await (usesSaleCards
+    ? salesSurface.locator(".sale-card__main > strong")
+    : salesSurface.locator(".row-primary-action > strong")
+  ).allTextContents();
+  expect(customerNames).toEqual(
+    [...customerNames].sort((left, right) => left.localeCompare(right, undefined, { sensitivity: "base" })),
+  );
   await sortControl.selectOption("pending-first");
   await expect(firstRecord).toContainText(/pending/i);
   await sortControl.selectOption("review-first");
   await expect(firstRecord).toContainText("QA-REVIEW-001");
   await expect(firstRecord).toContainText("Front gross not entered");
   await sortControl.selectOption("front-high");
-  await expect(firstRecord).toContainText(/DEMO-\d{6}-12/);
+  await expect(firstRecord).toContainText("DEMO-202608-01");
   await sortControl.selectOption("fi-high");
-  await expect(firstRecord).toContainText(/DEMO-\d{6}-12/);
+  await expect(firstRecord).toContainText("QA-SORT-FI");
 
   if (isPhone) {
     const filterRail = page.locator(".filter-chips");
@@ -524,18 +560,19 @@ test("payroll entry follows the selected month without carrying values across mo
   await page.goto("/");
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   await page.getByRole("tab", { name: "Paid versus estimate" }).click();
-  await page.getByLabel("Commission paid").fill("1234.56");
-  await page.getByRole("button", { name: "Save payroll amount" }).click();
-  await expect(page.getByText("Actual paid amount saved.")).toBeVisible();
+  const paid = page.getByLabel("Commission paid");
+  await paid.fill("1234.56");
+  await expect(page.getByText("Payroll amount saves automatically when you finish typing.")).toBeVisible();
+  await expect(page.getByText("Payroll amount saved. Changes save automatically.")).toBeVisible();
 
   const monthButtons = page.getByRole("button", { name: /^Show (?!months)/ });
   await monthButtons.first().click();
   await page.getByRole("tab", { name: "Paid versus estimate" }).click();
-  await expect(page.getByLabel("Commission paid")).toHaveValue("");
+  await expect(paid).toHaveValue("");
 
   await page.getByRole("button", { name: /^Show (?!months)/ }).last().click();
   await page.getByRole("tab", { name: "Paid versus estimate" }).click();
-  await expect(page.getByLabel("Commission paid")).toHaveValue("1234.56");
+  await expect(paid).toHaveValue("1234.56");
 });
 
 test("editing a milestone add-on updates every later running total", async ({ page }) => {

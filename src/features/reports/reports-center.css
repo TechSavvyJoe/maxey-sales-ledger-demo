@@ -350,6 +350,28 @@
 .fi-center-evidence-table .fi-center-table { min-width: 960px; }
 .fi-center-evidence-cards { display: none; }
 
+.fi-center-evidence-more {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--slate-200);
+  background: #fbfcfe;
+  padding: 6px 13px;
+}
+
+.fi-center-evidence-more > span {
+  color: var(--slate-600);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.fi-center-evidence-more > button {
+  min-height: 44px;
+  flex: 0 0 auto;
+}
+
 .fi-evidence-outcomes { display: flex; flex-wrap: wrap; gap: 3px; }
 .fi-evidence-outcomes > span,
 .fi-evidence-finance {
@@ -781,6 +803,13 @@
   .fi-evidence-card > dl > div { display: grid; gap: 1px; background: #f8fafc; padding: 6px 7px; }
   .fi-evidence-card dt { color: var(--slate-600); font-size: 9px; }
   .fi-evidence-card dd { margin: 0; color: var(--navy-900); font-size: 11px; font-weight: 750; }
+  .fi-center-evidence-more {
+    min-height: 0;
+    align-items: stretch;
+    flex-direction: column;
+    padding: 10px;
+  }
+  .fi-center-evidence-more > button { width: 100%; }
 }
 
 @media print {

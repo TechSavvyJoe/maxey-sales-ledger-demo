@@ -25,8 +25,9 @@ async function typeNumber(input: Locator, text: string, normalized = text) {
 }
 
 async function saveSettings(page: Page) {
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  const save = page.getByRole("button", { name: "Save settings", exact: true }).first();
+  if (await save.isEnabled()) await save.click();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await expect(page.locator(".settings-validation-summary")).toBeHidden();
 }
 
@@ -164,6 +165,9 @@ test("an optional commission goal distinguishes no goal from invalid zero", asyn
 });
 
 test("a category click survives invalid numeric blur and same-value normalization", async ({ page }, testInfo) => {
+  await openSettings(page);
+  await page.getByLabel("Salesperson name *").fill("Numeric Test");
+  await saveSettings(page);
   await openSettings(page, "Pay plan");
   const rate = page.getByLabel("Base front rate", { exact: true });
   const profileCategory = page.getByRole("button", { name: /^Profile & goals/ });
@@ -182,9 +186,8 @@ test("a category click survives invalid numeric blur and same-value normalizatio
   await openSettings(page, "Pay plan");
   await clearWithKeyboard(rate);
   await rate.pressSequentially("030");
-  await expect(page.locator(".settings-dirty-state")).toBeVisible();
   await clickProfile();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await openSettings(page, "Pay plan");
   await expect(rate).toHaveValue("30");
 });
@@ -195,13 +198,13 @@ test("retyping the same numeric settings leaves a clean draft that accepts anoth
   await saveSettings(page);
   await page.getByLabel(/delivery goal/).focus();
   await page.getByLabel(/delivery goal/).press("Tab");
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await typeNumber(page.getByLabel(/delivery goal/), "015", "15");
   await openSettings(page, "Pay plan");
   await typeNumber(page.getByLabel("Base front rate", { exact: true }), "030", "30");
   await openSettings(page, "Volume bonuses");
   await typeNumber(page.getByLabel("Tier 1 bonus added at milestone", { exact: true }), "0300", "300");
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   const focusedMinimum = page.getByLabel("Tier 1 minimum delivered", { exact: true });
   await focusedMinimum.focus();
 
@@ -217,7 +220,7 @@ test("retyping the same numeric settings leaves a clean draft that accepts anoth
   await openSettings(page);
   await expect(page.getByLabel("Salesperson name *")).toHaveValue("External Test Update");
   await expect(page.locator(".settings-external-change")).toBeHidden();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
 });
 
 test("sale gross fields allow ordinary decimal typing and retain split credit on save", async ({ page }) => {
@@ -229,7 +232,7 @@ test("sale gross fields allow ordinary decimal typing and retain split credit on
   await expect(page.getByLabel("Custom", { exact: true })).toHaveCount(0);
   const splitDeal = page.getByRole("checkbox", { name: "Split deal", exact: true });
   await splitDeal.check();
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
 
   await page.reload();
@@ -314,7 +317,7 @@ test("unsaved payroll survives cancelled navigation and conflicts with newer edi
   await expect(otherPaid).toHaveValue("100.00");
   await expect(page.getByRole("alert").filter({ hasText: "Payroll changed in another tab" })).toBeVisible();
   await expect(paid).toHaveValue("123.45");
-  await expect(page.getByRole("button", { name: "Save payroll amount", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Try saving again", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Load latest payroll amount", exact: true }).click();
   await expect(paid).toHaveValue("100.00");
 

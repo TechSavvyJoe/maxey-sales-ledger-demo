@@ -31,7 +31,7 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { toast } from "sonner";
+import { useWorkspaceToast } from "@/hooks/useWorkspaceToast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -57,8 +57,8 @@ import {
   parseSettingsNumber,
   settingsNumberText,
   type SettingsNumberField,
-  type SettingsNumberText,
 } from "@/features/settings/settingsNumberDraft";
+import { comparableSettingsDraft, rebaseSettingsAfterSave, type LocalSettingsDraft } from "./settingsAutosave";
 import { calculateMonth } from "@/domain/commission";
 import {
   buildDemoSales,
@@ -98,7 +98,6 @@ import type {
 } from "@/domain/types";
 import {
   createDiagnostics,
-  downloadBackup,
   downloadBlob,
   downloadPreparedBackup,
   parseBackupFile,
@@ -106,8 +105,12 @@ import {
   type PreparedBackupFile,
 } from "@/lib/files";
 import { previewLegacyWorkbook } from "@/lib/legacyImport";
+import { exportWorkspaceBackup } from "@/lib/workspaceBackup";
 import {
   getStorageHealth,
+  CLOUD_BUILD,
+  captureStorageContext,
+  loadBackupSnapshot,
   importSales,
   loadDemoSales,
   removeDemoSales,
@@ -124,7 +127,7 @@ export interface SettingsPageProps {
   sales: Sale[];
   auditEvents: AuditEvent[];
   settings: ProfileSettings;
-  onSaveSettings: (settings: ProfileSettings) => Promise<void>;
+  onSaveSettings: (settings: ProfileSettings) => Promise<ProfileSettings>;
   onRefresh: () => Promise<void>;
   onBackupExported: () => Promise<void>;
   onDirtyChange: (dirty: boolean) => void;
@@ -153,13 +156,6 @@ type SettingsCategory = "profile" | "schedule" | "pay-plan" | "bonuses" | "data"
 interface SettingsValidationIssue {
   field: SettingsFieldKey;
   message: string;
-}
-
-interface LocalSettingsDraft {
-  value: ProfileSettings;
-  baseValue: ProfileSettings;
-  baseComparable: string;
-  numberText: SettingsNumberText;
 }
 
 interface SettingsDisclosureProps {
@@ -247,23 +243,6 @@ function categoryForValidationField(field: SettingsFieldKey): SettingsCategory {
   return "profile";
 }
 
-function comparableSettingsDraft(settings: ProfileSettings): string {
-  return JSON.stringify({
-    salespersonName: settings.salespersonName,
-    storeName: settings.storeName,
-    monthlyGoal: settings.monthlyGoal,
-    monthlyCommissionGoalCents: settings.monthlyCommissionGoalCents,
-    deliveryGoalsByMonth: Object.fromEntries(
-      Object.entries(settings.deliveryGoalsByMonth ?? {}).sort(([a], [b]) => a.localeCompare(b)),
-    ),
-    commissionGoalsByMonth: Object.fromEntries(
-      Object.entries(settings.commissionGoalsByMonth ?? {}).sort(([a], [b]) => a.localeCompare(b)),
-    ),
-    daysOffByMonth: normalizeDaysOffByMonth(settings.daysOffByMonth),
-    payPlan: settings.payPlan,
-  });
-}
-
 function settingsErrorId(field: SettingsFieldKey): string {
   return `settings-${field.replace(/([A-Z])/g, "-$1").toLowerCase()}-error`;
 }
@@ -335,11 +314,15 @@ export function SettingsPage({
   automaticBackup,
   initialSection,
 }: SettingsPageProps) {
+  const toast = useWorkspaceToast();
   const [localDraft, setLocalDraft] = useState<LocalSettingsDraft | null>(null);
   const [bonusRowIdentity] = useState(createBonusRowIdentity);
   const draft = localDraft?.value ?? settings;
   bonusRowIdentity.snapshot(draft.payPlan.bonusTiers);
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveFailure, setSaveFailure] = useState<{ key: string; message: string } | null>(null);
+  const saveSettingsRef = useRef<(background?: boolean) => Promise<void>>(async () => {});
   const [storageHealth, setStorageHealth] = useState<StorageHealth>({
     usageBytes: null,
     quotaBytes: null,
@@ -483,6 +466,12 @@ export function SettingsPage({
       };
     }
   }, [normalizedDraftPayPlan, sales, settings, hasInvalidPlanNumber]);
+  const hasBackgroundValidationIssue = !draft.salespersonName.trim()
+    || numberValidationIssues.length > 0
+    || !Number.isInteger(selectedDeliveryGoal) || selectedDeliveryGoal < 1 || selectedDeliveryGoal > 100
+    || (selectedCommissionGoalCents !== null && (!Number.isInteger(selectedCommissionGoalCents)
+      || selectedCommissionGoalCents < 100 || selectedCommissionGoalCents > 100_000_000))
+    || !payPlanImpact.valid;
 
   useEffect(() => {
     // Storage estimates are optional; unavailable browser APIs must not reject
@@ -556,6 +545,7 @@ export function SettingsPage({
 
   function updateNumber(field: SettingsNumberField, text: string, normalize = false) {
     if (!normalize) clearValidationFor([field]);
+    if (!normalize) setSaveFailure(null);
     const parsed = parseSettingsNumber(field, text);
     setLocalDraft((current) => {
       const previous = current?.value ?? settings;
@@ -589,6 +579,7 @@ export function SettingsPage({
   }
 
   function updateDraft<Key extends keyof ProfileSettings>(key: Key, value: ProfileSettings[Key]) {
+    setSaveFailure(null);
     if (key === "salespersonName") clearValidationFor(["salespersonName"]);
     if (key === "monthlyGoal" || key === "deliveryGoalsByMonth") {
       clearValidationFor(["monthlyGoal"]);
@@ -642,6 +633,7 @@ export function SettingsPage({
     key: Key,
     value: ProfileSettings["payPlan"][Key],
   ) {
+    setSaveFailure(null);
     const validationFields: SettingsFieldKey[] =
       key === "version" ? ["payPlanVersion"]
         : key === "effectiveMonth" ? ["payPlanEffectiveMonth"]
@@ -673,14 +665,14 @@ export function SettingsPage({
     });
   }
 
-  async function saveSettings() {
-    if (isSaving) return;
+  async function saveSettings(background = false) {
+    if (savingRef.current) return;
     if (externalSettingsChange) {
-      toast.error("Settings changed in another tab. Load the latest settings before saving.");
+      if (!background) toast.error("Settings changed in another tab. Load the latest settings before saving.");
       return;
     }
     // Canonicalize valid visible text even when a different field blocks saving.
-    setLocalDraft((current) => current ? settleDraft({
+    if (!background) setLocalDraft((current) => current ? settleDraft({
       ...current,
       numberText: Object.fromEntries(Object.entries(current.numberText).map(([field, text]) => {
         const parsed = parseSettingsNumber(field as SettingsNumberField, text ?? "");
@@ -727,6 +719,10 @@ export function SettingsPage({
       });
     });
     if (nextValidationIssues.length) {
+      if (background) {
+        setValidationIssues(nextValidationIssues);
+        return;
+      }
       setValidationIssues(nextValidationIssues);
       const firstInvalidField = nextValidationIssues[0].field;
       setActiveCategory(categoryForValidationField(firstInvalidField));
@@ -741,7 +737,10 @@ export function SettingsPage({
       return;
     }
     setValidationIssues([]);
+    savingRef.current = true;
     setIsSaving(true);
+    const submitted = draft;
+    const attemptKey = JSON.stringify(localDraft);
     try {
       const payPlanHistory = upsertPayPlan(getPayPlanSchedule(settings), normalizedPayPlan);
       const next = {
@@ -756,18 +755,33 @@ export function SettingsPage({
         payPlan: payPlanHistory.at(-1) ?? normalizedPayPlan,
         payPlanHistory,
       };
-      await onSaveSettings(next);
-      setLocalDraft(null);
-      toast.success("Settings saved and calculations refreshed.");
-    } catch {
-      toast.error(
-        "Settings were not saved. Your changes are still here. Load the latest settings if another tab changed them, then try again.",
-      );
+      const committed = await onSaveSettings(next);
+      setLocalDraft((current) => current ? settleDraft(rebaseSettingsAfterSave(current, submitted, committed)) : null);
+      setSaveFailure(null);
+      if (!background) toast.success("Settings saved and calculations refreshed.");
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Settings were not saved. Your changes are still here. Try again when connected.";
+      setSaveFailure({ key: attemptKey, message });
+      if (!background) toast.error(message);
     } finally {
+      savingRef.current = false;
       setIsSaving(false);
     }
   }
 
+  useEffect(() => { saveSettingsRef.current = saveSettings; });
+  useEffect(() => {
+    if (!localDraft || isSaving || externalSettingsChange
+      || comparableSettingsDraft(localDraft.value) === localDraft.baseComparable
+      || saveFailure?.key === JSON.stringify(localDraft)) return;
+    const timer = window.setTimeout(() => void saveSettingsRef.current(true), 1200);
+    return () => window.clearTimeout(timer);
+  }, [localDraft, isSaving, externalSettingsChange, hasBackgroundValidationIssue, saveFailure]);
+  useEffect(() => {
+    const retry = () => setSaveFailure(null);
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, []);
   function fieldError(field: SettingsFieldKey): string | undefined {
     return validationIssues.find((issue) => issue.field === field)?.message;
   }
@@ -775,6 +789,7 @@ export function SettingsPage({
   function loadLatestSettings() {
     setLocalDraft(null);
     setValidationIssues([]);
+    setSaveFailure(null);
     toast.info("Latest settings loaded.");
   }
 
@@ -784,8 +799,12 @@ export function SettingsPage({
       return null;
     }
     try {
-      const fileName = await downloadBackup(settings, sales, auditEvents);
-      await onBackupExported();
+      const assertCurrent = captureStorageContext();
+      const fileName = await exportWorkspaceBackup({
+        loadSnapshot: () => CLOUD_BUILD ? loadBackupSnapshot() : { settings, sales, auditEvents },
+        assertCurrent,
+        onExported: onBackupExported,
+      });
       toast.success("Verified full backup download started. Confirm the file was saved.");
       return fileName;
     } catch (caught) {
@@ -929,11 +948,14 @@ export function SettingsPage({
       );
       await onRefresh();
       const restoredDetail = result.restored > 0 ? ` ${result.restored} previously removed record${result.restored === 1 ? " was" : "s were"} restored.` : "";
-      toast.success(`${DEMO_DATASET_TITLE} demonstration loaded. ${demoRangeDescription(asOfDate)} · fictional records only.${restoredDetail}`);
+      toast.success(demoSalesCount > 0 ? "Sample data reset." : IS_PUBLIC_DEMO_BUILD ? "Sample history loaded." : `${DEMO_DATASET_TITLE} demo loaded.`, {
+        description: `${demoRangeDescription(asOfDate)} · fictional sales only.${restoredDetail}`,
+      });
     } catch (error) {
+      const demoName = IS_PUBLIC_DEMO_BUILD ? "sample history" : `${DEMO_DATASET_LABEL} demo`;
       toast.error(error instanceof Error
-        ? `Could not load the ${DEMO_DATASET_LABEL} demo: ${error.message}`
-        : `Could not load the ${DEMO_DATASET_LABEL} demo.`);
+        ? `Could not load the ${demoName}: ${error.message}`
+        : `Could not load the ${demoName}.`);
     }
   }
 
@@ -947,7 +969,7 @@ export function SettingsPage({
       const removed = await removeDemoSales();
       await onRefresh();
       setRemoveDemoOpen(false);
-      toast.success(`${removed} demonstration sales removed.`);
+      toast.success(`${removed} sample ${removed === 1 ? "sale" : "sales"} removed.`);
     } catch {
       toast.error("Demo removal could not be completed. Reload to check saved sales before trying again.");
     } finally {
@@ -995,7 +1017,7 @@ export function SettingsPage({
     },
     {
       id: "data",
-      label: "Data & backups",
+      label: CLOUD_BUILD ? "Cloud saving" : "Data & backups",
       description: `${activeSales.length.toLocaleString()} active sales`,
       icon: <Database />,
     },
@@ -1006,15 +1028,18 @@ export function SettingsPage({
       <PageHeading
         eyebrow="Personal workspace"
         title="Settings"
-        description="Manage your goals, schedule, pay plan, and backups."
-        action={<Button onClick={() => void saveSettings()} disabled={isSaving || externalSettingsChange}><Save aria-hidden="true" /> {isSaving ? "Saving…" : "Save settings"}</Button>}
+        description={CLOUD_BUILD ? "Manage your goals, schedule, pay plan, and cloud saving." : "Manage your goals, schedule, pay plan, and backups."}
+        action={<Button variant="outline" size="sm" onClick={() => void saveSettings()} disabled={!isDirty || isSaving || externalSettingsChange}><Save aria-hidden="true" /> {isSaving ? "Saving…" : localDraft && saveFailure ? "Try saving again" : "Save settings"}</Button>}
       />
-      {isDirty ? (
-        <Button className="settings-mobile-save" onClick={() => void saveSettings()} disabled={isSaving || externalSettingsChange}>
-          <Save aria-hidden="true" /> {isSaving ? "Saving…" : "Save settings"}
-        </Button>
-      ) : null}
-      {isDirty ? <p className="settings-dirty-state" role="status">Unsaved settings changes — save before backup, import, restore, or demo actions.</p> : null}
+      {isDirty ? <Button className="settings-mobile-save" variant="outline" onClick={() => void saveSettings()} disabled={isSaving || externalSettingsChange}>
+        <Save aria-hidden="true" /> {isSaving ? "Saving…" : localDraft && saveFailure ? "Try saving again" : "Save settings"}
+      </Button> : null}
+      <p className="settings-dirty-state" role="status" aria-live="polite">
+        {isSaving ? "Saving changes…" : externalSettingsChange ? "Saving paused — review the newer settings below."
+          : localDraft && saveFailure ? `Not saved yet. ${saveFailure.message}`
+          : localDraft && hasBackgroundValidationIssue ? "Finish the highlighted setting before it can be saved."
+          : isDirty ? "Changes save automatically when you finish typing." : "All changes saved. Settings save automatically."}
+      </p>
       {externalSettingsChange ? (
         <div className="form-summary-error settings-external-change" role="alert">
           <AlertTriangle aria-hidden="true" />
@@ -1426,11 +1451,19 @@ export function SettingsPage({
         <SettingsDisclosure
           sectionRef={dataDetailsRef}
           className="data-settings"
-          title="Data & backups"
-          description="Backup, restore, import, and privacy"
-          summary={`${activeSales.length.toLocaleString()} active sales · ${settings.lastBackupAt ? "backup recorded" : "backup recommended"}`}
+          title={CLOUD_BUILD ? "Cloud saving" : "Data & backups"}
+          description={CLOUD_BUILD ? "Your account, saving, and recovery" : "Backup, restore, import, and privacy"}
+          summary={CLOUD_BUILD ? `${activeSales.length.toLocaleString()} active sales · Account storage` : `${activeSales.length.toLocaleString()} active sales · ${settings.lastBackupAt ? "backup recorded" : "backup recommended"}`}
           icon={<Database />}
         >
+          {CLOUD_BUILD ? <div className="cloud-data-copy">
+            <p><strong>Save here. Open it on your next computer.</strong></p>
+            <p>Saved sales and settings are stored with your signed-in account. No folder connection or manual upload is needed. Use the same account on another device.</p>
+            <p>This pilot needs an internet connection to save. If saving fails, keep your entries open and reconnect. A saved message appears only after the cloud accepts the change.</p>
+            <p>Accidentally deleted a sale? Open <strong>Sales → Recently deleted</strong> to restore it. Earlier sale revisions are retained for owner-assisted recovery. Scheduled disaster-recovery backups are not enabled in this pilot.</p>
+            <p>Your ledger is separate from other salespeople’s ledgers. The app owner can administer stored records. Importing an existing ledger will be a separate, reviewed step.</p>
+            <Button variant="outline" disabled={isDirty} onClick={() => void exportBackup()}><FileJson aria-hidden="true" /> Download a copy</Button>
+          </div> : <>
           <div className="storage-card">
             <span className="storage-card__icon"><HardDrive aria-hidden="true" /></span>
             <span>
@@ -1475,19 +1508,19 @@ export function SettingsPage({
           <input ref={legacyInputRef} className="sr-only" type="file" tabIndex={-1} aria-label="Select an Excel or CSV sales file to import" accept=".xlsx,.xls,.csv" onChange={(event) => void handleLegacyFile(event)} />
           <input ref={backupInputRef} className="sr-only" type="file" tabIndex={-1} aria-label="Select a Sales Ledger backup file to restore" accept="application/json,.json" onChange={(event) => void handleBackupFile(event)} />
 
-          {activeSales.length === 0 || demoSalesCount > 0 ? (
+          {!CLOUD_BUILD && (activeSales.length === 0 || demoSalesCount > 0) ? (
             <div className="demo-data-callout">
               <Sparkles aria-hidden="true" />
               <span>
-                <strong>{demoSalesCount > 0 ? `${demoSalesCount} fictional demonstration sales are loaded` : "Want to explore before entering real sales?"}</strong>
-                <small>{demoSalesCount > 0 ? `${demoRangeDescription()} · remove only the demo records when training is finished; your real sales stay in place.` : `Load a clearly labeled ${DEMO_DATASET_LABEL} walkthrough with delivered, pending, F&I, bonus, and pacing examples.`}</small>
+                <strong>{demoSalesCount > 0 ? `${IS_PUBLIC_DEMO_BUILD ? "Sample history" : "Demo data"}: ${demoSalesCount} fictional sales` : "Want to explore before entering real sales?"}</strong>
+                <small>{demoSalesCount > 0 ? `${demoRangeDescription()} · Reset restores the original sample sales. Sales you entered stay unchanged.` : IS_PUBLIC_DEMO_BUILD ? `Load fictional sales from ${demoRangeDescription()} with commissions, F&I, pacing, and milestones.` : `Load a clearly labeled ${DEMO_DATASET_LABEL} walkthrough with delivered, pending, F&I, bonus, and pacing examples.`}</small>
               </span>
               {demoSalesCount > 0
                 ? <>
-                    <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}><Sparkles aria-hidden="true" /> Refresh {DEMO_DATASET_LABEL} demo</Button>
-                    <Button variant="outline" disabled={isDirty} onClick={() => setRemoveDemoOpen(true)}><Trash2 aria-hidden="true" /> Remove demo data</Button>
+                    <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}><RotateCcw aria-hidden="true" /> {IS_PUBLIC_DEMO_BUILD ? "Reset sample data" : `Reset ${DEMO_DATASET_LABEL} demo`}</Button>
+                    <Button variant="outline" disabled={isDirty} onClick={() => setRemoveDemoOpen(true)}><Trash2 aria-hidden="true" /> Remove sample data</Button>
                   </>
-                : <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}>Load {DEMO_DATASET_LABEL} demo</Button>}
+                : <Button variant="outline" disabled={isDirty} onClick={() => void loadDemo()}>{IS_PUBLIC_DEMO_BUILD ? "Load sample history" : `Load ${DEMO_DATASET_LABEL} demo`}</Button>}
             </div>
           ) : null}
 
@@ -1498,6 +1531,7 @@ export function SettingsPage({
               <small>{settings.lastBackupAt ? new Date(settings.lastBackupAt).toLocaleString("en-US") : "No backup download recorded yet"}</small>
             </span>
           </div>
+          </>}
         </SettingsDisclosure>
 
         <SettingsSecondaryDisclosure
@@ -1531,7 +1565,7 @@ export function SettingsPage({
         <SettingsSecondaryDisclosure
           className="activity-settings"
           title="Recent changes"
-          description="Changes saved in this browser"
+          description={CLOUD_BUILD ? "Changes saved to your cloud account" : "Changes saved in this browser"}
           summary={auditEvents.length ? `${Math.min(auditEvents.length, 8)} recent events` : "No activity yet"}
           icon={<History />}
         >
@@ -1553,7 +1587,7 @@ export function SettingsPage({
 
         <section className="about-strip">
           <span><Info aria-hidden="true" /> Sales Ledger</span>
-          <span>Saved in this browser · Works offline after the first load</span>
+          <span>{CLOUD_BUILD ? "Cloud pilot · Internet connection required to save" : "Saved in this browser · Works offline after the first load"}</span>
         </section>
           </div>
         </div>
@@ -1631,15 +1665,15 @@ export function SettingsPage({
       <Dialog open={removeDemoOpen} onOpenChange={setRemoveDemoOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remove demonstration data?</DialogTitle>
+            <DialogTitle>Remove sample data?</DialogTitle>
             <DialogDescription>
-              This moves {demoSalesCount} fictional demonstration records out of active views. Real and imported sales are not touched.
+              This removes {demoSalesCount} fictional sample {demoSalesCount === 1 ? "sale" : "sales"} from totals and reports. Sales you entered or imported stay unchanged.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRemoveDemoOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={() => void removeDemo()} disabled={isImporting}>
-              <Trash2 aria-hidden="true" /> {isImporting ? "Removing…" : "Remove demo data"}
+              <Trash2 aria-hidden="true" /> {isImporting ? "Removing…" : "Remove sample data"}
             </Button>
           </DialogFooter>
         </DialogContent>

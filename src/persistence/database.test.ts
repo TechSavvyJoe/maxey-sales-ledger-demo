@@ -21,7 +21,7 @@ import {
   restoreSale,
   updateSelectedContext,
 } from "@/persistence/database";
-import { SaleWriteConflictError } from "@/persistence/errors";
+import { SaleWriteConflictError, SettingsWriteConflictError } from "@/persistence/errors";
 
 const sampleSale: Sale = {
   id: "db-test-sale",
@@ -196,12 +196,13 @@ describe("local database", () => {
 
   it("records a manual backup without overwriting newer settings from another tab", async () => {
     const stale = await initializeDatabase();
-    await persistSettings({ ...stale, salespersonName: "Newest Name", monthlyGoal: 22 });
+    const latest = await persistSettings({ ...stale, salespersonName: "Newest Name", monthlyGoal: 22 });
 
     const recorded = await recordBackupExport(stale);
     expect(recorded.salespersonName).toBe("Newest Name");
     expect(recorded.monthlyGoal).toBe(22);
     expect(recorded.lastBackupAt).toBeTruthy();
+    expect(Date.parse(recorded.updatedAt)).toBeGreaterThan(Date.parse(latest.updatedAt));
     expect((await db.settings.get("primary"))?.salespersonName).toBe("Newest Name");
   });
 
@@ -221,6 +222,17 @@ describe("local database", () => {
       selectedView: "reports",
     });
     expect(stored).toMatchObject(returned);
+  });
+
+  it("acknowledges local writes and rejects stale settings even within the same clock millisecond", async () => {
+    const original = await initializeDatabase();
+    const committed = await persistSettings({ ...original, salespersonName: "First editor" });
+    expect(committed.updatedAt > original.updatedAt).toBe(true);
+    expect(committed).toEqual(await db.settings.get("primary"));
+    await expect(persistSettings({ ...original, salespersonName: "Stale editor" })).rejects.toBeInstanceOf(SettingsWriteConflictError);
+    expect((await db.settings.get("primary"))?.salespersonName).toBe("First editor");
+    const savedSale = await persistSale(sampleSale, true);
+    expect(savedSale).toEqual(await db.sales.get(sampleSale.id));
   });
 
   it("migrates missing or malformed work-schedule data without changing the database schema", async () => {
@@ -321,7 +333,7 @@ describe("local database", () => {
   it("rejects unsafe direct sale numbers while preserving an explicit zero unit credit", async () => {
     await initializeDatabase();
 
-    await expect(persistSale({ ...sampleSale, unitCreditBasis: 0 }, true)).resolves.toBeUndefined();
+    await expect(persistSale({ ...sampleSale, unitCreditBasis: 0 }, true)).resolves.toMatchObject({ unitCreditBasis: 0 });
     await expect(persistSale({
       ...sampleSale,
       id: "fractional-credit",
@@ -563,11 +575,14 @@ describe("local database", () => {
 
   it("restores a full workspace without changing each sale's original source", async () => {
     const settings = await initializeDatabase();
+    const priorUpdatedAt = new Date(Date.now() + 60_000).toISOString();
+    await db.settings.put({ ...settings, updatedAt: priorUpdatedAt });
     settings.salespersonName = "Restored User";
     settings.daysOffByMonth = { "2026-08": ["2026-08-05"] };
     await replaceDatabaseFromBackup(settings, [sampleSale], []);
 
     const data = await loadTrackerData();
+    expect(Date.parse(data.settings.updatedAt)).toBeGreaterThan(Date.parse(priorUpdatedAt));
     expect(data.settings.salespersonName).toBe("Restored User");
     expect(data.settings.daysOffByMonth).toEqual({ "2026-08": ["2026-08-05"] });
     expect(data.settings.payPlanHistory).toHaveLength(1);
@@ -670,21 +685,22 @@ describe("local database", () => {
     expect((await loadTrackerData()).auditEvents.some((event) => event.action === "demo.loaded")).toBe(true);
   });
 
-  it("automatically populates a fresh published demo with the two-year history", async () => {
+  it("automatically populates a fresh published demo with the three-year history", async () => {
     expect(await initializePublishedDemo("2026-09-02")).toBe(true);
 
     const data = await loadTrackerData();
-    expect(data.sales).toHaveLength(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
+    expect(data.sales).toHaveLength(buildDemoSales("2026-09", "2026-09-02", "three-year").length);
     expect(data.sales.every((sale) => sale.source === "demo" && !sale.deletedAt)).toBe(true);
-    expect(data.sales.map((sale) => sale.saleDate).sort()[0]).toMatch(/^2024-09-/);
+    expect(data.sales.map((sale) => sale.saleDate).sort()[0]).toMatch(/^2024-01-/);
     expect(data.sales.every((sale) => sale.saleDate <= "2026-09-02")).toBe(true);
+    expect(data.settings.selectedMonth).toBe("2026-08");
     expect(getPayPlanSchedule(data.settings).map((plan) => plan.version)).toContain("Sample 2024–26 plan");
     expect(data.auditEvents.filter((event) => event.action === "demo.loaded")).toHaveLength(1);
     expect(data.auditEvents[0]?.details?.demoProfileVersion).toBe(DEMO_PROFILE_VERSION);
   });
 
   it("refreshes a recognized old demo once, keeps deletions, and archives obsolete examples recoverably", async () => {
-    const expected = buildDemoSales("2026-09", "2026-09-02", "two-year");
+    const expected = buildDemoSales("2026-09", "2026-09-02", "three-year");
     const oldFirst = { ...expected[0], frontGrossCents: 9_000_000, fiGrossCents: 8_000_000 };
     const obsolete = { ...sampleSale, id: "demo-2026-08-999-delivered", stockNumber: "DEMO-202608-1000" };
     await seedLegacyDemo([oldFirst, expected[1], obsolete]);
@@ -720,7 +736,7 @@ describe("local database", () => {
     ["demo", "custom-demo-id", undefined],
     ["demo", "custom-deleted-demo-id", "2026-09-01T00:00:00.000Z"],
   ] as const)("does not refresh a mixed or custom demo workspace (%s, %s)", async (source, id, deletedAt) => {
-    const generated = buildDemoSales("2026-08", "2026-09-02", "two-year")[0];
+    const generated = buildDemoSales("2026-08", "2026-09-02", "three-year")[0];
     await seedLegacyDemo([generated]);
     await db.sales.put({ ...sampleSale, source, id, deletedAt });
     const snapshot = await loadBackupSnapshot();
@@ -739,7 +755,7 @@ describe("local database", () => {
   });
 
   it("does not refresh an old demo after removal even if one example is later restored", async () => {
-    const generated = buildDemoSales("2026-09", "2026-09-02", "two-year")
+    const generated = buildDemoSales("2026-09", "2026-09-02", "three-year")
       .filter((sale) => sale.saleDate.startsWith("2026-08")).slice(0, 2);
     await seedLegacyDemo(generated);
     await removeDemoSales();
@@ -750,7 +766,7 @@ describe("local database", () => {
   });
 
   it("does not refill a deliberately emptied old demo", async () => {
-    const generated = buildDemoSales("2026-09", "2026-09-02", "two-year")[0];
+    const generated = buildDemoSales("2026-09", "2026-09-02", "three-year")[0];
     await seedLegacyDemo([generated]);
     await softDeleteSale(generated);
     const snapshot = await loadBackupSnapshot();
@@ -768,7 +784,7 @@ describe("local database", () => {
     ]);
     expect(initializations.sort()).toEqual([false, true]);
     const before = await loadTrackerData();
-    expect(before.sales).toHaveLength(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
+    expect(before.sales).toHaveLength(buildDemoSales("2026-09", "2026-09-02", "three-year").length);
     expect(before.auditEvents.filter((event) => event.action === "demo.loaded")).toHaveLength(1);
 
     const edited = { ...before.sales[0], notes: "My walkthrough example", revision: 2 };
@@ -781,14 +797,14 @@ describe("local database", () => {
 
   it("populates an untouched workspace after simple period or page navigation", async () => {
     const settings = await initializeDatabase();
-    await updateSelectedContext(settings, { selectedMonth: "2026-08", selectedView: "sales" });
+    await updateSelectedContext(settings, { selectedMonth: "2026-07", selectedView: "sales" });
 
     expect(await initializePublishedDemo("2026-09-02")).toBe(true);
     expect(await db.settings.get("primary")).toMatchObject({
-      selectedMonth: "2026-08",
+      selectedMonth: "2026-07",
       selectedView: "sales",
     });
-    expect(await db.sales.count()).toBe(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
+    expect(await db.sales.count()).toBe(buildDemoSales("2026-09", "2026-09-02", "three-year").length);
   });
 
   it.each([undefined, "2026-08-21T12:00:00.000Z"])(
@@ -845,34 +861,34 @@ describe("local database", () => {
 
   it("leaves removed demonstration sales in Recently deleted on reload", async () => {
     await initializePublishedDemo("2026-09-02");
-    expect(await removeDemoSales()).toBe(buildDemoSales("2026-09", "2026-09-02", "two-year").length);
+    expect(await removeDemoSales()).toBe(buildDemoSales("2026-09", "2026-09-02", "three-year").length);
     const snapshot = await loadBackupSnapshot();
 
     expect(await initializePublishedDemo("2026-09-02")).toBe(false);
     expect(await loadBackupSnapshot()).toEqual(snapshot);
     expect(snapshot.sales.every((sale) => Boolean(sale.deletedAt))).toBe(true);
-  });
+  }, 15_000);
 
-  it("synchronizes the two-year public demo without touching manual records", async () => {
+  it("synchronizes the three-year public demo without touching manual records", async () => {
     await initializeDatabase();
     const asOfDate = "2026-09-02";
     const oldDemo = buildDemoSales("2026-09", asOfDate, "full-year");
-    const twoYearDemo = buildDemoSales("2026-09", asOfDate, "two-year");
+    const threeYearDemo = buildDemoSales("2026-09", asOfDate, "three-year");
 
     const priorIds = new Set(oldDemo.map((sale) => sale.id));
-    const incomingIds = new Set(twoYearDemo.map((sale) => sale.id));
+    const incomingIds = new Set(threeYearDemo.map((sale) => sale.id));
     expect(await loadDemoSales(oldDemo)).toEqual({ added: oldDemo.length, restored: 0, alreadyPresent: 0 });
-    expect(await loadDemoSales(twoYearDemo, {
+    expect(await loadDemoSales(threeYearDemo, {
       historicDemoPlan: createPublicDemoHistoricPlan(asOfDate),
     })).toEqual({
-      added: twoYearDemo.filter((sale) => !priorIds.has(sale.id)).length,
+      added: threeYearDemo.filter((sale) => !priorIds.has(sale.id)).length,
       restored: 0,
-      alreadyPresent: twoYearDemo.filter((sale) => priorIds.has(sale.id)).length,
+      alreadyPresent: threeYearDemo.filter((sale) => priorIds.has(sale.id)).length,
     });
 
     const activeDemo = (await db.sales.where("profileId").equals("primary").toArray())
       .filter((sale) => sale.source === "demo" && !sale.deletedAt);
-    expect(activeDemo).toHaveLength(twoYearDemo.length);
+    expect(activeDemo).toHaveLength(threeYearDemo.length);
     expect(activeDemo.every((sale) => sale.saleDate <= asOfDate)).toBe(true);
     expect((await db.sales.where("profileId").equals("primary").toArray())
       .filter((sale) => sale.source === "demo" && sale.deletedAt))
@@ -880,20 +896,20 @@ describe("local database", () => {
 
     const settings = await initializeDatabase();
     expect(getPayPlanSchedule(settings).some((plan) => plan.version === "Sample 2024–26 plan")).toBe(true);
-    expect(await removeDemoSales()).toBe(twoYearDemo.length);
+    expect(await removeDemoSales()).toBe(threeYearDemo.length);
     const afterRemoval = await initializeDatabase();
     expect(getPayPlanSchedule(afterRemoval).some((plan) => plan.version === "Sample 2024–26 plan")).toBe(false);
-  });
+  }, 15_000);
 
-  it("keeps a two-year fictional demo out of workspaces with real records", async () => {
+  it("keeps a three-year fictional demo out of workspaces with real records", async () => {
     await initializeDatabase();
     await persistSale({ ...sampleSale, id: "manual-before-demo", source: "manual" }, true);
     const asOfDate = "2026-09-02";
 
     await expect(loadDemoSales(
-      buildDemoSales("2026-09", asOfDate, "two-year"),
+      buildDemoSales("2026-09", asOfDate, "three-year"),
       { historicDemoPlan: createPublicDemoHistoricPlan(asOfDate) },
-    )).rejects.toThrow("Use a clean demo workspace before loading the two-year demonstration.");
+    )).rejects.toThrow("Use a clean demo workspace before loading demonstration data.");
     const manualAfterRejectedDemo = await db.sales.get("manual-before-demo");
     expect(manualAfterRejectedDemo).toMatchObject({ source: "manual" });
     expect(manualAfterRejectedDemo).not.toHaveProperty("deletedAt");

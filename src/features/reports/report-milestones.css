@@ -1,0 +1,172 @@
+.reports-page .report-milestone-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: #765019;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.reports-page .report-milestone-indicator svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+}
+
+.reports-page .report-milestones {
+  container-type: inline-size;
+  min-width: 0;
+  margin-top: 14px;
+  border: 1px solid var(--report-line);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.report-milestones__header {
+  padding: 16px;
+  border-bottom: 1px solid var(--report-line);
+}
+
+.report-milestones__header h2 {
+  margin: 0;
+  color: var(--report-ink);
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+.report-milestones__header p,
+.report-milestones__note,
+.report-milestones__empty {
+  margin: 6px 0 0;
+  color: var(--report-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.report-milestones__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-milestone-row {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  padding: 16px;
+}
+
+.report-milestone-row + .report-milestone-row {
+  border-top: 1px solid var(--report-line);
+}
+
+.report-milestone-row__identity,
+.report-milestone-row__amounts > div {
+  min-width: 0;
+}
+
+.report-milestone-row__level,
+.report-milestone-row__meta {
+  display: block;
+  color: var(--report-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.report-milestone-row__level {
+  color: #765019;
+  font-weight: 650;
+}
+
+.report-milestone-open {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.report-milestone-open:hover .report-sale-identity__primary {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.report-milestone-open:focus-visible {
+  outline: 3px solid #2575bd;
+  outline-offset: 3px;
+}
+
+.report-milestone-row__amounts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.report-milestone-row__amounts dt,
+.report-milestone-row__amounts small {
+  display: block;
+  color: var(--report-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.report-milestone-row__amounts dd {
+  margin: 4px 0;
+  color: var(--report-ink);
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.report-milestone-row__amounts dd small {
+  margin-top: 4px;
+  font-weight: 400;
+}
+
+.report-milestone-row__impact {
+  border-left: 2px solid var(--report-line);
+  padding-left: 12px;
+}
+
+.report-milestone-row__partial {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #805018;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.report-milestones__note,
+.report-milestones__empty {
+  margin: 0;
+  padding: 12px 16px;
+}
+
+.report-milestones__note {
+  border-top: 1px solid var(--report-line);
+  background: #f7f9fb;
+}
+
+@container (min-width: 720px) {
+  .report-milestone-row {
+    grid-template-columns: minmax(210px, 2fr) minmax(0, 3fr);
+    align-items: center;
+    gap: 12px 24px;
+  }
+}
+
+@media print {
+  .report-milestone-row { break-inside: avoid; }
+}

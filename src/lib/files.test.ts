@@ -72,7 +72,7 @@ describe("JSON backup validation", () => {
     const privateCsv = createMonthlyCsvContent([sale], settings, "2026-08", false);
     expect(privateCsv).toContain('"Total F&I Gross"');
     expect(privateCsv).toContain('"Service Contract / Warranty Sold"');
-    expect(privateCsv).toContain('"Dealer Financed"');
+    expect(privateCsv).toContain('"Financed"');
     expect(privateCsv).toContain('"Payment Method"');
     expect(privateCsv).not.toMatch(/credited gross|gross breakdown|unallocated F&I/i);
     expect(privateCsv).not.toContain('"Customer Last Name"');
@@ -130,7 +130,7 @@ describe("JSON backup validation", () => {
       "Service Contract / Warranty Sold": "Yes",
       "Tire & Wheel Sold": "Yes",
       "GAP Sold": "No",
-      "Dealer Financed": "Yes",
+      Financed: "Yes",
       "Payment Method": "Finance",
     });
     expect(JSON.stringify(privateDetail)).not.toMatch(/credited gross|gross breakdown/i);
@@ -168,11 +168,11 @@ describe("JSON backup validation", () => {
       Value: 0.5,
     }));
     expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
-      Metric: "GAP penetration - dealer-financed sales",
+      Metric: "GAP penetration - Finance sales",
       Value: 0,
     }));
     expect(tables.dataQualityRows).toContainEqual(expect.objectContaining({
-      Metric: "Dealer-financed sales (GAP denominator)",
+      Metric: "Finance sales (GAP report base)",
       Value: 1,
     }));
     expect(JSON.stringify(tables)).not.toMatch(/positive.*F&I.*gross/i);
@@ -342,16 +342,21 @@ describe("JSON backup validation", () => {
     const csv = createMonthlyCsvContent(sales, settings, "2026-08", false);
     const csvBook = XLSX.read(csv, { type: "string" });
     const csvRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(csvBook.Sheets[csvBook.SheetNames[0]]);
-    expect(csvRows.map((row) => row["Payment Method"])).toEqual([
-      "Finance", "Cash", "Outside Finance", "Cash / outside not specified", "Not marked",
-    ]);
-    expect(csvRows.map((row) => row["Dealer Financed"])).toEqual(["Yes", "No", "No", "No", "Not marked"]);
-    expect(csvRows[2]).toMatchObject({ "Total F&I Gross": 123.45, "Front Gross": 1000 });
+    // Same-day deliveries have a stable entry-time/id order. Verify each
+    // payment outcome stays attached to its sale, independently of row order.
+    const csvByStock = Object.fromEntries(csvRows.map((row) => [row["Stock Number"], row]));
+    expect(Object.keys(csvByStock).sort()).toEqual(["P-1", "P-2", "P-3", "P-4", "P-5"]);
+    expect(csvByStock["P-1"]).toMatchObject({ "Payment Method": "Finance", Financed: "Yes" });
+    expect(csvByStock["P-2"]).toMatchObject({ "Payment Method": "Cash", Financed: "No", "Total F&I Gross": 0 });
+    expect(csvByStock["P-3"]).toMatchObject({ "Payment Method": "Outside Finance", Financed: "No", "Total F&I Gross": 123.45, "Front Gross": 1000 });
+    expect(csvByStock["P-4"]).toMatchObject({ "Payment Method": "Cash / outside not specified", Financed: "No" });
+    expect(csvByStock["P-5"]).toMatchObject({ "Payment Method": "Not marked", Financed: "Not marked" });
 
     const summary = calculateMonth(sales, "2026-08", getPayPlanSchedule(settings));
     const detail = buildSalesDetailExportRows(summary.calculatedSales, false);
     expect(detail.map((row) => row["Payment Method"])).toEqual(csvRows.map((row) => row["Payment Method"]));
-    expect(detail.map((row) => row["Total F&I Gross"])).toEqual([200, 0, 123.45, "", ""]);
+    expect(Object.fromEntries(detail.map((row) => [row["Stock Number"], row["Total F&I Gross"]])))
+      .toEqual({ "P-1": 200, "P-2": 0, "P-3": 123.45, "P-4": "", "P-5": "" });
     const tables = buildReportAnalyticsExportTables(calculateMonthReportAnalytics(summary));
     expect(tables.financingRows.map((row) => row.Deals)).toEqual([1, 1, 1, 1, 1]);
     expect(tables.financingRows.reduce((sum, row) => sum + Number(row.Deals), 0)).toBe(5);

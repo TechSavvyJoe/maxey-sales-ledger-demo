@@ -65,7 +65,7 @@ test("an existing sale uses the retroactive front rate without including the mon
   await openSaleForm(page, stockNumber);
   await page.getByLabel("Front gross", { exact: true }).fill("2500");
   await page.getByLabel("Total F&I gross", { exact: true }).fill("600");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
 
   // Add fictional peer deliveries only inside this test's isolated database.

@@ -4,8 +4,7 @@ async function setGoal(page: Page, goal: number) {
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel(/delivery goal/).fill(String(goal));
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
 }
 

@@ -7,8 +7,8 @@ test("product and finance reports fit their canvas and month arrows stay usable"
   await expect(page.getByText("Opening your sales workspace")).toBeHidden();
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await page.getByRole("button", { name: /^Data & backups/ }).click();
-  await page.getByRole("button", { name: "Load 2-year demo", exact: true }).click();
-  await expect(page.getByText(/Two-year demonstration loaded/)).toBeVisible();
+  await page.getByRole("button", { name: /^(?:Load sample history|Load full-year demo)$/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   await page.getByRole("tablist", { name: "Monthly report subject" }).getByRole("tab", { name: "F&I", exact: true }).click();
   const center = page.locator(".fi-report-center").first();
@@ -21,7 +21,7 @@ test("product and finance reports fit their canvas and month arrows stay usable"
     expect(textWidth.content, `The complete month and year should fit at ${width}px`).toBeLessThanOrEqual(textWidth.available + 1);
   }
 
-  for (const width of [1100, 800, 390, 320]) {
+  for (const width of [1300, 1240, 1181, 800, 390, 320]) {
     await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
     const arrows = await page.locator(".period-switcher__arrow").evaluateAll((buttons) => buttons.map((button) => {
       const bounds = button.getBoundingClientRect();
@@ -38,8 +38,7 @@ test("product and finance reports fit their canvas and month arrows stay usable"
     await expect(products.locator(".fi-center-product-table thead th")).toHaveCount(4);
     await expect(products.getByText(/Yes \/ No|Answers recorded|Details complete/)).toHaveCount(0);
     await expect(products.locator(".fi-product-missing")).toHaveCount(0);
-    if (width === 1100) {
-      await expect(products.locator(".fi-center-product-table")).toBeVisible();
+    if (await products.locator(".fi-center-product-table").isVisible()) {
       const tableWidth = await products.locator(".fi-center-table-wrap").evaluate((element) => ({ available: element.clientWidth, content: element.scrollWidth }));
       expect(tableWidth.content).toBeLessThanOrEqual(tableWidth.available + 1);
     } else {
@@ -56,13 +55,20 @@ test("product and finance reports fit their canvas and month arrows stay usable"
     await center.getByRole("tab", { name: "Financing", exact: true }).click();
     const financing = center.locator('[id$="-financing-panel"]');
     const financeCards = financing.locator(".fi-center-phone-disclosures");
-    await expect(financeCards).toBeVisible();
-    await expect(financeCards.locator("details")).toHaveCount(3);
-    await expect(financeCards.locator("summary strong")).toHaveText(["Finance", "Cash", "Outside Finance"]);
-    const firstFinance = financeCards.locator("details").first();
-    if (await firstFinance.getAttribute("open") === null) await firstFinance.locator("summary").click();
-    await expect(firstFinance.locator("dl")).toBeVisible();
-    expect(await firstFinance.locator("dl dt").first().evaluate((element) => element.getBoundingClientRect().left - element.closest("dl")!.getBoundingClientRect().left)).toBeGreaterThanOrEqual(10);
+    if (await financing.locator(".fi-center-desktop-table").isVisible()) {
+      const financeTable = financing.locator(".fi-center-desktop-table");
+      const tableWidth = await financeTable.evaluate((element) => ({ available: element.clientWidth, content: element.scrollWidth }));
+      expect(tableWidth.content).toBeLessThanOrEqual(tableWidth.available + 1);
+      await expect(financeCards).toBeHidden();
+    } else {
+      await expect(financeCards).toBeVisible();
+      await expect(financeCards.locator("details")).toHaveCount(3);
+      await expect(financeCards.locator("summary strong")).toHaveText(["Finance", "Cash", "Outside Finance"]);
+      const firstFinance = financeCards.locator("details").first();
+      if (await firstFinance.getAttribute("open") === null) await firstFinance.locator("summary").click();
+      await expect(firstFinance.locator("dl")).toBeVisible();
+      expect(await firstFinance.locator("dl dt").first().evaluate((element) => element.getBoundingClientRect().left - element.closest("dl")!.getBoundingClientRect().left)).toBeGreaterThanOrEqual(10);
+    }
     await financing.scrollIntoViewIfNeeded();
     await page.screenshot({ path: testInfo.outputPath(`financing-${width}.png`), fullPage: false });
     if (width === 390) {

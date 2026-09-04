@@ -21,7 +21,7 @@ test("payment methods save, survive reload, and separate financing reports", asy
       const audit = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"]).analyze();
       expect(audit.violations).toEqual([]);
     }
-    await page.getByRole("button", { name: "Save sale", exact: true }).click();
+    await page.getByRole("button", { name: "Add sale", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
   }
   await page.reload();
@@ -31,7 +31,7 @@ test("payment methods save, survive reload, and separate financing reports", asy
   await expect(page.getByRole("radio", { name: "Outside Finance", exact: true })).toBeChecked();
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("");
   await page.getByLabel("Total F&I gross", { exact: true }).fill("300");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.getByRole("button", { name: "Done", exact: true }).click();
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
   await page.getByRole("tablist", { name: "Monthly report subject" }).getByRole("tab", { name: "F&I", exact: true }).click();
   const center = page.locator(".fi-report-center").first();

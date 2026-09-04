@@ -53,6 +53,8 @@ function calculatedSale({
     normalizedStock: sale.stockNumber,
     monthKey: date.slice(0, 7),
     countsTowardVolume,
+    deliveryOrdinal: countsTowardVolume ? 1 : null,
+    milestone: null,
     commissionReady: countsTowardVolume,
     frontRateBps: 3_000,
     frontCommissionMethod: "percentage",

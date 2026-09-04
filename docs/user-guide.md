@@ -2,23 +2,37 @@
 
 ## Open the app
 
+### Your private cloud account
+
+Open [Sales Ledger](https://maxey-sales-ledger-private.web.app) and choose **Continue with Google**. No installation or Drive connection is needed. If Google is unavailable, choose **Use an email link instead**. The first sign-in needs account approval from the person who shared the app. The page opens your workspace automatically once approved.
+
+Use the same Google account on your computer, tablet or phone to open the same cloud sales and settings. **Remember me on this private device** is optional; leave it off on shared computers and sign out when finished. Signing in does not upload or change sales from the demo or an on-device workspace.
+
+Valid edits to existing sales and settings save in the background after you stop typing. Incomplete sale entries are protected separately as drafts and do not affect commission totals. A new sale stays a draft until you choose **Save sale** or **Save & add another**. Check the editor's save status before closing. **Saved to cloud** means the server acknowledged the change—not just that you typed it.
+
+The cloud app needs an internet connection to save. If a save fails, keep the editor open, reconnect and retry. Closing or refreshing before acknowledgement may lose the newest changes. A draft saved online can reopen from your account; this is not an offline upload queue. Concurrent changes from another device are flagged for review instead of silently overwriting each other.
+
+The folder backup, Google Drive upload, import and restore instructions below apply to **on-device mode only**. In cloud mode, a full download is available, but cloud sync and sale revision history are not an independent disaster-recovery backup.
+
+### On-device app and public demo
+
 For the packaged local app, double-click **Start Maxey Sales Ledger.command** on macOS or **Start Maxey Sales Ledger.cmd** on Windows. Leave that window open while using Sales Ledger. Both starters use the exact address `http://127.0.0.1:4180/`.
 
 Do not open `index.html` directly. If you do, follow the recovery instructions shown on that page.
 
-Always use the same address and the same browser on the same computer. A different address, browser, or computer opens a separate workspace. Move sales between workspaces only with a checked full backup and restore.
+In on-device mode, always use the same address and the same browser on the same computer. A different address, browser, or computer opens a separate workspace. Move sales between on-device workspaces only with a checked full backup and restore.
 
 ## First use
 
 1. Open **Settings** and enter the salesperson name. Set the selected month’s delivery goal and, if useful, its optional commission goal. A saved month can override the profile defaults without changing another month.
 2. Review the pay-plan settings. Milestone bonuses stack into the running monthly total included in Estimated Commission.
-3. In **Work schedule**, open **Choose days off**, select any Monday–Saturday dates you expect to take off, then save. Sundays are already excluded.
-4. Select **Protect saved sales** to ask the browser for extra storage protection.
+3. In **Work schedule**, open **Choose days off**, select any Monday–Saturday dates you expect to take off, and wait for the saved status. Sundays are already excluded. Valid settings save automatically after a short pause; **Save settings** also saves immediately.
+4. **On-device mode only:** select **Protect saved sales** to ask the browser for extra storage protection.
 5. In current desktop Edge or Chrome, select **Automatic backup folder** and choose a private Documents, OneDrive, or already-installed Google Drive folder.
 6. If a synced folder is unavailable, use **Google Drive backup** to create a checked download and open Google Drive for a manual upload.
 7. Download a full backup after entering initial records so the manual recovery path is also confirmed.
 
-For training, **Load demo data** adds clearly labeled fictional sales. The public GitHub Pages link opens with two years of fictional history automatically for a new visitor. Changes and removals stay in that visitor's browser; use **Settings → Refresh 2-year demo** to reload the samples.
+Steps 5–7 above are on-device recovery options; they are not needed to connect a cloud account. For training in on-device mode, **Load demo data** adds clearly labeled fictional sales. The public GitHub Pages link opens with three calendar years of fictional history automatically for a new visitor (January two years ago through today). Changes and removals stay in that visitor's browser; use **Settings → Reset sample data** to restore the walkthrough. The private cloud account starts empty and does not load demo data.
 
 ## Add a sale
 
@@ -37,6 +51,16 @@ Currency fields accept values such as `2500`, `$2,500`, or `2500.00`. Stock numb
 
 Only one total F&I gross amount is stored for the deal. Do not estimate or invent a dollar amount for any individual product or financing outcome. An older record whose outcome was never entered can remain **Not marked** until reviewed.
 
+## See what the next delivery can unlock
+
+The Dashboard's **Next earnings milestone** shows deliveries still needed, the additional bonus at that level, and any higher-rate increase on sales already recorded. Future sales' own commissions are separate. Completed months show the milestones reached.
+
+Milestone sales have a small marker in Sales and Reports. Open the sale to see its regular front/F&I commission and **Extra earnings unlocked**: the rate increase on earlier deliveries plus the added volume bonus. **Milestone impact** combines that sale's commission and those extras. They are already included in the monthly estimate—do not add them again.
+
+For example, after ten sales with $2,300 front and $1,200 F&I gross each, an identical delivery that takes the month over 10 shows $1,045 sale commission + $1,150 increase on the earlier sales + $300 bonus = $2,495 milestone impact. Minis, splits, and manual payouts can change this example. Missing gross is marked as partial and updates when entered.
+
+**Reports → Month → Commission → Milestone earnings** lists the triggering sales. CSV exports include the breakdown; the workbook also has a **Milestone Earnings** sheet. Delivery order uses delivery date then entry order for same-day sales. Editing dates or deleting/restoring sales may move the milestone to another record.
+
 ## Change the month
 
 Use the single period control in the top header:
@@ -53,7 +77,7 @@ The picker will not move before the earliest configured pay-plan month. To enter
 
 ## Review and correct sales
 
-Open **Sales** to search by last name, stock number, or vehicle and filter by status, **Needs attention**, or **Deleted**. Sort by date, customer, attention status, pending status, front gross, F&I gross, or core commission. A filtered view shows its matching totals and one **Clear** action. Product badges show recorded deal outcomes. Select a row to edit it.
+Open **Sales** to search by last name, stock number, or vehicle and filter by status, **Needs attention**, or **Deleted**. Sort by date, customer, attention status, pending status, front gross, F&I gross, or sale commission. A filtered view shows its matching totals and one **Clear** action. Product badges show recorded deal outcomes. Select a row to edit it.
 
 Records may need attention for duplicate delivered stock, missing stock, invalid/future date, missing front gross without a manual payout, a negative F&I correction, or a Pending date that has passed. Zero/negative front gross with a Mini is not an error. Dashboard, Sales, and Reports use the same record-based count. Duplicate delivered records are excluded from delivered count and commission until corrected. Normally edit an existing Pending record to Delivered instead of creating a second record.
 
@@ -83,7 +107,7 @@ When demo records are active, a persistent notice appears above every page. Demo
 Open **Reports** for:
 
 - Monthly detail and commission breakdown
-- A week-by-week selector for the selected month, with one week’s sold count, credited units, gross, core commission, pace-versus-checkpoint, outcome rates, and deals
+- A week-by-week selector for the selected month, with one week’s sold count, credited units, gross, sale commission, pace-versus-checkpoint, outcome rates, and deals
 - The current week’s cumulative checkpoint and the exact number still needed by week end
 - Monthly unit pace, commission projection, and optional earnings-goal progress
 - Selected-year totals and month-by-month results
@@ -101,15 +125,15 @@ The report heading and controls show the active scope. On a narrow screen, cards
 
 The Year view marks future months **Upcoming** and leaves not-yet-meaningful result fields blank. Closed months retain their final recorded estimates; only the active month uses planning projection language.
 
-Outcome reporting keeps **Yes**, **No**, and **Not marked** separate. Service contract/warranty, Tire & Wheel, and GAP are products; Dealer financed is a separate financing outcome. A matching-outcome cohort may sum the one total F&I gross for its deals, with each deal counted once inside that cohort. Because the same deal can match more than one outcome, cohort gross overlaps and must not be added across rows or read as gross earned by an individual product or financing choice.
+Outcome reporting keeps **Yes**, **No**, and **Not marked** separate. Service contract/warranty, Tire & Wheel, and GAP are products; Finance, Cash, and Outside Finance are payment methods. A matching-outcome group may sum the one total F&I gross for its deals, with each deal counted once inside that group. Because the same deal can match more than one product outcome, product-group gross overlaps and must not be added across rows or read as gross earned by an individual product.
 
-Reports use records in this browser profile and remain personal estimates and reconciliation aids. The Payroll report is not an official pay statement, and exporting a report does not send it to payroll or prove approval.
+Reports use records in your signed-in cloud account, or this browser's on-device workspace, depending on the app you opened. They remain personal estimates and reconciliation aids. The Payroll report is not an official pay statement, and exporting a report does not send it to payroll or prove approval.
 
 Turn off **Include customer last names** for a more share-safe report. This option affects Print/PDF, monthly CSV, and Excel only; stock numbers remain included. Browser **Print / Save PDF** creates the PDF and the app does not upload it.
 
 **Private backup** is intentionally separate from the Export menu and opens the Data section in Settings. A full recovery backup always includes last names, deleted rows, gross/payroll values, goals, work schedules, settings, and activity, regardless of the report’s name option.
 
-## Import the prior Excel tracker
+## Import the prior Excel tracker (on-device mode)
 
 Open **Settings → Import prior Excel tracker**, select the workbook, and review added/rejected counts before applying. The importer does not execute macros and ignores workbook commission/calculation columns. It imports displayed values from recognized entry columns, preserves stock text, and recalculates commissions using this app's pay plan. When recognized service-contract/warranty, Tire & Wheel, GAP, or dealer-financing columns exist, their recorded outcomes are imported; missing outcome columns remain **Not marked**, distinct from a confirmed No result.
 
@@ -119,13 +143,13 @@ The goal fields apply to the month selected in the header. Saving an override fo
 
 Before saving a pay-plan change, review **Impact before saving**. It shows the effective date range, the number of saved sale months affected, and the resulting estimated-commission difference across those months. **Saved pay-plan history** preserves the effective-dated schedule, while **Activity** records the plan identity, effective month, rates, and threshold before and after a calculation change. These are local review aids, not an official payroll audit ledger.
 
-## Restore a backup
+## Restore a backup (on-device mode)
 
 Open **Settings → Restore full backup** and review the salesperson, record count, and creation time. Restore replaces the current profile, settings, sales, and activity; it does not merge workspaces. Download a current safety backup, confirm that the file exists and opens, then approve replacement. Original record-source labels and deleted rows are preserved.
 
 If automatic folder backups are on, select **Folder options → Review folder backup** to open the same checked restore preview. Sales Ledger will not silently pull another computer's changes into the current workspace.
 
-## Automatic backup folder
+## Automatic backup folder (on-device mode)
 
 - **Automatic backups on** means Sales Ledger successfully wrote and reread the local recovery file. It does not mean OneDrive or Google Drive finished uploading it.
 - Backups run after completed changes while Sales Ledger is open. Unsaved form or Settings changes are not included.
@@ -134,7 +158,7 @@ If automatic folder backups are on, select **Folder options → Review folder ba
 - **Turn off automatic backups** leaves existing files in the folder and keeps all current sales in the browser.
 - Full recovery files contain last names, gross and commission values, saved days off, deleted records, settings, and activity. Never use a shared Teams or department folder.
 
-## Google Drive backup
+## Google Drive backup (on-device mode)
 
 Select **Settings → Google Drive backup → Save to Google Drive**. Wait for **Backup checked and ready**, then select **Download & open Google Drive**. Google Drive opens in another tab. Sign in there if needed, select **New → File upload**, and choose the exact filename shown by Sales Ledger.
 
@@ -142,6 +166,8 @@ Google handles the account sign-in. Sales Ledger never receives the Google accou
 
 ## Install and offline use
 
-When using an approved secure web address, use the browser's **Install app** or **Add to Home Screen** option. After one successful online load, the app is designed to reopen offline. Export a fresh full backup before browser or device maintenance, and confirm the downloaded file exists before relying on it.
+The private cloud app works from its link without installation and needs an internet connection to open and save your account. It does not promise offline reopening or background upload after the browser closes.
+
+For the on-device app, use the browser's **Install app** or **Add to Home Screen** option if offered. After one successful online load, the on-device app is designed to reopen offline. Export a fresh full backup before browser or device maintenance, and confirm the downloaded file exists before relying on it.
 
 The packaged local starter requires Node.js 22 or newer and must remain open while you use Sales Ledger. A stable secure hosted link is the recommended way to share the app with coworkers because they only need the link; automatic folder backup handles recovery data but does not host or distribute the application itself.

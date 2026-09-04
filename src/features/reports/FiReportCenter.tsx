@@ -1,4 +1,5 @@
-import { useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -21,6 +22,7 @@ import type { CalculatedSale, Sale } from "@/domain/types";
 import { cn } from "@/lib/utils";
 import { PerformanceScorecard } from "./PerformanceScorecard";
 import { MetricGuide } from "./MetricGuide";
+import { ReportMilestoneIndicator } from "./ReportMilestones";
 import "./reports-center.css";
 
 type EvidenceFilter =
@@ -36,6 +38,8 @@ type EvidenceFilter =
   | "fiGrossMissing";
 
 type FiReportView = "overview" | "products" | "financing" | "combinations" | "deals";
+
+const EVIDENCE_PAGE_SIZE = 24;
 
 const FI_REPORT_VIEWS: ReadonlyArray<{ value: FiReportView; label: string }> = [
   { value: "overview", label: "Overview" },
@@ -315,9 +319,26 @@ export function FiReportCenter({
   const Heading = headingLevel === 2 ? "h2" : "h3";
   const idPrefix = useId().replaceAll(":", "");
   const [activeView, setActiveView] = useState<FiReportView>("overview");
+  const [printAllViews, setPrintAllViews] = useState(false);
   const [evidenceFilter, setEvidenceFilter] = useState<EvidenceFilter>("all");
   const [evidenceSearch, setEvidenceSearch] = useState("");
+  const [visibleEvidenceCount, setVisibleEvidenceCount] = useState(EVIDENCE_PAGE_SIZE);
   const evidenceHeadingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    // Printing snapshots the DOM immediately after `beforeprint`. Commit these
+    // transitions synchronously so the snapshot contains every report view and
+    // the interactive screen is restored before `afterprint` returns.
+    const prepareFullReport = () => flushSync(() => setPrintAllViews(true));
+    const restoreInteractiveReport = () => flushSync(() => setPrintAllViews(false));
+
+    window.addEventListener("beforeprint", prepareFullReport);
+    window.addEventListener("afterprint", restoreInteractiveReport);
+    return () => {
+      window.removeEventListener("beforeprint", prepareFullReport);
+      window.removeEventListener("afterprint", restoreInteractiveReport);
+    };
+  }, []);
 
   const eligibleDeals = useMemo(
     () => calculatedSales.filter(
@@ -344,11 +365,17 @@ export function FiReportCenter({
       return searchable.includes(query);
     });
   }, [eligibleDeals, evidenceSearch, includeLastNames, selectedFilter]);
+  const visibleDeals = filteredDeals.slice(
+    0,
+    printAllViews ? filteredDeals.length : visibleEvidenceCount,
+  );
+  const remainingDeals = Math.max(0, filteredDeals.length - visibleDeals.length);
 
   const selectEvidence = (filter: EvidenceFilter) => {
     setActiveView("deals");
     setEvidenceFilter(filter);
     setEvidenceSearch("");
+    setVisibleEvidenceCount(EVIDENCE_PAGE_SIZE);
     window.requestAnimationFrame(() => {
       evidenceHeadingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       evidenceHeadingRef.current?.focus({ preventScroll: true });
@@ -463,8 +490,9 @@ export function FiReportCenter({
         className="fi-center-view"
         role="tabpanel"
         aria-labelledby={`${idPrefix}-products-tab`}
-        hidden={activeView !== "products"}
+        hidden={!printAllViews && activeView !== "products"}
       >
+        {printAllViews || activeView === "products" ? (
         <Section
           id={`${idPrefix}-products`}
           title="Products sold"
@@ -518,6 +546,7 @@ export function FiReportCenter({
           ))}
         </div>
         </Section>
+        ) : null}
       </div>
 
       <div
@@ -525,8 +554,9 @@ export function FiReportCenter({
         className="fi-center-view"
         role="tabpanel"
         aria-labelledby={`${idPrefix}-financing-tab`}
-        hidden={activeView !== "financing"}
+        hidden={!printAllViews && activeView !== "financing"}
       >
+      {printAllViews || activeView === "financing" ? (
       <Section
         id={`${idPrefix}-financing`}
         title="Financing"
@@ -534,14 +564,14 @@ export function FiReportCenter({
       >
         <div className="fi-finance-highlight">
           <div>
-            <strong>GAP on dealer-financed sales</strong>
-            <p>{outcomeNote(analytics.finance.gapOnDealerFinanced.yesCount, analytics.finance.gapOnDealerFinanced.eligibleDealCount, analytics.finance.gapOnDealerFinanced.unmarkedCount)} · GAP marked sold within dealer-financed sales</p>
+            <strong>GAP on Finance sales</strong>
+            <p>{outcomeNote(analytics.finance.gapOnDealerFinanced.yesCount, analytics.finance.gapOnDealerFinanced.eligibleDealCount, analytics.finance.gapOnDealerFinanced.unmarkedCount)} · GAP marked sold within Finance sales</p>
           </div>
           <strong>{rateLabel(analytics.finance.gapOnDealerFinanced.penetrationRate, 1)}</strong>
         </div>
         <div className="fi-center-table-wrap fi-center-desktop-table" tabIndex={0}>
           <table className="fi-center-table fi-center-finance-table">
-            <caption className="sr-only">Dealer financing cohorts for {scopeLabel}</caption>
+            <caption className="sr-only">Payment-method groups for {scopeLabel}</caption>
             <thead>
               <tr>
                 <th scope="col">Financing</th>
@@ -613,6 +643,7 @@ export function FiReportCenter({
           </table>
         </details>
       </Section>
+      ) : null}
       </div>
 
       <div
@@ -620,8 +651,9 @@ export function FiReportCenter({
         className="fi-center-view"
         role="tabpanel"
         aria-labelledby={`${idPrefix}-combinations-tab`}
-        hidden={activeView !== "combinations"}
+        hidden={!printAllViews && activeView !== "combinations"}
       >
+      {printAllViews || activeView === "combinations" ? (
       <Section
         id={`${idPrefix}-mix`}
         title="Product combinations"
@@ -719,6 +751,7 @@ export function FiReportCenter({
           </div>
         </details>
       </Section>
+      ) : null}
       </div>
 
       <div
@@ -726,8 +759,10 @@ export function FiReportCenter({
         className="fi-center-view"
         role="tabpanel"
         aria-labelledby={`${idPrefix}-overview-tab`}
-        hidden={activeView !== "overview"}
+        hidden={!printAllViews && activeView !== "overview"}
       >
+        {printAllViews || activeView === "overview" ? (
+        <>
         <Section
           id={`${idPrefix}-money`}
           title="F&I gross & commission"
@@ -814,6 +849,8 @@ export function FiReportCenter({
           </div>
         )}
         </Section>
+        </>
+        ) : null}
       </div>
 
       <section
@@ -821,8 +858,10 @@ export function FiReportCenter({
         className="fi-center-section fi-center-evidence fi-center-view"
         role="tabpanel"
         aria-labelledby={`${idPrefix}-deals-tab`}
-        hidden={activeView !== "deals"}
+        hidden={!printAllViews && activeView !== "deals"}
       >
+        {printAllViews || activeView === "deals" ? (
+        <>
         <header className="fi-center-section__header">
           <div>
             <h3 id={`${idPrefix}-evidence`} ref={evidenceHeadingRef} tabIndex={-1}>Deals behind these totals</h3>
@@ -834,7 +873,13 @@ export function FiReportCenter({
         <div className="fi-center-evidence-controls">
           <label>
             <span><Filter aria-hidden="true" /> Show</span>
-            <select value={evidenceFilter} onChange={(event) => setEvidenceFilter(event.target.value as EvidenceFilter)}>
+            <select
+              value={evidenceFilter}
+              onChange={(event) => {
+                setEvidenceFilter(event.target.value as EvidenceFilter);
+                setVisibleEvidenceCount(EVIDENCE_PAGE_SIZE);
+              }}
+            >
               {EVIDENCE_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </label>
@@ -843,7 +888,10 @@ export function FiReportCenter({
             <Input
               type="search"
               value={evidenceSearch}
-              onChange={(event) => setEvidenceSearch(event.target.value)}
+              onChange={(event) => {
+                setEvidenceSearch(event.target.value);
+                setVisibleEvidenceCount(EVIDENCE_PAGE_SIZE);
+              }}
               placeholder={includeLastNames ? "Stock, vehicle, or last name" : "Stock or vehicle"}
             />
           </label>
@@ -857,7 +905,11 @@ export function FiReportCenter({
           <div className="fi-center-empty">
             <strong>No deals match this view</strong>
             <p>Change the filter or clear the search to see other eligible deals.</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => { setEvidenceFilter("all"); setEvidenceSearch(""); }}>
+            <Button type="button" variant="outline" size="sm" onClick={() => {
+              setEvidenceFilter("all");
+              setEvidenceSearch("");
+              setVisibleEvidenceCount(EVIDENCE_PAGE_SIZE);
+            }}>
               Show all deals
             </Button>
           </div>
@@ -877,9 +929,9 @@ export function FiReportCenter({
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredDeals.map((item) => (
+                  {visibleDeals.map((item) => (
                     <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                      <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /></th>
+                      <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></th>
                       <td><ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} stacked /></td>
                       <td><ProductOutcomeBadges sale={item.sale} /></td>
                       <td><span className="fi-evidence-finance" data-state={outcomeLabel(dealerFinancingOutcome(item.sale))}>{paymentMethodLabel(item.sale)}</span></td>
@@ -892,10 +944,10 @@ export function FiReportCenter({
             </div>
 
             <div className="fi-center-evidence-cards">
-              {filteredDeals.map((item) => (
+              {visibleDeals.map((item) => (
                 <article key={item.sale.id} className="fi-evidence-card report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                   <header>
-                    <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
+                    <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></div>
                     <span>{formatUnitCredit(item.sale.unitCreditBasis)} units</span>
                   </header>
                   <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
@@ -907,8 +959,26 @@ export function FiReportCenter({
                 </article>
               ))}
             </div>
+
+            <div className="fi-center-evidence-more">
+              <span role="status" aria-live="polite">
+                Showing {visibleDeals.length} of {filteredDeals.length} matching deals
+              </span>
+              {remainingDeals > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setVisibleEvidenceCount((count) => count + EVIDENCE_PAGE_SIZE)}
+                >
+                  Show {Math.min(EVIDENCE_PAGE_SIZE, remainingDeals)} more
+                </Button>
+              ) : null}
+            </div>
           </>
         )}
+        </>
+        ) : null}
       </section>
     </div>
   );

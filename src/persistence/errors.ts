@@ -14,7 +14,7 @@ export class SaleWriteConflictError extends Error {
 
   constructor(saleId: string, stockNumber?: string) {
     const label = stockNumber?.trim() || "This sale";
-    super(`${label} changed in another tab. Your entries were not saved. Load the latest sale, review your changes, and try again.`);
+    super(`${label} changed in another tab or device. Your entries were not saved. Load the latest sale, review your changes, and try again.`);
     this.name = "SaleWriteConflictError";
     this.saleId = saleId;
   }
@@ -22,4 +22,13 @@ export class SaleWriteConflictError extends Error {
 
 export function isSaleWriteConflictError(error: unknown): error is SaleWriteConflictError {
   return error instanceof SaleWriteConflictError;
+}
+
+export class SettingsWriteConflictError extends Error {
+  readonly code = "SETTINGS_WRITE_CONFLICT";
+
+  constructor() {
+    super("Settings changed in another tab or device. Your entries were not saved. Load the latest settings, review your changes, and try again.");
+    this.name = "SettingsWriteConflictError";
+  }
 }

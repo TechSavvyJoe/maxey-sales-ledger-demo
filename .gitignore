@@ -9,6 +9,12 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-cloud
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+*-service-account.json
 dist-ssr
 playwright-report
 test-results

@@ -24,10 +24,11 @@ import {
   StatusBadge,
 } from "@/components/shared";
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
-import { calculateMonth, calculateYear, getNextBonusMilestone } from "@/domain/commission";
-import { DEMO_DATASET_LABEL } from "@/domain/demo";
+import { calculateMonth, calculateYear } from "@/domain/commission";
+import { DEMO_DATASET_LABEL, demoRangeDescription, IS_PUBLIC_DEMO_BUILD } from "@/domain/demo";
 import {
   currentMonthKey,
+  formatSaleDate,
   monthLabel,
   shiftMonth,
   todayDateOnly,
@@ -51,6 +52,8 @@ import type { ProfileSettings, Sale } from "@/domain/types";
 import { calculateWeeklyPerformance } from "@/domain/weeklyPerformance";
 import { cn } from "@/lib/utils";
 import { formatVehiclePace } from "@/lib/vehiclePace";
+import { MilestoneProgress } from "./MilestoneProgress";
+import { CLOUD_BUILD } from "@/persistence/database";
 import "./dashboard-density.css";
 import "./dashboard-v2.css";
 
@@ -157,10 +160,6 @@ export function Dashboard({
         settings.actualPaidByMonth[settings.selectedMonth] ?? null,
       ),
     [payPlanSchedule, sales, settings.actualPaidByMonth, settings.selectedMonth],
-  );
-  const nextBonusMilestone = useMemo(
-    () => getNextBonusMilestone(current.deliveredCount, currentPayPlan.bonusTiers),
-    [current.deliveredCount, currentPayPlan.bonusTiers],
   );
   const previousMonthKey = shiftMonth(settings.selectedMonth, -1);
   const previous = useMemo(
@@ -360,7 +359,7 @@ export function Dashboard({
         </span>
         <span className="dashboard-v2-review__summary">
           <strong id="dashboard-review-heading">
-            {attentionItems.length ? "Needs review" : "Everything is up to date"}
+            {attentionItems.length ? "Needs review" : "No sales need review"}
           </strong>
           <small>
             {attentionItems.length
@@ -394,22 +393,21 @@ export function Dashboard({
             <Sparkles />
           </div>
           <div className="onboarding-banner__content">
-            <span className="eyebrow">Welcome to your private sales workspace</span>
-            <h2 id="onboarding-title">Start your workspace, import a tracker, or explore the {DEMO_DATASET_LABEL} demo</h2>
+            <span className="eyebrow">{IS_PUBLIC_DEMO_BUILD ? "Explore Sales Ledger" : "Welcome to your private sales workspace"}</span>
+            <h2 id="onboarding-title">{CLOUD_BUILD ? "Your cloud ledger is ready for your first sale" : IS_PUBLIC_DEMO_BUILD ? "Explore the sample history" : `Start your workspace, import a tracker, or explore the ${DEMO_DATASET_LABEL} demo`}</h2>
             <p>
-              Your sales stay in this browser profile. Commission estimates update automatically by month,
-              and you can export a backup anytime.
+              {CLOUD_BUILD ? "Add a sale, then set your goals and pay plan in Settings. Saved changes will follow your account when you sign in on another device. This pilot starts empty; no demo or existing sales have been uploaded." : IS_PUBLIC_DEMO_BUILD ? `See fictional sales from ${demoRangeDescription()}, including commissions, F&I, pacing, and milestones. No sign-in is needed.` : "Your sales stay in this browser profile. Commission estimates update automatically by month, and you can export a backup anytime."}
             </p>
             <div className="onboarding-banner__actions">
               <Button type="button" onClick={onAddSale}>
                 <Plus aria-hidden="true" /> Add first sale
               </Button>
-              <Button type="button" variant="secondary" onClick={onLoadDemo}>
-                <Sparkles aria-hidden="true" /> Explore {DEMO_DATASET_LABEL} demo
+              {!CLOUD_BUILD ? <><Button type="button" variant="secondary" onClick={onLoadDemo}>
+                <Sparkles aria-hidden="true" /> {IS_PUBLIC_DEMO_BUILD ? "Load sample history" : `Explore ${DEMO_DATASET_LABEL} demo`}
               </Button>
               <Button type="button" variant="outline" onClick={() => onNavigate({ view: "settings", section: "data" })}>
                 <Import aria-hidden="true" /> Import Excel tracker
-              </Button>
+              </Button></> : null}
               <Button type="button" variant="ghost" onClick={onDismissOnboarding}>
                 I’ll do this later
               </Button>
@@ -417,7 +415,7 @@ export function Dashboard({
           </div>
           <div className="onboarding-banner__privacy">
             <ShieldCheck aria-hidden="true" />
-            <span>No login or cloud account required</span>
+            <span>{CLOUD_BUILD ? "Your own account. Your own ledger." : IS_PUBLIC_DEMO_BUILD ? "Fictional data stays in this browser" : "No login or cloud account required"}</span>
           </div>
         </section>
       ) : null}
@@ -443,8 +441,8 @@ export function Dashboard({
               {currentWeek ? (
                 <strong className="dashboard-week-callout">
                   This week · {currentWeek.deliveredCount} sold · {weekly.goal.neededByEndOfCurrentWeek === 0
-                    ? `On target through ${currentWeek.endDate.slice(5).replace("-", "/")}`
-                    : `${weekly.goal.neededByEndOfCurrentWeek} more needed by ${currentWeek.endDate.slice(5).replace("-", "/")}`}
+                    ? `On target through ${formatSaleDate(currentWeek.endDate)}`
+                    : `${weekly.goal.neededByEndOfCurrentWeek} more needed by ${formatSaleDate(currentWeek.endDate)}`}
                 </strong>
               ) : null}
               <span>{paceGuidance}</span>
@@ -501,6 +499,7 @@ export function Dashboard({
             </div>
           </article>
         </div>
+        <MilestoneProgress summary={current} payPlan={currentPayPlan} todayDate={todayDate} />
       </section>
 
       <div className="dashboard-v2-detail-grid">
@@ -533,9 +532,7 @@ export function Dashboard({
               <span><i className="breakdown-dot bonus" />Volume bonus</span>
               <strong>{formatCurrency(current.potentialBonusCents)}</strong>
               <small>
-                {nextBonusMilestone
-                  ? `Next: +${formatCurrency(nextBonusMilestone.addedAmountCents)} at ${nextBonusMilestone.minimumDelivered} · ${formatCurrency(nextBonusMilestone.amountCents)} total`
-                  : `Top bonus level reached · ${formatCurrency(current.potentialBonusCents)} total`}
+                Cumulative bonus earned from this month’s delivered sales
               </small>
             </div>
           </div>

@@ -32,6 +32,7 @@ interface AppShellProps {
   onMonthChange: (monthKey: string, options?: { preserveFocus?: boolean }) => void;
   onAddSale: () => void;
   children: ReactNode;
+  cloudMode?: boolean;
 }
 
 export function AppShell({
@@ -42,6 +43,7 @@ export function AppShell({
   onMonthChange,
   onAddSale,
   children,
+  cloudMode = false,
 }: AppShellProps) {
   const earliestPayPlanMonth = getEarliestPayPlanMonth(getPayPlanSchedule(settings));
   return (
@@ -103,9 +105,9 @@ export function AppShell({
           </a>
           <span className={cn("storage-state", !isOnline && "is-offline")}>
             {isOnline ? <span className="online-dot" aria-hidden="true" /> : <CloudOff aria-hidden="true" />}
-            {isOnline ? "Sales data ready" : "Offline — sales data ready"}
+            {cloudMode ? isOnline ? "Cloud ledger" : "Offline — reconnect to save" : isOnline ? "Sales data ready" : "Offline — sales data ready"}
           </span>
-          <small>Data stays in this browser profile</small>
+          <small>{cloudMode ? "Your sales follow your account" : "Data stays in this browser profile"}</small>
         </div>
       </aside>
 

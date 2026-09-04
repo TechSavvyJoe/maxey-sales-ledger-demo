@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type RefObject } from "react";
 import "./sales-v2.css";
-import { AlertCircle, Calculator, Check, ShieldCheck } from "lucide-react";
+import "./sale-autosave.css";
+import { AlertCircle, Calculator, Check, CloudCheck, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -23,7 +24,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { calculateMonth, normalizeStock } from "@/domain/commission";
 import { currentMonthKey, monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
-import { getPaymentMethod } from "@/domain/financing";
 import { formatCurrency, formatCurrencyInput, formatPercent, parseCurrencyToCents } from "@/domain/money";
 import {
   getEarliestPayPlanMonth,
@@ -41,6 +41,12 @@ import {
 } from "@/domain/validation";
 import { cn } from "@/lib/utils";
 import { isSaleWriteConflictError } from "@/persistence/errors";
+import { CLOUD_BUILD } from "@/persistence/database";
+import {
+  saleEditorProducts,
+  useSaleEditorAutosave,
+  type SaleSaveOptions,
+} from "./useSaleEditorAutosave";
 
 interface SaleFormSheetProps {
   open: boolean;
@@ -49,16 +55,9 @@ interface SaleFormSheetProps {
   sales: Sale[];
   returnFocusRef: RefObject<HTMLElement | null>;
   onOpenChange: (open: boolean) => void;
-  onSave: (sale: Sale, isNew: boolean) => Promise<void>;
+  onSave: (sale: Sale, isNew: boolean, options?: SaleSaveOptions) => Promise<Sale>;
   onLoadLatestSale: (saleId: string) => Promise<void>;
-}
-
-interface FiProductValues {
-  serviceContractSold: boolean | undefined;
-  tireWheelSold: boolean | undefined;
-  gapSold: boolean | undefined;
-  dealerFinanced: boolean | undefined;
-  paymentMethod: PaymentMethod | undefined;
+  onUnsavedChange?: (unsafe: boolean) => void;
 }
 
 const fiProductOptions: Array<{ key: "serviceContractSold" | "tireWheelSold" | "gapSold"; label: string }> = [
@@ -111,49 +110,6 @@ function valuesForSale(sale: Sale | null, monthKey: string): SaleFormValues {
       };
 }
 
-function fiProductsForSale(sale: Sale | null): FiProductValues {
-  if (!sale) {
-    return {
-      serviceContractSold: false,
-      tireWheelSold: false,
-      gapSold: false,
-      dealerFinanced: undefined,
-      paymentMethod: undefined,
-    };
-  }
-  return {
-    serviceContractSold: sale.serviceContractSold,
-    tireWheelSold: sale.tireWheelSold,
-    gapSold: sale.gapSold,
-    dealerFinanced: sale.dealerFinanced,
-    paymentMethod: getPaymentMethod(sale) === "dealer_financed" ? "dealer_financed" : sale.paymentMethod,
-  };
-}
-
-function normalizedCurrencyValue(value: string): number | string | null {
-  const cents = parseCurrencyToCents(value);
-  return Number.isNaN(cents) ? value.trim() : cents;
-}
-
-function comparableFormValues(values: SaleFormValues): string {
-  const unitCredit = values.unitCredit.trim() ? Number(values.unitCredit) : Number.NaN;
-  return JSON.stringify({
-    status: values.status,
-    saleDate: values.saleDate,
-    customerLastName: values.customerLastName.trim(),
-    stockNumber: values.stockNumber.trim(),
-    vehicleDescription: values.vehicleDescription.trim(),
-    unitCredit: Number.isFinite(unitCredit) ? unitCredit : values.unitCredit.trim(),
-    frontGross: normalizedCurrencyValue(values.frontGross),
-    fiGross: normalizedCurrencyValue(values.fiGross),
-    manualFrontCommissionEnabled: values.manualFrontCommissionEnabled,
-    frontCommissionOverride: values.manualFrontCommissionEnabled
-      ? normalizedCurrencyValue(values.frontCommissionOverride)
-      : null,
-    notes: values.notes.trim(),
-  });
-}
-
 const statusOptions: Array<{ value: SaleFormValues["status"]; label: string; description: string }> = [
   { value: "delivered", label: "Delivered", description: "Counts toward monthly volume and commission" },
   { value: "pending", label: "Pending", description: "Planning only; counts after delivery" },
@@ -168,22 +124,21 @@ export function SaleFormSheet({
   onOpenChange,
   onSave,
   onLoadLatestSale,
+  onUnsavedChange,
 }: SaleFormSheetProps) {
-  const [initialValues, setInitialValues] = useState<SaleFormValues>(() =>
-    valuesForSale(saleToEdit, settings.selectedMonth),
-  );
-  const [values, setValues] = useState<SaleFormValues>(() => initialValues);
-  const [initialFiProducts, setInitialFiProducts] = useState<FiProductValues>(() =>
-    fiProductsForSale(saleToEdit),
-  );
-  const [fiProducts, setFiProducts] = useState<FiProductValues>(() => initialFiProducts);
+  const [initialSnapshot] = useState(() => ({
+    values: valuesForSale(saleToEdit, settings.selectedMonth),
+    fiProducts: saleEditorProducts(saleToEdit),
+  }));
   const [errors, setErrors] = useState<SaleFormErrors>({});
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [conflictSaleId, setConflictSaleId] = useState<string | null>(null);
+  const [manualSaveError, setSaveError] = useState<string | null>(null);
+  const [manualConflictSaleId, setConflictSaleId] = useState<string | null>(null);
   const [isLoadingLatest, setIsLoadingLatest] = useState(false);
   const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+  const [loadLatestDialogOpen, setLoadLatestDialogOpen] = useState(false);
+  const [startFreshDialogOpen, setStartFreshDialogOpen] = useState(false);
   const [commissionAnnouncement, setCommissionAnnouncement] = useState("");
   const allowCloseRef = useRef(false);
   const dateRef = useRef<HTMLInputElement>(null);
@@ -195,6 +150,8 @@ export function SaleFormSheet({
   const fiRef = useRef<HTMLInputElement>(null);
   const manualFrontRef = useRef<HTMLInputElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const focusedReadyRef = useRef(false);
+  const focusFreshDraftRef = useRef(false);
   const payPlanSchedule = useMemo(
     () => getPayPlanSchedule(settings),
     [settings],
@@ -203,15 +160,58 @@ export function SaleFormSheet({
     () => getEarliestPayPlanMonth(payPlanSchedule),
     [payPlanSchedule],
   );
+  const autosave = useSaleEditorAutosave({
+    open,
+    initialSale: saleToEdit,
+    initialSnapshot,
+    sales,
+    validate: ({ values: candidate }) => {
+      const nextErrors = validateSaleForm(candidate);
+      const saleMonth = monthKeyFromDate(candidate.saleDate);
+      if (!nextErrors.saleDate && saleMonth && !hasPayPlanCoverage(payPlanSchedule, saleMonth)) {
+        nextErrors.saleDate = payPlanCoverageMessage(payPlanSchedule, saleMonth);
+      }
+      return nextErrors;
+    },
+    canCommit: ({ values: candidate }, baselineId) => duplicateConfirmed || candidate.status !== "delivered" || !sales.some((sale) =>
+      !sale.deletedAt && sale.id !== baselineId && sale.status === "delivered"
+      && normalizeStock(sale.stockNumber) === normalizeStock(candidate.stockNumber),
+    ),
+    onSave,
+  });
+  const { values, setValues, fiProducts, setFiProducts } = autosave;
+  const saveError = manualSaveError ?? autosave.error?.message ?? null;
+  const conflictSaleId = manualConflictSaleId ?? (isSaleWriteConflictError(autosave.error) ? autosave.error.saleId : null);
+  const draftConflict = Boolean(autosave.error && "code" in autosave.error && autosave.error.code === "EDITOR_DRAFT_CONFLICT");
+  const currentSale = autosave.baselineSale ?? saleToEdit;
   const previewMonthKey = monthKeyFromDate(values.saleDate) || settings.selectedMonth;
   const previewHasPayPlan = hasPayPlanCoverage(payPlanSchedule, previewMonthKey);
   const enteredManualFront = parseCurrencyToCents(values.frontCommissionOverride);
   const hasManualFront = values.manualFrontCommissionEnabled && enteredManualFront !== null
     && Number.isSafeInteger(enteredManualFront) && enteredManualFront >= 0 && enteredManualFront <= 100_000_000;
   const isManualFrontIncomplete = values.manualFrontCommissionEnabled && !hasManualFront;
-  const isDirty =
-    comparableFormValues(values) !== comparableFormValues(initialValues) ||
-    JSON.stringify(fiProducts) !== JSON.stringify(initialFiProducts);
+  const isDirty = autosave.hasChanges;
+
+  useEffect(() => {
+    if (!open || (!autosave.needsUnloadWarning && !isSaving)) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [open, autosave.needsUnloadWarning, isSaving]);
+
+  useEffect(() => {
+    onUnsavedChange?.(open && (autosave.needsUnloadWarning || isSaving));
+    return () => onUnsavedChange?.(false);
+  }, [open, autosave.needsUnloadWarning, isSaving, onUnsavedChange]);
+
+  useEffect(() => {
+    if (!open || !autosave.ready || focusedReadyRef.current) return;
+    focusedReadyRef.current = true;
+    customerRef.current?.focus();
+  }, [open, autosave.ready]);
 
   const duplicateMatches = useMemo(() => {
     const key = normalizeStock(values.stockNumber);
@@ -219,11 +219,11 @@ export function SaleFormSheet({
     return sales.filter(
       (sale) =>
         !sale.deletedAt &&
-        sale.id !== saleToEdit?.id &&
+        sale.id !== currentSale?.id &&
         sale.status === "delivered" &&
         normalizeStock(sale.stockNumber) === key,
     );
-  }, [saleToEdit?.id, sales, values.status, values.stockNumber]);
+  }, [currentSale?.id, sales, values.status, values.stockNumber]);
 
   const preview = useMemo(() => {
     const monthKey = monthKeyFromDate(values.saleDate) || settings.selectedMonth;
@@ -233,8 +233,8 @@ export function SaleFormSheet({
     const frontCommissionOverrideCents = values.manualFrontCommissionEnabled
       ? parseCurrencyToCents(values.frontCommissionOverride)
       : null;
-    const draftId = saleToEdit?.id ?? "__draft__";
-    const timestamp = saleToEdit?.createdAt ?? new Date().toISOString();
+    const draftId = currentSale?.id ?? "__draft__";
+    const timestamp = currentSale?.createdAt ?? new Date().toISOString();
     const draft: Sale = {
       id: draftId,
       profileId: "primary",
@@ -253,8 +253,8 @@ export function SaleFormSheet({
       notes: values.notes.trim(),
       createdAt: timestamp,
       updatedAt: new Date().toISOString(),
-      revision: saleToEdit?.revision ?? 1,
-      source: saleToEdit?.source ?? "manual",
+      revision: currentSale?.revision ?? 1,
+      source: currentSale?.source ?? "manual",
     };
     const otherSales = sales.filter((sale) => sale.id !== draftId);
     const month = calculateMonth(
@@ -267,7 +267,7 @@ export function SaleFormSheet({
       month,
       sale: month.calculatedSales.find((item) => item.sale.id === draftId),
     };
-  }, [payPlanSchedule, saleToEdit, sales, settings.actualPaidByMonth, settings.selectedMonth, values]);
+  }, [payPlanSchedule, currentSale, sales, settings.actualPaidByMonth, settings.selectedMonth, values]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -311,12 +311,46 @@ export function SaleFormSheet({
   }
 
   async function loadLatestSale() {
-    if (!conflictSaleId || isLoadingLatest) return;
+    if (isLoadingLatest) return;
+    if (draftConflict) {
+      setLoadLatestDialogOpen(false);
+      setSaveError(null);
+      autosave.retryOpening();
+      return;
+    }
+    if (!conflictSaleId) return;
     setIsLoadingLatest(true);
     try {
+      await autosave.discardDraft();
+      setLoadLatestDialogOpen(false);
       await onLoadLatestSale(conflictSaleId);
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : "The latest sale could not be opened. Your draft is still here.");
     } finally {
       setIsLoadingLatest(false);
+    }
+  }
+
+  async function startFreshDraft() {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await autosave.discardNewDraft();
+      setErrors({});
+      setDuplicateConfirmed(false);
+      setSaveError(null);
+      setConflictSaleId(null);
+      focusFreshDraftRef.current = true;
+      setStartFreshDialogOpen(false);
+      window.setTimeout(() => {
+        focusFreshDraftRef.current = false;
+        customerRef.current?.focus();
+      }, 0);
+    } catch (caught) {
+      setSaveError(caught instanceof Error ? caught.message : "Your draft could not be cleared. Its entries are still here.");
+      setStartFreshDialogOpen(false);
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -326,7 +360,7 @@ export function SaleFormSheet({
     onOpenChange(false);
   }
 
-  function requestOpenChange(nextOpen: boolean) {
+  async function requestOpenChange(nextOpen: boolean) {
     if (nextOpen) {
       onOpenChange(true);
       return;
@@ -337,16 +371,25 @@ export function SaleFormSheet({
       onOpenChange(false);
       return;
     }
-    if (isDirty) {
-      setDiscardDialogOpen(true);
+    if (!autosave.ready && !isDirty) {
+      closeWithoutPrompt();
       return;
     }
-    onOpenChange(false);
+    setIsSaving(true);
+    try {
+      await autosave.saveNow();
+      closeWithoutPrompt();
+    } catch {
+      if (autosave.canCloseSafely()) closeWithoutPrompt();
+      else setDiscardDialogOpen(true);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function submit(event: FormEvent, addAnother = false) {
     event.preventDefault();
-    if (isSaving || conflictSaleId) return;
+    if (isSaving || conflictSaleId || !autosave.ready) return;
     const nextErrors = validateSaleForm(values);
     const saleMonth = monthKeyFromDate(values.saleDate);
     if (
@@ -376,46 +419,18 @@ export function SaleFormSheet({
     }
     if (duplicateMatches.length > 0 && !duplicateConfirmed) return;
 
-    const now = new Date().toISOString();
-    const frontGrossCents = parseCurrencyToCents(values.frontGross);
-    const fiGrossCents = parseCurrencyToCents(values.fiGross);
-    const sale: Sale = {
-      id: saleToEdit?.id ?? crypto.randomUUID(),
-      profileId: "primary",
-      saleDate: values.saleDate,
-      customerLastName: values.customerLastName.trim(),
-      stockNumber: values.stockNumber.trim(),
-      vehicleDescription: values.vehicleDescription.trim(),
-      status: values.status,
-      unitCreditBasis: Math.round(Number(values.unitCredit) * 1_000),
-      frontGrossCents,
-      fiGrossCents,
-      frontCommissionOverrideCents: values.manualFrontCommissionEnabled
-        ? parseCurrencyToCents(values.frontCommissionOverride)
-        : null,
-      ...fiProducts,
-      notes: values.notes.trim(),
-      createdAt: saleToEdit?.createdAt ?? now,
-      updatedAt: now,
-      revision: saleToEdit ? saleToEdit.revision + 1 : 1,
-      source: saleToEdit?.source ?? "manual",
-      sourceReference: saleToEdit?.sourceReference,
-    };
-
     setIsSaving(true);
     setSaveError(null);
     try {
-      await onSave(sale, !saleToEdit);
-      if (addAnother && !saleToEdit) {
+      const wasNew = autosave.isNew;
+      const saved = await autosave.saveNow(wasNew);
+      if (!saved) return;
+      if (addAnother && wasNew) {
         const nextValues = valuesForSale(
           null,
           monthKeyFromDate(values.saleDate) || settings.selectedMonth,
         );
-        setInitialValues(nextValues);
-        setValues(nextValues);
-        const nextFiProducts = fiProductsForSale(null);
-        setInitialFiProducts(nextFiProducts);
-        setFiProducts(nextFiProducts);
+        autosave.startAnother({ values: nextValues, fiProducts: saleEditorProducts(null) });
         setErrors({});
         setDuplicateConfirmed(false);
         window.requestAnimationFrame(() => customerRef.current?.focus());
@@ -466,7 +481,7 @@ export function SaleFormSheet({
 
   return (
     <>
-    <Sheet open={open} onOpenChange={requestOpenChange}>
+    <Sheet open={open} onOpenChange={(next) => void requestOpenChange(next)}>
       <SheetContent
         className="sale-sheet"
         side="right"
@@ -483,11 +498,18 @@ export function SaleFormSheet({
         <form className="sale-form" onSubmit={(event) => void submit(event)} noValidate>
           <div className="sale-form__scroll">
             <SheetHeader className="sale-form__header">
-              <SheetTitle>{saleToEdit ? "Edit sale" : "Add sale"}</SheetTitle>
+              <SheetTitle>{autosave.isNew ? "Add sale" : "Edit sale"}</SheetTitle>
               <SheetDescription>
-                {saleToEdit ? "Update this sale and its commission." : "Log a delivery and estimate your commission."}
+                {autosave.isNew ? "Your draft saves automatically. Add it when the details are ready." : "Changes save automatically as you work."}
               </SheetDescription>
             </SheetHeader>
+
+            {autosave.restored && isDirty ? (
+              <div className="sale-draft-restored">
+                <p>Your unfinished {autosave.isNew ? "sale" : "changes"} are restored. Continue where you left off.</p>
+                {autosave.isNew ? <Button type="button" variant="ghost" size="sm" disabled={isSaving || !autosave.ready} onClick={() => setStartFreshDialogOpen(true)}>Start fresh</Button> : null}
+              </div>
+            ) : null}
 
             {errorCount > 0 ? (
               <div className="form-summary-error" role="alert">
@@ -503,24 +525,29 @@ export function SaleFormSheet({
               <div className="form-summary-error" role="alert">
                 <AlertCircle aria-hidden="true" />
                 <div>
-                  <strong>Sale not saved</strong>
+                  <strong>{!autosave.ready ? "Draft could not open" : "Changes need attention"}</strong>
                   <span>{saveError}</span>
-                  {conflictSaleId ? (
+                  {conflictSaleId || draftConflict ? (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       className="form-summary-error__action"
                       disabled={isLoadingLatest}
-                      onClick={() => void loadLatestSale()}
+                      onClick={() => setLoadLatestDialogOpen(true)}
                     >
-                      {isLoadingLatest ? "Loading latest…" : "Load latest"}
+                      {isLoadingLatest ? "Loading latest…" : draftConflict ? "Reload saved draft" : "Load latest"}
                     </Button>
-                  ) : null}
+                  ) : !autosave.ready ? (
+                    <Button type="button" variant="outline" size="sm" className="form-summary-error__action" onClick={autosave.retryOpening}>Try again</Button>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" className="form-summary-error__action" disabled={autosave.working} onClick={() => { setSaveError(null); void autosave.saveNow().catch(() => {}); }}>Retry save</Button>
+                  )}
                 </div>
               </div>
             ) : null}
 
+            <fieldset className="sale-editor-fields" disabled={!autosave.ready || isSaving} aria-busy={!autosave.ready}>
             <fieldset className="form-section sale-status-section">
               <legend>Sale status</legend>
               <div className="sale-status-controls">
@@ -843,38 +870,83 @@ export function SaleFormSheet({
                         ? `${formatPercent(previewPayPlan.acceleratedFrontRateBps)} front rate includes the retroactive increase for selling over ${previewPayPlan.acceleratedThresholdExclusive} vehicles in ${monthLabel(preview.month.monthKey)}.`
                         : `This sale’s front rate becomes ${formatPercent(previewPayPlan.acceleratedFrontRateBps)} retroactively when the month finishes with over ${previewPayPlan.acceleratedThresholdExclusive} delivered vehicles.`}
                   </p>
+                  {preview.sale?.milestone && !isManualFrontIncomplete ? (
+                    <section className="sale-milestone-summary" aria-labelledby="sale-milestone-heading">
+                      <div className="sale-milestone-summary__heading">
+                        <div>
+                          <h4 id="sale-milestone-heading">Extra earnings unlocked</h4>
+                          <span>Delivery {preview.sale.milestone.deliveryOrdinal}{preview.sale.milestone.isPartial ? " · partial estimate" : ""}</span>
+                        </div>
+                        <strong>{formatCurrency(preview.sale.milestone.extraEarningsUnlockedCents, true)}</strong>
+                      </div>
+                      <dl className="sale-milestone-summary__lines">
+                        {preview.sale.milestone.unlocksHigherRate ? (
+                          <div>
+                            <dt>Prior-sales rate increase <small>{formatPercent(preview.sale.milestone.frontRateBps, preview.sale.milestone.frontRateBps % 100 === 0 ? 0 : preview.sale.milestone.frontRateBps % 10 === 0 ? 1 : 2)} retroactive rate</small></dt>
+                            <dd>{formatCurrency(preview.sale.milestone.priorSalesRetroactiveCents, true)}</dd>
+                          </div>
+                        ) : null}
+                        {preview.sale.milestone.bonusAddedCents > 0 ? (
+                          <div><dt>Added volume bonus</dt><dd>{formatCurrency(preview.sale.milestone.bonusAddedCents, true)}</dd></div>
+                        ) : null}
+                        <div className="sale-milestone-summary__total">
+                          <dt>Milestone impact <small>This sale + extra earnings unlocked</small></dt>
+                          <dd>{formatCurrency(preview.sale.milestone.totalMilestoneImpactCents, true)}</dd>
+                        </div>
+                      </dl>
+                      {preview.sale.milestone.isPartial ? (
+                        <p className="sale-milestone-summary__partial">
+                          {preview.sale.milestone.missingPriorFrontGrossCount > 0
+                            ? `Rate increase is partial: front gross is missing on ${preview.sale.milestone.missingPriorFrontGrossCount} earlier ${preview.sale.milestone.missingPriorFrontGrossCount === 1 ? "sale" : "sales"}.`
+                            : "Milestone impact is partial until this sale’s missing gross is entered."}
+                        </p>
+                      ) : null}
+                      <p className="sale-milestone-summary__note">Already included in monthly totals. These amounts explain this delivery’s impact; they are not added again.</p>
+                    </section>
+                  ) : null}
                 </>
               ) : (
                 <p>{payPlanCoverageMessage(payPlanSchedule, previewMonthKey)}</p>
               )}
             </section>
+            </fieldset>
           </div>
 
           <div className="sale-form__footer">
+            <div className={cn("sale-form__save-state", saveError && "has-error")} role="status" aria-live="polite" aria-atomic="true">
+              {autosave.working || isSaving || (!autosave.ready && !saveError) ? <LoaderCircle className="sale-save-spinner" aria-hidden="true" /> : saveError ? <AlertCircle aria-hidden="true" /> : <CloudCheck aria-hidden="true" />}
+              <span>{saveError ? (autosave.hasProtectedDraft ? "Draft saved · changes need attention" : "Changes not saved")
+                : !autosave.ready ? "Opening your draft…"
+                : autosave.working || isSaving ? "Saving…"
+                : autosave.hasProtectedDraft ? (autosave.isNew ? `Draft saved ${CLOUD_BUILD ? "to cloud" : "on this device"} · not in your sales yet` : "Draft saved · complete the fields to update this sale")
+                : isDirty ? "Changes waiting to save…"
+                : autosave.isNew ? "Draft saves automatically · add the sale when ready"
+                : CLOUD_BUILD ? "Saved to cloud" : "Saved on this device"}</span>
+            </div>
             <div className="sale-form__footer-estimate sale-footer-breakdown" role="group" aria-label="This sale’s estimated commission">
               <span><small>Front</small><strong>{frontEstimate}</strong>{frontMethodLabel ? <span className="sale-footer-method">{frontMethodLabel}</span> : null}</span>
               <span><small>F&amp;I</small><strong>{fiEstimate}</strong></span>
               <span className="sale-footer-total"><small>Sale total</small><strong>{footerEstimate}</strong></span>
             </div>
             <div className="sale-form__footer-actions">
-              <Button type="button" variant="outline" onClick={() => requestOpenChange(false)} disabled={isSaving}>
-                Cancel
-              </Button>
-              {!saleToEdit ? (
+              {autosave.isNew || saveError || (isDirty && autosave.hasProtectedDraft) ? (
+                <Button type="button" variant="outline" onClick={() => void requestOpenChange(false)} disabled={isSaving}>Close</Button>
+              ) : null}
+              {autosave.isNew ? (
                 <Button
                   type="button"
                   variant="secondary"
-                  disabled={isSaving || Boolean(conflictSaleId) || (duplicateMatches.length > 0 && !duplicateConfirmed)}
+                  disabled={isSaving || !autosave.ready || Boolean(conflictSaleId) || (duplicateMatches.length > 0 && !duplicateConfirmed)}
                   onClick={(event) => void submit(event as unknown as FormEvent, true)}
                 >
-                  Save &amp; add another
+                  Add &amp; enter next
                 </Button>
               ) : null}
               <Button
                 type="submit"
-                disabled={isSaving || Boolean(conflictSaleId) || (duplicateMatches.length > 0 && !duplicateConfirmed)}
+                disabled={isSaving || !autosave.ready || Boolean(conflictSaleId) || (duplicateMatches.length > 0 && !duplicateConfirmed)}
               >
-                {isSaving ? "Saving…" : saleToEdit ? "Save changes" : "Save sale"}
+                {isSaving ? "Saving…" : autosave.isNew ? "Add sale" : "Done"}
               </Button>
             </div>
           </div>
@@ -884,9 +956,9 @@ export function SaleFormSheet({
       <Dialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Discard unsaved changes?</DialogTitle>
+            <DialogTitle>These changes have not saved yet</DialogTitle>
             <DialogDescription>
-              Your entries have not been saved. Continue editing or discard them.
+              Keep this editor open and reconnect to save. Closing now can lose your latest entries; earlier saved changes will remain.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -894,8 +966,35 @@ export function SaleFormSheet({
               Continue editing
             </Button>
             <Button type="button" variant="destructive" onClick={closeWithoutPrompt}>
-              Discard changes
+              Close without saving
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={loadLatestDialogOpen} onOpenChange={setLoadLatestDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace this draft with the saved {draftConflict ? "draft" : "sale"}?</DialogTitle>
+            <DialogDescription>{draftConflict ? "This draft" : "The sale"} changed in another tab or device. Loading the latest version discards the unfinished changes shown here. Previously saved changes remain.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setLoadLatestDialogOpen(false)}>Keep editing</Button>
+            <Button type="button" disabled={isLoadingLatest} onClick={() => void loadLatestSale()}>{isLoadingLatest ? "Loading…" : "Load latest"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={startFreshDialogOpen} onOpenChange={(next) => { if (!isSaving) setStartFreshDialogOpen(next); }}>
+        <DialogContent onCloseAutoFocus={(event) => {
+          if (!focusFreshDraftRef.current) return;
+          event.preventDefault();
+        }}>
+          <DialogHeader>
+            <DialogTitle>Start a fresh sale?</DialogTitle>
+            <DialogDescription>This removes only this unfinished draft and its entries. No saved sales or commission totals will change.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={isSaving} onClick={() => setStartFreshDialogOpen(false)}>Keep draft</Button>
+            <Button type="button" variant="destructive" disabled={isSaving} onClick={() => void startFreshDraft()}>{isSaving ? "Clearing draft…" : "Discard draft"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

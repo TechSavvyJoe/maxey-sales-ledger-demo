@@ -2,15 +2,50 @@ import { DEFAULT_PAY_PLAN } from "@/domain/commission";
 import { monthKeyFromDate, todayDateOnly } from "@/domain/date";
 import type { PaymentMethod, PayPlan, Sale } from "@/domain/types";
 
-const vehicles = [
-  "2023 Ford Escape Active",
-  "2022 Ford F-150 XLT",
-  "2024 Ford Bronco Sport",
-  "2021 Ford Explorer Limited",
-  "2023 Ford Edge SEL",
-  "2022 Chevrolet Equinox LT",
-  "2021 Jeep Grand Cherokee",
-  "2024 Ford Maverick XLT",
+interface DemoVehicleLine {
+  name: string;
+  firstModelYear: number;
+  lastModelYear?: number;
+}
+
+const vehicleLines: DemoVehicleLine[] = [
+  { name: "Ford Escape Active", firstModelYear: 2023, lastModelYear: 2025 },
+  { name: "Ford Escape SEL", firstModelYear: 2019, lastModelYear: 2025 },
+  { name: "Ford F-150 XLT", firstModelYear: 2015 },
+  { name: "Ford F-150 Lariat", firstModelYear: 2015 },
+  { name: "Ford Bronco Sport Big Bend", firstModelYear: 2021 },
+  { name: "Ford Explorer Limited", firstModelYear: 2016 },
+  { name: "Ford Edge SEL", firstModelYear: 2016, lastModelYear: 2024 },
+  { name: "Ford Maverick XLT", firstModelYear: 2022 },
+  { name: "Ford Expedition XLT", firstModelYear: 2018 },
+  { name: "Ford Mustang EcoBoost", firstModelYear: 2015 },
+  { name: "Ford Ranger XLT", firstModelYear: 2019 },
+  { name: "Ford Transit Connect XLT", firstModelYear: 2014, lastModelYear: 2023 },
+  { name: "Chevrolet Equinox LT", firstModelYear: 2018 },
+  { name: "Chevrolet Silverado 1500 LT", firstModelYear: 2014 },
+  { name: "GMC Terrain SLE", firstModelYear: 2018 },
+  { name: "Jeep Grand Cherokee Limited", firstModelYear: 2016 },
+  { name: "Jeep Compass Latitude", firstModelYear: 2017 },
+  { name: "Ram 1500 Big Horn", firstModelYear: 2014 },
+  { name: "Toyota RAV4 XLE", firstModelYear: 2016 },
+  { name: "Toyota Camry SE", firstModelYear: 2015 },
+  { name: "Honda CR-V EX", firstModelYear: 2017 },
+  { name: "Honda Accord Sport", firstModelYear: 2015 },
+  { name: "Subaru Forester Premium", firstModelYear: 2017 },
+  { name: "Nissan Rogue SV", firstModelYear: 2017 },
+  { name: "Hyundai Tucson SEL", firstModelYear: 2018 },
+  { name: "Kia Sportage EX", firstModelYear: 2017 },
+];
+
+// Common fictional surnames provide variety without copying any customer list.
+const sampleLastNames = [
+  "Adams", "Allen", "Anderson", "Baker", "Bell", "Bennett", "Brooks", "Brown",
+  "Campbell", "Carter", "Clark", "Collins", "Cooper", "Davis", "Edwards", "Evans",
+  "Foster", "Garcia", "Gray", "Green", "Hall", "Harris", "Hayes", "Hill",
+  "Howard", "Jackson", "Johnson", "Kelly", "King", "Lee", "Lewis", "Martin",
+  "Miller", "Mitchell", "Moore", "Morgan", "Nelson", "Parker", "Reed", "Rivera",
+  "Roberts", "Robinson", "Scott", "Smith", "Taylor", "Thomas", "Turner", "Walker",
+  "White", "Williams", "Wilson", "Wright", "Young",
 ];
 
 // This is an illustrative salesperson profile, not a dealership benchmark:
@@ -18,17 +53,17 @@ const vehicles = [
 const yearlyDeliveryVolumes = [14, 15, 18, 20, 22, 24, 23, 22, 19, 18, 16, 15];
 const FRONT_GROSS_PER_DELIVERY_CENTS = 230_000;
 const FI_GROSS_PER_DELIVERY_CENTS = 120_000;
-export const DEMO_PROFILE_VERSION = "seasonal-2300-front-1200-fi-v1";
+export const DEMO_PROFILE_VERSION = "three-calendar-years-2300-front-1200-fi-v2";
 
 /** GitHub Pages is intentionally a richer, fictional walkthrough than local builds. */
 export const IS_PUBLIC_DEMO_BUILD = import.meta.env.VITE_PUBLIC_DEMO === "true";
 export const AUTOLOAD_PUBLIC_DEMO = IS_PUBLIC_DEMO_BUILD
   && import.meta.env.VITE_PUBLIC_DEMO_AUTOLOAD !== "false";
-export const DEMO_DATASET_LABEL = IS_PUBLIC_DEMO_BUILD ? "2-year" : "full-year";
-export const DEMO_DATASET_TITLE = IS_PUBLIC_DEMO_BUILD ? "Two-year" : "Full-year";
+export const DEMO_DATASET_LABEL = IS_PUBLIC_DEMO_BUILD ? "sample history" : "full-year";
+export const DEMO_DATASET_TITLE = IS_PUBLIC_DEMO_BUILD ? "Sample history" : "Full-year";
 export const DEMO_HISTORIC_PLAN_VERSION = "Sample 2024–26 plan";
 
-type DemoDatasetScope = "full-year" | "two-year";
+type DemoDatasetScope = "full-year" | "three-year";
 
 /** Stable sample choices: refreshes must never shuffle a demonstration's results. */
 export function samplePaymentMethod(sale: Pick<Sale, "id" | "dealerFinanced">): PaymentMethod {
@@ -52,10 +87,13 @@ function yearMonths(monthKey: string): string[] {
   );
 }
 
-/** Includes the current month plus the prior 24 monthly buckets. */
-function twoYearMonths(asOfDate: string): string[] {
+/** Three named calendar years are easier to demonstrate than two partial years. */
+function threeCalendarYearMonths(asOfDate: string): string[] {
   const currentMonth = monthKeyFromDate(asOfDate);
-  return Array.from({ length: 25 }, (_, index) => addMonths(currentMonth, index - 24));
+  const currentYear = Number(currentMonth.slice(0, 4));
+  const firstMonth = `${currentYear - 2}-01`;
+  const elapsedMonths = (currentYear - (currentYear - 2)) * 12 + Number(currentMonth.slice(5, 7));
+  return Array.from({ length: elapsedMonths }, (_, index) => addMonths(firstMonth, index));
 }
 
 function demoWorkingDays(monthKey: string): number[] {
@@ -81,6 +119,17 @@ function deliveryVolume(monthKey: string): number {
   const monthIndex = Number(monthKey.slice(5, 7)) - 1;
   const yearVariation = sampleSeed(`${monthKey}:volume`) % 3 - 1;
   return yearlyDeliveryVolumes[monthIndex] + yearVariation;
+}
+
+function sampleVehicle(monthKey: string, index: number): string {
+  const model = vehicleLines[sampleSeed(`${monthKey}:vehicle:${index}`) % vehicleLines.length];
+  const saleYear = Number(monthKey.slice(0, 4));
+  const age = sampleSeed(`${monthKey}:vehicle-age:${index}`) % 8;
+  const modelYear = Math.min(
+    model.lastModelYear ?? saleYear,
+    Math.max(model.firstModelYear, saleYear - age),
+  );
+  return `${modelYear} ${model.name}`;
 }
 
 function selectSampleIndices(indices: number[], count: number, key: string, preference?: Set<number>): Set<number> {
@@ -111,17 +160,18 @@ function createDemoMonth(monthKey: string, status: Sale["status"]): Sale[] {
   const indices = Array.from({ length: count }, (_, index) => index);
   const workingDays = demoWorkingDays(monthKey);
   // Illustrative 70/20/10 Finance/Cash/Outside mix, not a measured store target.
-  const financeRate = 0.70 + (sampleSeed(`${monthKey}:finance-rate`) % 5 - 2) * 0.02;
+  const financeRate = 0.70 + (sampleSeed(`${monthKey}:finance-rate`) % 5 - 2) * 0.015;
   const financed = selectSampleIndices(indices, Math.round(count * financeRate), `${monthKey}:finance`);
   const notFinanced = indices.filter((index) => !financed.has(index));
   const cash = selectSampleIndices(notFinanced, Math.round(notFinanced.length * 2 / 3), `${monthKey}:cash`);
-  const serviceContracts = selectSampleIndices(indices, Math.round(count * 0.45), `${monthKey}:service`, financed);
-  const tireWheel = selectSampleIndices(indices, Math.round(count * 0.10), `${monthKey}:tire-wheel`);
-  const gap = selectSampleIndices([...financed], Math.round(financed.size * 0.43), `${monthKey}:gap`);
+  const serviceContracts = selectSampleIndices(indices, Math.round(count * 0.50), `${monthKey}:service`, financed);
+  const tireWheel = selectSampleIndices(indices, Math.round(count * 0.27), `${monthKey}:tire-wheel`, financed);
+  const gap = selectSampleIndices([...financed], Math.round(financed.size * 0.44), `${monthKey}:gap`);
 
+  const isSpiffMonth = (Number(monthKey.slice(5, 7)) + Number(monthKey.slice(0, 4))) % 4 === 0;
   const lowFronts = [...selectSampleIndices(indices, 2, `${monthKey}:low-front`)];
   const fixedFront = indices.map((index) => {
-    if (index === lowFronts[0] && sampleSeed(`${monthKey}:negative`) % 3 !== 0) {
+    if (index === lowFronts[0] && (isSpiffMonth || sampleSeed(`${monthKey}:negative`) % 3 !== 0)) {
       return -(25_000 + sampleSeed(`${monthKey}:negative-amount`) % 70_001);
     }
     if (index === lowFronts[1] && sampleSeed(`${monthKey}:mini`) % 4 !== 0) {
@@ -144,6 +194,8 @@ function createDemoMonth(monthKey: string, status: Sale["status"]): Sale[] {
   // Only two or three split examples per year, not a mandatory split every month.
   const splitMonth = (Number(monthKey.slice(5, 7)) + Number(monthKey.slice(0, 4))) % 5 === 0;
   const splitIndex = splitMonth ? sampleSeed(`${monthKey}:split`) % count : -1;
+  // Roughly one low-gross aged unit per quarter demonstrates a manager-set spiff.
+  const spiffIndex = isSpiffMonth ? lowFronts[0] : -1;
 
   return indices.map((index) => {
     // A little stable day-to-day variation creates some double-delivery and quiet
@@ -158,12 +210,15 @@ function createDemoMonth(monthKey: string, status: Sale["status"]): Sale[] {
       id: `demo-${monthKey}-${index}-${status}`,
       profileId: "primary",
       saleDate,
-      customerLastName: ["Miller", "Davis", "Taylor", "Wilson", "Clark", "Moore"][sampleSeed(`${monthKey}:name:${index}`) % 6],
+      customerLastName: sampleLastNames[sampleSeed(`${monthKey}:name:${index}`) % sampleLastNames.length],
       stockNumber: `DEMO-${monthKey.replace("-", "")}-${String(index + 1).padStart(2, "0")}`,
-      vehicleDescription: vehicles[sampleSeed(`${monthKey}:vehicle:${index}`) % vehicles.length],
+      vehicleDescription: sampleVehicle(monthKey, index),
       status,
       unitCreditBasis: index === splitIndex ? 500 : 1_000,
       frontGrossCents: fixedFront[index] ?? normalizedFront[index],
+      frontCommissionOverrideCents: index === spiffIndex
+        ? 50_000 + sampleSeed(`${monthKey}:spiff:${index}`) % 30_001
+        : null,
       fiGrossCents: fiGross[index],
       serviceContractSold: serviceContracts.has(index),
       tireWheelSold: tireWheel.has(index),
@@ -194,8 +249,8 @@ function buildFullYearDemoSales(selectedMonth: string, asOfDate: string): Sale[]
   return yearMonths(selectedMonth).flatMap((monthKey) => buildMonthThroughDate(monthKey, asOfDate));
 }
 
-function buildTwoYearDemoSales(asOfDate: string): Sale[] {
-  return twoYearMonths(asOfDate).flatMap((monthKey) => buildMonthThroughDate(monthKey, asOfDate));
+function buildThreeYearDemoSales(asOfDate: string): Sale[] {
+  return threeCalendarYearMonths(asOfDate).flatMap((monthKey) => buildMonthThroughDate(monthKey, asOfDate));
 }
 
 /**
@@ -206,13 +261,13 @@ export function createPublicDemoHistoricPlan(asOfDate = todayDateOnly()): PayPla
   return {
     ...structuredClone(DEFAULT_PAY_PLAN),
     version: DEMO_HISTORIC_PLAN_VERSION,
-    effectiveMonth: twoYearMonths(asOfDate)[0],
+    effectiveMonth: threeCalendarYearMonths(asOfDate)[0],
   };
 }
 
 export function demoRangeDescription(asOfDate = todayDateOnly()): string {
   if (!IS_PUBLIC_DEMO_BUILD) return "a full calendar year";
-  const start = twoYearMonths(asOfDate)[0];
+  const start = threeCalendarYearMonths(asOfDate)[0];
   const [year, month] = start.split("-").map(Number);
   const label = new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric", timeZone: "UTC" })
     .format(new Date(Date.UTC(year, month - 1, 1)));
@@ -222,9 +277,9 @@ export function demoRangeDescription(asOfDate = todayDateOnly()): string {
 export function buildDemoSales(
   selectedMonth: string,
   asOfDate = todayDateOnly(),
-  scope: DemoDatasetScope = IS_PUBLIC_DEMO_BUILD ? "two-year" : "full-year",
+  scope: DemoDatasetScope = IS_PUBLIC_DEMO_BUILD ? "three-year" : "full-year",
 ): Sale[] {
-  return scope === "two-year"
-    ? buildTwoYearDemoSales(asOfDate)
+  return scope !== "full-year"
+    ? buildThreeYearDemoSales(asOfDate)
     : buildFullYearDemoSales(selectedMonth, asOfDate);
 }

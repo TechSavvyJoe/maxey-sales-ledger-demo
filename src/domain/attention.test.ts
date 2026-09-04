@@ -28,6 +28,8 @@ function calculated(
     normalizedStock: `STK-${id}`,
     monthKey: "2026-08",
     countsTowardVolume: status === "delivered" && flags.length === 0,
+    deliveryOrdinal: status === "delivered" && flags.length === 0 ? 1 : null,
+    milestone: null,
     commissionReady: flags.length === 0,
     frontRateBps: 3_000,
     frontCommissionCents: 30_000,

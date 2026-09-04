@@ -39,6 +39,8 @@ function calculatedSale(
     normalizedStock: sale.stockNumber,
     monthKey: sale.saleDate.slice(0, 7),
     countsTowardVolume,
+    deliveryOrdinal: countsTowardVolume ? 1 : null,
+    milestone: null,
     commissionReady: countsTowardVolume && front.frontCommissionMethod !== "awaiting",
     frontRateBps: 3_000,
     frontCommissionMethod: countsTowardVolume ? front.frontCommissionMethod : "excluded",

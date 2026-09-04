@@ -113,11 +113,27 @@ export interface SaleReviewFlag {
   severity: "warning" | "error";
 }
 
+/** Explanatory attribution, never an additional line in payable monthly totals. */
+export interface SaleMilestoneImpact {
+  deliveryOrdinal: number;
+  unlocksHigherRate: boolean;
+  frontRateBps: number;
+  priorSalesRetroactiveCents: number;
+  bonusAddedCents: number;
+  extraEarningsUnlockedCents: number;
+  totalMilestoneImpactCents: number;
+  missingPriorFrontGrossCount: number;
+  isPartial: boolean;
+}
+
 export interface CalculatedSale {
   sale: Sale;
   normalizedStock: string;
   monthKey: string;
   countsTowardVolume: boolean;
+  /** Counted delivery order within the month: delivery date, entry time, then id. */
+  deliveryOrdinal: number | null;
+  milestone: SaleMilestoneImpact | null;
   commissionReady: boolean;
   frontRateBps: number;
   frontCommissionCents: number;

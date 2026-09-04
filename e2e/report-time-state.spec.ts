@@ -68,14 +68,14 @@ test("2026 Year report marks October through December as upcoming", async ({ pag
   await yearPanel.getByRole("tablist", { name: "Year report subject" })
     .getByRole("tab", { name: "Monthly results", exact: true })
     .click();
-  const yearTable = yearPanel.getByRole("region", { name: /^2026 .*performance table$/ });
-  await expect(yearTable).toBeVisible({ timeout: 15_000 });
+  const yearCards = yearPanel.getByLabel("2026 monthly performance list", { exact: true });
+  await expect(yearCards).toBeVisible({ timeout: 15_000 });
   for (const month of ["Oct", "Nov", "Dec"]) {
-    const row = yearTable.getByRole("row", { name: new RegExp(`^${month} 2026\\b`) });
-    await expect(row, `${month} should be presented as a future month`).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText("Upcoming");
-    await expect(row).not.toContainText("No attention items");
-    await expect(row).not.toContainText("$0");
-    await expect(row.getByLabel("No attention items")).toHaveCount(0);
+    const card = yearCards.locator(".year-report-card").filter({ hasText: `${month} 2026` });
+    await expect(card, `${month} should be presented as a future month`).toBeVisible({ timeout: 15_000 });
+    await expect(card).toContainText("Upcoming");
+    await expect(card).not.toContainText("No attention items");
+    await expect(card).not.toContainText("$0");
+    await expect(card.getByLabel("No attention items")).toHaveCount(0);
   }
 });

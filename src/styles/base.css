@@ -112,6 +112,23 @@ strong {
   font-weight: var(--font-weight-semibold);
 }
 
+/* Reserve color for the status itself, not oversized capsule decoration. */
+.app-shell .pace-chip {
+  border-radius: 6px;
+}
+
+.app-shell .pace-chip.is-on-pace {
+  border-color: var(--color-border);
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+
+/* Keyboard focus remains visible when a sticky header or bottom navigation
+   is present. This also helps report drill-down and validation targets. */
+.app-shell :where(button, input, select, textarea, summary, [tabindex]) {
+  scroll-margin-block: calc(var(--shell-topbar-height) + 16px) 88px;
+}
+
 @media screen {
   /* Inputs need a real boundary, including when shadows are unavailable. */
   .app-shell input:not([type="checkbox"]):not([type="radio"]):not([aria-invalid="true"]):not(:focus-visible),

@@ -117,7 +117,7 @@ async function withCrossTabBackupLock<T>(operation: () => Promise<T>): Promise<T
   return navigator.locks.request(BACKUP_LOCK_NAME, { mode: "exclusive" }, operation);
 }
 
-export function useAutomaticBackup(auditEvents: AuditEvent[]): AutomaticBackupController {
+export function useAutomaticBackup(auditEvents: AuditEvent[], enabled = true): AutomaticBackupController {
   const [viewState, setViewState] = useState<AutomaticBackupViewState>(initialState);
   const bindingRef = useRef<AutomaticBackupBinding | null>(null);
   const pendingCandidateRef = useRef<AutomaticBackupBinding | null>(null);
@@ -315,6 +315,7 @@ export function useAutomaticBackup(auditEvents: AuditEvent[]): AutomaticBackupCo
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     mountedRef.current = true;
     if (initializedRef.current) return () => { mountedRef.current = false; };
     initializedRef.current = true;
@@ -360,9 +361,10 @@ export function useAutomaticBackup(auditEvents: AuditEvent[]): AutomaticBackupCo
       }
     })();
     return () => { mountedRef.current = false; };
-  }, [runBackup, setIfMounted]);
+  }, [enabled, runBackup, setIfMounted]);
 
   useEffect(() => {
+    if (!enabled) return;
     if (previousChangeMarkerRef.current === latestChangeMarker) return;
     previousChangeMarkerRef.current = latestChangeMarker;
     const timeout = window.setTimeout(() => {
@@ -386,7 +388,7 @@ export function useAutomaticBackup(auditEvents: AuditEvent[]): AutomaticBackupCo
       });
     }, BACKUP_DEBOUNCE_MS);
     return () => window.clearTimeout(timeout);
-  }, [latestChangeMarker, runBackup, setIfMounted]);
+  }, [enabled, latestChangeMarker, runBackup, setIfMounted]);
 
   return {
     ...viewState,

@@ -52,9 +52,9 @@ test("production sections and controls stay distinct on office monitors and phon
   await expect(page.locator(".dashboard-page")).toBeVisible();
   await openView(page, "Settings");
   await page.getByRole("button", { name: /^Data & backups/ }).click();
-  const loadDemo = page.getByRole("button", { name: /^Load (2-year|full-year) demo$/ });
+  const loadDemo = page.getByRole("button", { name: /^(?:Load sample history|Load full-year demo)$/ });
   if (await loadDemo.isVisible()) await loadDemo.click();
-  await expect(page.locator(".demo-data-callout")).toContainText("fictional demonstration sales are loaded");
+  await expect(page.locator(".demo-data-callout")).toContainText("fictional sales");
 
   const measurements: Array<Record<string, unknown>> = [];
   for (const viewport of [

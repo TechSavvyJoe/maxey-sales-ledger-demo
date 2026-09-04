@@ -1,0 +1,53 @@
+import { expect, test } from "@playwright/test";
+
+test("profile and Mini save automatically, while an empty number is not converted to zero", async ({ page, context }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  const name = page.getByLabel("Salesperson name *");
+  await name.fill("Autosave example");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
+  await page.reload();
+  await expect(name).toHaveValue("Autosave example");
+  await name.fill("");
+  await expect(page.getByText("Finish the highlighted setting before it can be saved.")).toBeVisible();
+  await expect(page.locator("#settings-salesperson-name-error")).toHaveText("Enter the salesperson name used on reports.");
+  await expect(name).toBeFocused();
+  await name.fill("Autosave example");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
+  const goal = page.getByLabel(/delivery goal/);
+  const original = await goal.inputValue();
+  await goal.fill("");
+  await expect(goal).toBeFocused();
+  await expect(page.getByText("Finish the highlighted setting before it can be saved.")).toBeVisible();
+  const second = await context.newPage();
+  await second.goto("/");
+  await second.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await expect(second.getByLabel(/delivery goal/)).toHaveValue(original);
+  await goal.fill("23");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
+  await expect(goal).toBeFocused();
+  await expect(second.getByLabel(/delivery goal/)).toHaveValue("23");
+  await page.getByRole("button", { name: /^Pay plan/ }).click();
+  const mini = page.getByLabel("Mini", { exact: true });
+  await mini.fill("0350");
+  await mini.blur();
+  await expect(mini).toHaveValue("350");
+  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /^Pay plan/ }).click();
+  await expect(mini).toHaveValue("350");
+  await second.close();
+});
+
+test("payroll amount saves in the background and survives reload", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Reports", exact: true }).first().click();
+  await page.getByRole("tab", { name: "Paid versus estimate" }).click();
+  const amount = page.getByLabel("Commission paid");
+  await amount.fill("1234.56");
+  await expect(page.getByText("Payroll amount saved. Changes save automatically.")).toBeVisible();
+  await expect(amount).toBeFocused();
+  await page.reload();
+  await page.getByRole("tab", { name: "Paid versus estimate" }).click();
+  await expect(amount).toHaveValue("1234.56");
+});
