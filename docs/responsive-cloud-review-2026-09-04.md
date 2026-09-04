@@ -31,6 +31,8 @@ Automated unit, browser, access-rule, and compiled-artifact results are recorded
 
 Test-harness corrections preserve the user-facing assertions: Year tests accept whichever equivalent table/card representation is visible; a full-screen phone editor closes through its visible control rather than a nonexistent backdrop; valid Settings changes are verified after autosave instead of racing its disabled manual button.
 
+The shared desktop, phone, and tablet browser workflows now run on independent GitHub runners on every main update and pull request. Cloud access rules and Chrome/phone/WebKit saving journeys remain a separate Firebase validation workflow. Failed runs retain traces; tests do not automatically retry until they happen to pass.
+
 ## Before broad coworker rollout
 
 This is a polished personal-workspace pilot, not a guarantee of defect-free operation or an official payroll system. These operational acceptance items remain distinct from interface quality:
