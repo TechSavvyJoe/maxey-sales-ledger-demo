@@ -81,6 +81,12 @@ export function sameOriginEmailLink(currentHref: string, expectedOrigin: string)
 /** Provider error messages may contain email addresses or links; never surface them. */
 export function cloudAuthErrorMessage(error: unknown): string {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  const providerMessage = typeof error === "object" && error !== null && "message" in error
+    ? String(error.message).toLowerCase()
+    : "";
+  if (/missing initial state|sessionstorage|web storage|storage-partitioned|storage partitioned/.test(providerMessage)) {
+    return "This in-app browser blocked the protected sign-in step. Open the private Sales Ledger link directly in Chrome, Edge, Safari, or Firefox, then sign in again.";
+  }
   switch (code) {
     case "auth/network-request-failed":
       return "Sign-in could not connect. Check your internet connection and try again.";

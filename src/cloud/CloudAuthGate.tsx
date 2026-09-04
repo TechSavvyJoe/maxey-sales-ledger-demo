@@ -233,7 +233,7 @@ function CloudAuthContent({ client, children }: { client: FirebaseCloudClient; c
       {error && <p className="cloud-auth__error" id="cloud-auth-error" role="alert">{error}</p>}
       {notice && <p className="cloud-auth__notice" role="status">{notice}</p>}
       <p className="cloud-auth__privacy"><ShieldCheck size={18} aria-hidden="true" /><span>Signing in creates your own private workspace. Existing on-device sales are never uploaded automatically.</span></p>
-      <details className="cloud-auth__help"><summary>Having trouble signing in?</summary><p>Open this address directly in Chrome, Edge, Safari or Firefox if sign-in does not open inside another app. You can also use an email link.</p></details>
+      <details className="cloud-auth__help"><summary>Having trouble signing in?</summary><p>Open this exact link directly in Chrome, Edge, Safari, or Firefox if you opened it from another app. In-app browsers can block the protected Google sign-in step. You can also use an email link in a full browser.</p></details>
     </AuthFrame>
   );
 }
