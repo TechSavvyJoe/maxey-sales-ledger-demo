@@ -301,6 +301,101 @@
   font-size: 13px;
 }
 
+/* Volume bonus rows adapt to the space the Settings panel actually receives.
+   At narrow embedded and split-window widths, each row becomes a labeled
+   two-field card with its running total on a separate line. */
+.settings-page .bonus-tier-table {
+  container-name: bonus-tiers;
+  container-type: inline-size;
+}
+
+.settings-page .bonus-tier-field__label,
+.settings-page .bonus-tier-total__label {
+  display: none;
+}
+
+.settings-page .bonus-tier-total__value {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+@container bonus-tiers (max-width: 560px) {
+  .settings-page .bonus-tier-table__header {
+    display: none;
+  }
+
+  .settings-page .bonus-tier-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    align-items: start;
+    padding: 12px;
+  }
+
+  .settings-page .bonus-tier-row > .bonus-tier-field {
+    align-self: stretch;
+  }
+
+  .settings-page .bonus-tier-field__label {
+    display: block;
+    margin: 0;
+    color: var(--slate-600);
+    font-size: 12px;
+    font-weight: var(--font-weight-bold);
+    line-height: 1.25;
+  }
+
+  .settings-page .bonus-tier-control,
+  .settings-page .bonus-tier-field > .money-input {
+    min-width: 0;
+  }
+
+  .settings-page .bonus-tier-control input,
+  .settings-page .bonus-tier-field > .money-input input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .settings-page .bonus-tier-control input {
+    flex: 1 1 auto;
+  }
+
+  .settings-page .bonus-tier-total {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100%;
+    min-width: 0;
+    padding-top: 9px;
+    border-top: 1px solid var(--slate-100);
+  }
+
+  .settings-page .bonus-tier-total__label {
+    display: block;
+    min-width: 0;
+    color: var(--slate-600);
+    font-size: 12px;
+    font-weight: var(--font-weight-bold);
+    line-height: 1.25;
+  }
+
+  .settings-page .bonus-tier-total__value {
+    display: grid;
+    min-width: max-content;
+    justify-items: end;
+    gap: 1px;
+  }
+
+  .settings-page .bonus-tier-total__value small {
+    margin-left: 0;
+    text-align: right;
+  }
+}
+
 .settings-page .data-action-grid > button {
   min-height: 104px;
 }

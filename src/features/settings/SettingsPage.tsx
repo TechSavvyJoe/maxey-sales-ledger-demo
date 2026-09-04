@@ -1443,8 +1443,9 @@ export function SettingsPage({
             </div>
             {draft.payPlan.bonusTiers.map((tier, index) => {
               return (
-              <div key={bonusRowIdentity.key(tier)} className="bonus-tier-row">
+              <div key={bonusRowIdentity.key(tier)} className="bonus-tier-row" role="group" aria-label={`Bonus level ${index + 1}`}>
                 <div className="bonus-tier-field">
+                  <label className="bonus-tier-field__label" htmlFor={`bonus-minimum-${index}`}>Minimum delivered</label>
                   <div className="bonus-tier-control">
                     <Input
                       ref={(node) => { validationControlRefs.current[`bonusMinimum-${index}`] = node; }}
@@ -1459,6 +1460,7 @@ export function SettingsPage({
                   {fieldError(`bonusMinimum-${index}`) ? <span id={settingsErrorId(`bonusMinimum-${index}`)} className="field-error">{fieldError(`bonusMinimum-${index}`)}</span> : null}
                 </div>
                 <div className="bonus-tier-field">
+                  <label className="bonus-tier-field__label" htmlFor={`bonus-amount-${index}`}>Bonus added</label>
                   <div className="money-input">
                     <span aria-hidden="true">$</span>
                     <Input
@@ -1473,9 +1475,11 @@ export function SettingsPage({
                   {fieldError(`bonusAmount-${index}`) ? <span id={settingsErrorId(`bonusAmount-${index}`)} className="field-error">{fieldError(`bonusAmount-${index}`)}</span> : null}
                 </div>
                 <div className="bonus-tier-total">
-                  <span className="mobile-only-label">Total bonus</span>
-                  <strong>{formatCurrency(tier.amountCents)}</strong>
-                  {index === 0 ? <small>Demo bonus</small> : null}
+                  <span className="bonus-tier-total__label">Total bonus</span>
+                  <span className="bonus-tier-total__value">
+                    <strong>{formatCurrency(tier.amountCents)}</strong>
+                    {index === 0 ? <small>Demo bonus</small> : null}
+                  </span>
                 </div>
               </div>
               );

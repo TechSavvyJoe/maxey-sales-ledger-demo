@@ -60,15 +60,28 @@ test("report destinations remain fully readable at compact and 200%-zoom-equival
   await expect(page.getByText("Opening your sales workspace")).toBeHidden();
   await page.getByRole("button", { name: "Reports", exact: true }).first().click();
 
-  for (const width of [481, 520, 640]) {
+  for (const width of [320, 360, 390, 410, 440, 460, 480, 481, 520, 640]) {
     await page.setViewportSize({ width, height: 900 });
     const subjectTabs = page.getByRole("tablist", { name: "Monthly report subject" });
     await expectCompleteNavigationLabels(subjectTabs, ["Overview", "Sales", "F&I", "Commission"]);
+    const subjectGeometry = await subjectTabs.evaluate((element) => ({
+      height: element.getBoundingClientRect().height,
+      controls: [...element.querySelectorAll("button")].map((button) => ({
+        top: button.getBoundingClientRect().top,
+        width: button.getBoundingClientRect().width,
+      })),
+    }));
+    expect(subjectGeometry.height, `${width}px uses a compact, single-row subject switcher`).toBeLessThanOrEqual(54);
+    expect(new Set(subjectGeometry.controls.map((button) => Math.round(button.top))).size).toBe(1);
+    for (const control of subjectGeometry.controls) expect(control.width).toBeGreaterThanOrEqual(44);
     await subjectTabs.getByRole("tab", { name: "F&I", exact: true }).click();
     const fiTabs = page.locator(".fi-report-center").first().getByRole("tablist", { name: "F&I report sections" });
     await expectCompleteNavigationLabels(fiTabs, ["Overview", "Products", "Financing", "Combinations", "Deals"]);
+    expect(await fiTabs.evaluate((element) => element.getBoundingClientRect().height),
+      `${width}px fits all five F&I sections into two rows`).toBeLessThanOrEqual(102);
     const widthState = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
     expect(widthState.document, `no horizontal overflow at ${width}px`).toBeLessThanOrEqual(widthState.viewport + 1);
+    if ([320, 410, 460].includes(width)) await page.screenshot({ path: testInfo.outputPath(`compact-report-tabs-${width}.png`), fullPage: false });
   }
 });
 

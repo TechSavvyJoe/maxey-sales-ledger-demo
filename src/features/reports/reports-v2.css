@@ -1229,17 +1229,21 @@
 
   .report-subject-tabs {
     grid-auto-flow: initial;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     width: 100%;
+    gap: 2px;
     margin-bottom: 10px;
   }
 
-  .report-subject-tabs button {
-    grid-column: span 2;
+  .report-subject-tabs[data-tab-count="4"] {
+    /* Give the longer labels room without turning four destinations into
+       a two-storey panel. Every column still has a full touch target. */
+    grid-template-columns: minmax(72px, 1.2fr) minmax(44px, .8fr) minmax(44px, .7fr) minmax(88px, 1.5fr);
   }
 
+  .report-subject-tabs button,
   .report-subject-tabs[data-tab-count="4"] button {
-    grid-column: span 3;
+    grid-column: auto;
   }
 
   .fi-center-jump-nav {
@@ -1257,8 +1261,8 @@
     grid-column: span 3;
   }
 
-  .report-subject-tabs button,
-  .fi-center-jump-nav button {
+  .reports-page .report-subject-tabs button,
+  .reports-page .fi-center-jump-nav button {
     min-width: 0;
     min-height: 44px;
     padding: 0 7px;
@@ -1268,6 +1272,10 @@
     white-space: normal;
     overflow-wrap: normal;
     line-height: 1.2;
+  }
+
+  .reports-page .report-subject-tabs button {
+    padding-inline: 4px;
   }
 
   .reports-page .report-metric,
@@ -1412,35 +1420,6 @@
 
   .fi-center-evidence-cards {
     display: grid;
-  }
-}
-
-/* At phone widths, clear two-column controls read better than fractured words. */
-@media (max-width: 480px) {
-  .report-subject-tabs,
-  .fi-center-jump-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .report-subject-tabs button,
-  .report-subject-tabs[data-tab-count="4"] button,
-  .fi-center-jump-nav button,
-  .fi-center-jump-nav button:nth-child(n + 4) {
-    grid-column: auto;
-  }
-
-  .fi-center-jump-nav button:last-child {
-    grid-column: 1 / -1;
-  }
-
-  .report-subject-tabs[data-tab-count="3"] button:last-child {
-    grid-column: 1 / -1;
-  }
-
-  .report-subject-tabs button,
-  .fi-center-jump-nav button {
-    min-height: 44px;
-    padding-inline: 10px;
   }
 }
 

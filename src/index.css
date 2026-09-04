@@ -4750,19 +4750,6 @@ button:not(:disabled),
   .work-schedule-details__action { display: none; }
   .work-schedule-day { min-height: 48px; }
   .work-schedule-weekdays { font-size: 10px; }
-  .bonus-tier-table__header { display: none; }
-  .bonus-tier-row { grid-template-columns: 0.8fr 1.2fr; gap: 8px; padding: 10px 8px; }
-  .bonus-tier-total {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    align-items: baseline !important;
-    justify-content: space-between;
-    padding-top: 7px;
-    border-top: 1px solid var(--slate-100);
-  }
-  .bonus-tier-total small { margin-left: auto; }
-  .mobile-only-label { display: inline; font-size: 12px; font-weight: var(--font-weight-bold); text-transform: uppercase; }
-  .bonus-tier-row input { width: 100%; }
   .demo-data-callout { align-items: flex-start; flex-wrap: wrap; }
   .demo-data-callout button { width: 100%; }
   .activity-list li { grid-template-columns: 12px 1fr; padding-block: 6px; }

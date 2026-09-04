@@ -173,7 +173,7 @@ test("compiled Firebase Settings stays responsive and uses cloud saving instead 
   await expect(page.locator(".settings-page")).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Settings categories", exact: true });
-  for (const [width, height] of [[320, 568], [390, 844], [844, 390], [1180, 820], [1440, 900], [2560, 1440]]) {
+  for (const [width, height] of [[320, 568], [390, 844], [410, 844], [460, 844], [844, 390], [1180, 820], [1440, 900], [2560, 1440]]) {
     await page.setViewportSize({ width, height });
     for (const category of ["Profile & goals", "Days off", "Pay plan", "Volume bonuses", "Cloud saving"]) {
       await nav.getByRole("button", { name: category, exact: true }).click();
@@ -189,6 +189,34 @@ test("compiled Firebase Settings stays responsive and uses cloud saving instead 
       }));
       expect(geometry.pageWidth, `${width}px ${category} must fit the viewport`).toBeLessThanOrEqual(width + 1);
       expect(geometry.targets.every((target) => target.width >= 43.9 && target.height >= 43.9)).toBe(true);
+      if (category === "Volume bonuses") {
+        const schedule = await page.locator(".bonus-tier-table").evaluate((element) => ({
+          client: element.clientWidth,
+          scroll: element.scrollWidth,
+          rows: [...element.querySelectorAll(".bonus-tier-row")].map((row) => {
+            const bounds = row.getBoundingClientRect();
+            return {
+              client: row.clientWidth,
+              scroll: row.scrollWidth,
+              contained: [...row.querySelectorAll("input, .bonus-tier-total")].every((field) => {
+                const fieldBounds = field.getBoundingClientRect();
+                return fieldBounds.left >= bounds.left && fieldBounds.right <= bounds.right;
+              }),
+            };
+          }),
+        }));
+        expect(schedule.scroll, `${width}px bonus table must not hide horizontal overflow`).toBeLessThanOrEqual(schedule.client + 1);
+        expect(schedule.rows).toHaveLength(6);
+        for (const row of schedule.rows) {
+          expect(row.scroll).toBeLessThanOrEqual(row.client + 1);
+          expect(row.contained, `${width}px every bonus field and total stays inside its row`).toBe(true);
+        }
+        if (width <= 460) await page.screenshot({ path: testInfo.outputPath(`firebase-bonuses-${width}.png`), fullPage: true });
+        if (width === 390 || width === 1180) {
+          const bonusAccessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+          expect(bonusAccessibility.violations).toEqual([]);
+        }
+      }
     }
     await expect(page.locator(".cloud-data-copy")).toContainText("Automatic saving:");
     await expect(page.getByRole("button", { name: "Download a copy", exact: true })).toBeVisible();
@@ -208,6 +236,15 @@ test("compiled Firebase Settings stays responsive and uses cloud saving instead 
     if (width === 390 || width === 1180) {
       const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
       expect(accessibility.violations).toEqual([]);
+    }
+    if (width <= 460) {
+      await page.getByRole("button", { name: "Reports", exact: true }).first().click();
+      const reportSubjects = page.getByRole("tablist", { name: "Monthly report subject", exact: true });
+      await expect(reportSubjects).toBeVisible();
+      expect(await reportSubjects.evaluate((element) => element.getBoundingClientRect().height),
+        `${width}px Firebase Reports must keep four subject tabs on one compact row`).toBeLessThanOrEqual(54);
+      await page.screenshot({ path: testInfo.outputPath(`firebase-reports-${width}.png`), fullPage: true });
+      await page.getByRole("button", { name: "Settings", exact: true }).first().click();
     }
   }
   await nav.getByRole("button", { name: "Profile & goals", exact: true }).click();

@@ -42,8 +42,22 @@ test("Sales search, filters, and sorting reflow from the usable workspace withou
   await page.setViewportSize({ width: 1280, height: 800 });
   await openSales(page);
 
+  const measurements: Array<Record<string, number | string>> = [];
   for (const width of [320, 390, 720, 721, 760, 761, 920, 921, 1024, 1120, 1121, 1280, 1440]) {
     await page.setViewportSize({ width, height: 800 });
+    await expect.poll(async () => page.locator(".sales-page").evaluate((salesPage) => {
+      const workspaceWidth = salesPage.getBoundingClientRect().width;
+      const viewportWidth = document.documentElement.clientWidth;
+      const areas = getComputedStyle(salesPage.querySelector<HTMLElement>(".sales-toolbar")!).gridTemplateAreas;
+      if (workspaceWidth <= 760) return areas === '"search" "filters" "actions"';
+      if (workspaceWidth <= 1080 || (viewportWidth >= 721 && viewportWidth <= 1336)) {
+        return areas === '"search search" "filters actions"';
+      }
+      return areas === '"search filters actions"';
+    }), {
+      message: `${width}px toolbar settles into the layout for its usable Sales canvas`,
+    }).toBe(true);
+
     const geometry = await page.locator(".sales-page").evaluate((salesPage) => {
       const bounds = (element: Element | null) => {
         if (!element) return null;
@@ -72,6 +86,7 @@ test("Sales search, filters, and sorting reflow from the usable workspace withou
         viewportWidth: document.documentElement.clientWidth,
         workspaceWidth: salesPage.getBoundingClientRect().width,
         containerType: getComputedStyle(salesPage).containerType,
+        gridAreas: getComputedStyle(toolbar!).gridTemplateAreas,
         toolbar: bounds(toolbar),
         search: bounds(salesPage.querySelector(".search-field")),
         filters: bounds(filterRail),
@@ -87,6 +102,12 @@ test("Sales search, filters, and sorting reflow from the usable workspace withou
         searchInputHeight: salesPage.querySelector<HTMLElement>(".search-field input")?.getBoundingClientRect().height ?? 0,
         sortHeight: salesPage.querySelector<HTMLElement>(".sort-control")?.getBoundingClientRect().height ?? 0,
       };
+    });
+    measurements.push({
+      viewport: width,
+      clientWidth: geometry.viewportWidth,
+      workspaceWidth: geometry.workspaceWidth,
+      gridAreas: geometry.gridAreas,
     });
 
     expect(geometry.canvasWidth, `${width}px page overflow`).toBeLessThanOrEqual(geometry.viewportWidth + 1);
@@ -128,6 +149,11 @@ test("Sales search, filters, and sorting reflow from the usable workspace withou
       await page.screenshot({ path: testInfo.outputPath(`sales-toolbar-${width}.png`), fullPage: false });
     }
   }
+
+  await testInfo.attach("sales-toolbar-usable-widths", {
+    body: JSON.stringify(measurements, null, 2),
+    contentType: "application/json",
+  });
 });
 
 test("Add sale keeps one compact sticky commission summary on short landscape screens", async ({ page }, testInfo) => {

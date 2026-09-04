@@ -175,6 +175,28 @@
 /* Toolbar breakpoints follow the usable Sales canvas, rather than the outer
    browser. This prevents the same viewport from becoming cramped when the
    app's navigation rail changes width. */
+/* The standard 208px desktop rail leaves at most 1080px of Sales canvas
+   through a 1336px viewport. Keep that common desktop range deterministically
+   stacked while the container query below remains the authority when an
+   embedded or resized workspace has less room than its outer window suggests. */
+@media (min-width: 721px) and (max-width: 1336px) {
+  .app-shell .sales-toolbar {
+    grid-template-areas:
+      "search search"
+      "filters actions";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    align-items: center;
+  }
+
+  .app-shell .filter-chips {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+}
+
 @container sales-workspace (max-width: 1080px) {
   .app-shell .sales-toolbar {
     grid-template-areas:

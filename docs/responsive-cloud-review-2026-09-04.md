@@ -4,7 +4,7 @@
 
 The primary product is the private Firebase edition at `https://maxey-sales-ledger-private.web.app/`. Google sign-in, account-scoped storage, server-acknowledged autosave, and cross-device access belong to this edition. The public GitHub Pages demo is a separate local-storage demonstration. Screenshots of its Google Drive or recovery-folder controls are not evidence of the Firebase interface.
 
-## Changes in this release candidate
+## Changes in this update
 
 - Settings now has one stable five-destination category strip. Categories do not become a side rail or a masonry-style grid when the window changes size. Expanding a section cannot leave an empty neighboring card.
 - Navigation labels adapt to available content width without truncation. Touch targets remain at least 44 pixels, with arrow-key navigation and visible focus.
@@ -14,6 +14,9 @@ The primary product is the private Firebase edition at `https://maxey-sales-ledg
 - Short landscape Dashboard disclosures start closed; manual choices persist within the current density mode. Compact navigation rails use the official dealership link in the header instead of squeezing a full footer into a narrow rail.
 - The sale editor keeps one compact commission summary in short landscape windows and uses an opaque sticky header. Toast close controls are 44 pixels; toast surfaces do not block unrelated actions.
 - Typography uses the supplied font weights consistently. Cloud loading and sharing copy now describe the account-based edition.
+- Follow-up screenshots exposed clipping inside the bonus schedule around 410–460 pixels even though the page itself did not overflow. Bonus rows now follow their own available width, with visible field labels and a separate, aligned running total. The Demo bonus note stays with its amount instead of pushing the total into its label.
+- Month report subjects now fit on one 44-pixel control row at narrow panel widths; the five F&I destinations use two rows rather than three. Complete labels and keyboard behavior remain intact.
+- The laptop Sales toolbar has an explicit intermediate-width fallback so operating-system scrollbar differences and container-query settlement cannot briefly produce a cramped single row.
 
 ## Historical requirements checked against the current code
 
@@ -32,6 +35,8 @@ Automated unit, browser, access-rule, and compiled-artifact results are recorded
 Test-harness corrections preserve the user-facing assertions: Year tests accept whichever equivalent table/card representation is visible; a full-screen phone editor closes through its visible control rather than a nonexistent backdrop; valid Settings changes are verified after autosave instead of racing its disabled manual button.
 
 The shared desktop, phone, and tablet browser workflows now run on independent GitHub runners on every main update and pull request. Cloud access rules and Chrome/phone/WebKit saving journeys remain a separate Firebase validation workflow. Failed runs retain traces; tests do not automatically retry until they happen to pass.
+
+Bonus verification measures each row, input, label, amount, and note inside the panel—not just page-level overflow. The compiled Firebase checks include 410- and 460-pixel panels, so the reported in-app-browser geometry is covered by the actual cloud edition.
 
 ## Before broad coworker rollout
 
