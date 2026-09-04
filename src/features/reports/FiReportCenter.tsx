@@ -73,7 +73,7 @@ function openSaleFromReportRow(event: MouseEvent<HTMLElement>, sale: Sale, onOpe
   if (!(target instanceof Element) || target.closest("button, a, input, select, textarea, summary, [role='button'], [role='link'], [contenteditable='true']")) return;
   const selection = window.getSelection();
   if (selection && !selection.isCollapsed && (event.currentTarget.contains(selection.anchorNode) || event.currentTarget.contains(selection.focusNode))) return;
-  event.currentTarget.querySelector<HTMLButtonElement>(".report-open-sale")?.focus({ preventScroll: true });
+  event.currentTarget.querySelector<HTMLButtonElement>(".report-open-sale-identity, .report-open-sale")?.focus({ preventScroll: true });
   onOpenSale(sale);
 }
 
@@ -95,13 +95,31 @@ export function ReportSaleButton({ sale, onOpenSale }: { sale: Sale; onOpenSale:
   );
 }
 
-export function ReportSaleIdentity({ sale, includeLastNames }: { sale: Sale; includeLastNames: boolean }) {
+export function ReportSaleIdentity({
+  sale,
+  includeLastNames,
+  onOpenSale,
+}: {
+  sale: Sale;
+  includeLastNames: boolean;
+  onOpenSale: (sale: Sale) => void;
+}) {
   const vehicle = sale.vehicleDescription.trim() || "Vehicle not entered";
+  const customer = sale.customerLastName.trim() || "Customer not entered";
   return (
-    <div className="report-sale-identity">
-      <strong className="report-sale-identity__primary">{includeLastNames ? sale.customerLastName.trim() || "Customer not entered" : vehicle}</strong>
+    <button
+      type="button"
+      className="report-sale-identity report-open-sale-identity"
+      aria-label={includeLastNames ? `Open ${customer} — ${vehicle}` : `Open ${vehicle}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        event.currentTarget.focus({ preventScroll: true });
+        onOpenSale(sale);
+      }}
+    >
+      <strong className="report-sale-identity__primary">{includeLastNames ? customer : vehicle}</strong>
       {includeLastNames ? <span className="report-sale-identity__vehicle">{vehicle}</span> : null}
-    </div>
+    </button>
   );
 }
 
@@ -931,7 +949,7 @@ export function FiReportCenter({
                 <tbody>
                   {visibleDeals.map((item) => (
                     <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                      <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></th>
+                      <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} onOpenSale={onOpenSale} /><ReportMilestoneIndicator item={item} /></th>
                       <td><ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} stacked /></td>
                       <td><ProductOutcomeBadges sale={item.sale} /></td>
                       <td><span className="fi-evidence-finance" data-state={outcomeLabel(dealerFinancingOutcome(item.sale))}>{paymentMethodLabel(item.sale)}</span></td>
@@ -947,7 +965,7 @@ export function FiReportCenter({
               {visibleDeals.map((item) => (
                 <article key={item.sale.id} className="fi-evidence-card report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                   <header>
-                    <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></div>
+                    <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} onOpenSale={onOpenSale} /><ReportMilestoneIndicator item={item} /></div>
                     <span>{formatUnitCredit(item.sale.unitCreditBasis)} units</span>
                   </header>
                   <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />

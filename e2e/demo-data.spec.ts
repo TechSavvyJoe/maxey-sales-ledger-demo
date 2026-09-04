@@ -40,8 +40,12 @@ test("three-year demonstration data ends today, supports historic views, and rel
   await page.getByRole("tablist", { name: "Year report subject" })
     .getByRole("tab", { name: "Monthly results", exact: true })
     .click();
-  const yearCards = page.getByLabel("2024 monthly performance list", { exact: true });
-  await expect(yearCards.getByRole("heading", { name: "Jan 2024", exact: true })).toBeVisible();
+  const januaryResult = page.locator("#report-year-monthly-panel")
+    .getByRole("rowheader", { name: "Jan 2024", exact: true })
+    .or(page.getByLabel("2024 monthly performance list", { exact: true })
+      .getByRole("heading", { name: "Jan 2024", exact: true }))
+    .filter({ visible: true });
+  await expect(januaryResult).toBeVisible();
 
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await page.getByRole("button", { name: /^Data & backups/ }).click();

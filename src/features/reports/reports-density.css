@@ -198,7 +198,7 @@
   color: var(--slate-700);
   padding-inline: 11px;
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -253,7 +253,7 @@
 }
 
 .report-comparison > dl > div:last-child { border-right: 0; }
-.report-comparison dt { color: var(--slate-600); font-size: 9px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.report-comparison dt { color: var(--slate-600); font-size: 9px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
 .report-comparison dd { display: grid; gap: 1px; margin: 1px 0 0; }
 .report-comparison dd strong { color: var(--navy-900); font-size: 13px; font-variant-numeric: tabular-nums; }
 .report-comparison dd small { color: var(--slate-600); font-size: 10px; }
@@ -333,7 +333,7 @@
   overflow: hidden;
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: .025em;
   text-overflow: ellipsis;
   text-transform: uppercase;
@@ -344,7 +344,7 @@
   margin: 1px 0 0;
   color: var(--navy-900);
   font-size: 15px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .reports-page .report-pace-band > p {
@@ -439,7 +439,7 @@
 .report-disclosure__value {
   color: var(--green-700);
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -452,7 +452,7 @@
   background: var(--blue-100);
   color: var(--blue-700);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .report-disclosure__count.needs-review {
@@ -524,7 +524,7 @@
 .report-deal-cell strong,
 .report-deal-cell time {
   color: var(--navy-900);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .report-deal-cell small {
@@ -624,7 +624,7 @@
   min-height: 28px;
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: .025em;
   line-height: 1.25;
   text-transform: uppercase;
@@ -661,7 +661,7 @@
   color: var(--green-700);
   padding: 2px 6px;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.1;
   white-space: nowrap;
 }
@@ -729,7 +729,7 @@
 
 .week-selector__button > span {
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .week-selector__button > small {
@@ -752,7 +752,7 @@
   padding: 1px 4px;
   font-size: 10px;
   font-style: normal;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
@@ -810,7 +810,7 @@
   color: var(--slate-700);
   padding: 2px 6px;
   font-size: 11px;
-  font-weight: 850;
+  font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
 }
@@ -839,7 +839,7 @@
 .weekly-needed > span {
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: .035em;
   line-height: 1.2;
   text-align: center;
@@ -886,8 +886,8 @@
 }
 
 .week-goal-strip > div:last-child { border-right: 0; }
-.week-goal-strip dt { color: var(--slate-600); font-size: 10px; font-weight: 800; line-height: 1.25; text-transform: uppercase; }
-.week-goal-strip dd { margin: 0; color: var(--navy-900); font-size: 18px; font-weight: 850; }
+.week-goal-strip dt { color: var(--slate-600); font-size: 10px; font-weight: 700; line-height: 1.25; text-transform: uppercase; }
+.week-goal-strip dd { margin: 0; color: var(--navy-900); font-size: 18px; font-weight: 700; }
 
 .week-pace-panel {
   margin-top: 8px;
@@ -941,7 +941,7 @@
   min-height: 27px;
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: .025em;
   line-height: 1.2;
   text-transform: uppercase;
@@ -953,7 +953,7 @@
   margin: 2px 0 0;
   color: var(--navy-900);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
 }
 
@@ -1029,7 +1029,7 @@
 .weekly-deal-row dt {
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -1038,14 +1038,14 @@
   margin: 1px 0 0;
   color: var(--navy-900);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .weekly-deal-row__attention {
   grid-column: 1 / -1;
   color: var(--amber-700);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .year-report-cards {
@@ -1121,7 +1121,7 @@
   gap: 4px;
   color: var(--green-700);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .year-report-card__clear svg {
@@ -1153,7 +1153,7 @@
 .year-report-card dt {
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -1162,7 +1162,7 @@
   margin: 2px 0 0;
   color: var(--navy-900);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .year-report-card .has-variance dd {
@@ -1195,7 +1195,7 @@
   align-items: center;
   color: var(--slate-600);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: .025em;
   text-transform: uppercase;
 }
@@ -1261,9 +1261,9 @@
   .report-sale-card dl > div { min-width: 0; border-right: 1px solid var(--slate-100); padding-inline: 6px; }
   .report-sale-card dl > div:first-child { padding-left: 0; }
   .report-sale-card dl > div:last-child { border-right: 0; padding-right: 0; }
-  .report-sale-card dt { color: var(--slate-600); font-size: 10px; font-weight: 750; text-transform: uppercase; }
-  .report-sale-card dd { overflow-wrap: anywhere; margin: 1px 0 0; color: var(--navy-900); font-size: 11px; font-weight: 750; }
-  .report-sale-card__flag { display: inline-block; margin-top: 5px; color: var(--amber-700); font-size: 11px; font-weight: 750; }
+  .report-sale-card dt { color: var(--slate-600); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .report-sale-card dd { overflow-wrap: anywhere; margin: 1px 0 0; color: var(--navy-900); font-size: 11px; font-weight: 700; }
+  .report-sale-card__flag { display: inline-block; margin-top: 5px; color: var(--amber-700); font-size: 11px; font-weight: 700; }
 }
 
 @media (max-width: 900px) {
@@ -1657,7 +1657,7 @@
   .year-fi-trend__cards dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 6px 0 0; overflow: hidden; border: 1px solid var(--slate-200); border-radius: 6px; background: var(--slate-200); }
   .year-fi-trend__cards dl > div { min-width: 0; background: #fbfcfd; padding: 6px 7px; }
   .year-fi-trend__cards dt { color: var(--slate-600); font-size: 9px; }
-  .year-fi-trend__cards dd { overflow-wrap: anywhere; margin: 1px 0 0; color: var(--navy-900); font-size: 10px; font-weight: 750; }
+  .year-fi-trend__cards dd { overflow-wrap: anywhere; margin: 1px 0 0; color: var(--navy-900); font-size: 10px; font-weight: 700; }
   .year-fi-disclosure__body { padding: 9px; }
 
   .report-secondary-grid {
@@ -1740,7 +1740,7 @@
   .report-sale-card dt {
     color: var(--slate-600);
     font-size: 11px;
-    font-weight: 750;
+    font-weight: 700;
     text-transform: uppercase;
   }
 
@@ -1749,7 +1749,7 @@
     margin: 1px 0 0;
     color: var(--navy-900);
     font-size: 11px;
-    font-weight: 750;
+    font-weight: 700;
   }
 
   .report-sale-card__flag {
@@ -1757,7 +1757,7 @@
     margin-top: 5px;
     color: var(--amber-700);
     font-size: 11px;
-    font-weight: 750;
+    font-weight: 700;
   }
 
   .reports-page .year-report,

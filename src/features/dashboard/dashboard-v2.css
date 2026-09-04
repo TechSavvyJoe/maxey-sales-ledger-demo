@@ -710,23 +710,38 @@
 
 @media (max-width: 600px) {
   .dashboard-v2-scorecard.metric-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dashboard-page-v2 .dashboard-v2-scorecard .metric-card,
   .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(3) {
-    grid-column: 1;
-    padding: 12px 14px;
+    grid-column: auto;
+    padding: 11px 12px 10px;
     border-top: 1px solid var(--color-border);
     border-left: 0;
   }
 
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:first-child {
+  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:first-child,
+  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(2) {
     border-top: 0;
   }
 
+  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(2) {
+    border-left: 1px solid var(--color-border);
+  }
+
+  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
   .dashboard-page-v2 .dashboard-v2-scorecard .metric-card > strong {
-    font-size: 28px;
+    font-size: clamp(23px, 6.7vw, 26px);
+  }
+
+  .dashboard-page-v2 .dashboard-v2-scorecard .metric-delta,
+  .dashboard-page-v2 .dashboard-v2-scorecard .metric-note {
+    margin-top: 5px;
+    font-size: 11px;
   }
 
   .dashboard-v2-review,
@@ -807,41 +822,6 @@
 
   .dashboard-page-v2 .recent-sales__commission {
     grid-column: 3;
-  }
-}
-
-@media (min-width: 300px) and (max-width: 600px) {
-  .dashboard-v2-scorecard.metric-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card,
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(3) {
-    grid-column: auto;
-    padding: 11px 12px 10px;
-  }
-
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:first-child,
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(2) {
-    border-top: 0;
-  }
-
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(2) {
-    border-left: 1px solid var(--color-border);
-  }
-
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card:nth-child(3) {
-    grid-column: 1 / -1;
-  }
-
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-card > strong {
-    font-size: clamp(23px, 6.7vw, 26px);
-  }
-
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-delta,
-  .dashboard-page-v2 .dashboard-v2-scorecard .metric-note {
-    margin-top: 5px;
-    font-size: 11px;
   }
 }
 

@@ -520,7 +520,13 @@ function AppContent({ cloudAccount }: { cloudAccount?: CloudAccount }) {
         onUnsavedChange={setSaleFormUnsaved}
         onLoadLatestSale={handleLoadLatestSale}
       />
-      <Toaster richColors position="top-right" closeButton offset={{ top: 88, right: 24 }} mobileOffset={{ top: 144, right: 16, left: 16 }} />
+      <Toaster
+        richColors
+        position="top-right"
+        closeButton
+        offset={{ top: 88, right: 24 }}
+        mobileOffset={{ top: 72, right: 16, left: 16 }}
+      />
     </>
   );
 }

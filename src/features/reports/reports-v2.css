@@ -1058,21 +1058,7 @@
   line-height: 1.45;
 }
 
-@media (max-width: 1280px) {
-  .reports-page .report-table-wrap,
-  .reports-page .year-fi-trend__table-wrap,
-  .reports-page .year-table-wrap,
-  .fi-center-desktop-table {
-    display: none;
-  }
-
-  .reports-page .report-sales-cards,
-  .reports-page .year-fi-trend__cards,
-  .reports-page .year-report-cards,
-  .fi-center-phone-disclosures {
-    display: grid;
-  }
-
+@media screen {
   .reports-page .year-fi-trend__cards,
   .reports-page .year-report-cards {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1243,16 +1229,32 @@
 
   .report-subject-tabs {
     grid-auto-flow: initial;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     width: 100%;
     margin-bottom: 10px;
   }
 
+  .report-subject-tabs button {
+    grid-column: span 2;
+  }
+
+  .report-subject-tabs[data-tab-count="4"] button {
+    grid-column: span 3;
+  }
+
   .fi-center-jump-nav {
     grid-auto-flow: initial;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     width: 100%;
     margin-bottom: 10px;
+  }
+
+  .fi-center-jump-nav button {
+    grid-column: span 2;
+  }
+
+  .fi-center-jump-nav button:nth-child(n + 4) {
+    grid-column: span 3;
   }
 
   .report-subject-tabs button,
@@ -1261,10 +1263,11 @@
     min-height: 44px;
     padding: 0 7px;
     font-size: 13px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
     overflow-wrap: normal;
+    line-height: 1.2;
   }
 
   .reports-page .report-metric,
@@ -1419,6 +1422,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .report-subject-tabs button,
+  .report-subject-tabs[data-tab-count="4"] button,
+  .fi-center-jump-nav button,
+  .fi-center-jump-nav button:nth-child(n + 4) {
+    grid-column: auto;
+  }
+
   .fi-center-jump-nav button:last-child {
     grid-column: 1 / -1;
   }
@@ -1447,6 +1457,99 @@
 
   .reports-page .week-selector__button span {
     font-size: 12px;
+  }
+}
+
+/* Report representations follow the space inside the report, not the browser
+   viewport. This matters when the app rail, split view, or browser zoom changes
+   the report canvas without changing the nominal device category. */
+@media screen {
+  .reports-page .report-sales-detail {
+    container: report-sales-detail / inline-size;
+  }
+
+  .reports-page .year-report {
+    container: year-report / inline-size;
+  }
+
+  .reports-page .fi-center-evidence {
+    container: fi-evidence / inline-size;
+  }
+
+  .reports-page .report-sales-detail > .report-table-wrap,
+  .reports-page .year-fi-trend__table-wrap,
+  .reports-page .year-table-wrap,
+  .reports-page .fi-center-evidence-table,
+  .reports-page .fi-report-center .fi-center-desktop-table {
+    display: block !important;
+  }
+
+  .reports-page .report-sales-detail > .report-sales-cards,
+  .reports-page .year-fi-trend__cards,
+  .reports-page .year-report-cards,
+  .reports-page .fi-center-evidence-cards,
+  .reports-page .fi-report-center .fi-center-phone-disclosures {
+    display: none !important;
+  }
+
+  @container report-sales-detail (max-width: 899px) {
+    .reports-page .report-sales-detail > .report-table-wrap {
+      display: none !important;
+    }
+
+    .reports-page .report-sales-detail > .report-sales-cards {
+      display: grid !important;
+    }
+  }
+
+  @container year-report (max-width: 959px) {
+    .reports-page .year-table-wrap {
+      display: none !important;
+    }
+
+    .reports-page .year-report-cards {
+      display: grid !important;
+    }
+  }
+
+  @container year-report (max-width: 1049px) {
+    .reports-page .year-fi-trend__table-wrap {
+      display: none !important;
+    }
+
+    .reports-page .year-fi-trend__cards {
+      display: grid !important;
+    }
+  }
+
+  @container fi-evidence (max-width: 819px) {
+    .reports-page .fi-center-evidence-table {
+      display: none !important;
+    }
+
+    .reports-page .fi-center-evidence-cards {
+      display: grid !important;
+    }
+  }
+
+  @container fi-report-section (max-width: 719px) {
+    .reports-page .fi-report-center .fi-center-desktop-table {
+      display: none !important;
+    }
+
+    .reports-page .fi-report-center .fi-center-phone-disclosures {
+      display: grid !important;
+    }
+  }
+
+  @container fi-report-section (min-width: 720px) and (max-width: 879px) {
+    .reports-page .fi-report-center .fi-center-desktop-table:has(.fi-center-finance-table) {
+      display: none !important;
+    }
+
+    .reports-page .fi-report-center .fi-center-desktop-table:has(.fi-center-finance-table) + .fi-center-phone-disclosures {
+      display: grid !important;
+    }
   }
 }
 

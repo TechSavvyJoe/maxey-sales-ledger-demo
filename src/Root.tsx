@@ -8,11 +8,27 @@ const CloudApp = import.meta.env.VITE_FIREBASE_ENABLED && import.meta.env.VITE_F
   ? lazy(() => import("./cloud/FirebaseApp"))
   : null;
 
+function OpeningWorkspace() {
+  return (
+    <div className="app-loading" role="status">
+      <img
+        className="app-loading__mark"
+        src={`${import.meta.env.BASE_URL}brand/sales-ledger-mark.svg`}
+        width="48"
+        height="48"
+        alt=""
+      />
+      <strong>Opening your sales workspace</strong>
+      <small>Loading your sales and totals…</small>
+    </div>
+  );
+}
+
 export default function Root() {
   return (
     <AppErrorBoundary>
       {CloudApp
-        ? <Suspense fallback={<p role="status">Opening Sales Ledger…</p>}><CloudApp /></Suspense>
+        ? <Suspense fallback={<OpeningWorkspace />}><CloudApp /></Suspense>
         : <App />}
     </AppErrorBoundary>
   );

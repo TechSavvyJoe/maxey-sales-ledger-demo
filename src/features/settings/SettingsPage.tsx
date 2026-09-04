@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type KeyboardEvent,
   type ReactNode,
   type RefObject,
 } from "react";
@@ -338,6 +339,7 @@ export function SettingsPage({
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(
     () => categoryForInitialSection(initialSection),
   );
+  const categoryButtonRefs = useRef<Partial<Record<SettingsCategory, HTMLButtonElement | null>>>({});
   const legacyInputRef = useRef<HTMLInputElement>(null);
   const backupInputRef = useRef<HTMLInputElement>(null);
   const profileSectionRef = useRef<HTMLElement>(null);
@@ -988,40 +990,73 @@ export function SettingsPage({
   const settingsCategories: Array<{
     id: SettingsCategory;
     label: string;
+    compactLabel: string;
     description: string;
     icon: ReactNode;
   }> = [
     {
       id: "profile",
       label: "Profile & goals",
+      compactLabel: "Profile",
       description: `${selectedMonthName} targets`,
       icon: <Users />,
     },
     {
       id: "schedule",
       label: "Days off",
+      compactLabel: "Days off",
       description: `${scheduledWorkdays} workdays · ${selectedDaysOff.length} off`,
       icon: <CalendarDays />,
     },
     {
       id: "pay-plan",
       label: "Pay plan",
+      compactLabel: "Pay plan",
       description: `${draft.payPlan.baseFrontRateBps / 100}% front · ${draft.payPlan.fiRateBps / 100}% F&I`,
       icon: <CheckCircle2 />,
     },
     {
       id: "bonuses",
       label: "Volume bonuses",
+      compactLabel: "Bonuses",
       description: `${draft.payPlan.bonusTiers.length} levels · ${formatCurrency(draft.payPlan.bonusTiers.at(-1)?.amountCents ?? 0)} max`,
       icon: <Sparkles />,
     },
     {
       id: "data",
       label: CLOUD_BUILD ? "Cloud saving" : "Data & backups",
+      compactLabel: CLOUD_BUILD ? "Saving" : "Data",
       description: `${activeSales.length.toLocaleString()} active sales`,
       icon: <Database />,
     },
   ];
+
+  function moveCategoryFocus(event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) {
+    const lastIndex = settingsCategories.length - 1;
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = lastIndex;
+    }
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextCategory = settingsCategories[nextIndex];
+    setActiveCategory(nextCategory.id);
+    categoryButtonRefs.current[nextCategory.id]?.focus({ preventScroll: true });
+  }
+
+  const saveStatusNeedsAttention = Boolean(
+    isDirty
+    || isSaving
+    || externalSettingsChange
+    || (localDraft && saveFailure)
+    || (localDraft && hasBackgroundValidationIssue),
+  );
 
   return (
     <div className={cn("page-stack settings-page", isDirty && "has-unsaved-settings")}>
@@ -1034,7 +1069,7 @@ export function SettingsPage({
       {isDirty ? <Button className="settings-mobile-save" variant="outline" onClick={() => void saveSettings()} disabled={isSaving || externalSettingsChange}>
         <Save aria-hidden="true" /> {isSaving ? "Saving…" : localDraft && saveFailure ? "Try saving again" : "Save settings"}
       </Button> : null}
-      <p className="settings-dirty-state" role="status" aria-live="polite">
+      <p className={cn("settings-dirty-state", !saveStatusNeedsAttention && "is-idle")} role="status" aria-live="polite">
         {isSaving ? "Saving changes…" : externalSettingsChange ? "Saving paused — review the newer settings below."
           : localDraft && saveFailure ? `Not saved yet. ${saveFailure.message}`
           : localDraft && hasBackgroundValidationIssue ? "Finish the highlighted setting before it can be saved."
@@ -1066,15 +1101,19 @@ export function SettingsPage({
 
       <div className="settings-layout settings-v2-layout">
         <nav className="settings-category-nav" aria-label="Settings categories">
-          {settingsCategories.map((category) => {
+          {settingsCategories.map((category, index) => {
             const isActive = activeCategory === category.id;
             return (
               <button
+                ref={(node) => { categoryButtonRefs.current[category.id] = node; }}
                 key={category.id}
                 type="button"
+                id={`settings-tab-${category.id}`}
                 className={cn("settings-category-button", isActive && "is-active")}
+                aria-label={category.label}
                 aria-current={isActive ? "page" : undefined}
                 aria-controls={`settings-panel-${category.id}`}
+                tabIndex={isActive ? 0 : -1}
                 // Normalize the old field only after this click has activated
                 // its target; a disappearing draft banner must not move it
                 // between pointer press and release.
@@ -1083,10 +1122,14 @@ export function SettingsPage({
                   setActiveCategory(category.id);
                   event.currentTarget.focus({ preventScroll: true });
                 }}
+                onKeyDown={(event) => moveCategoryFocus(event, index)}
               >
                 <span className="settings-category-button__icon" aria-hidden="true">{category.icon}</span>
-                <span>
-                  <strong>{category.label}</strong>
+                <span className="settings-category-button__copy">
+                  <strong>
+                    <span className="settings-category-button__label settings-category-button__label--full">{category.label}</span>
+                    <span className="settings-category-button__label settings-category-button__label--compact">{category.compactLabel}</span>
+                  </strong>
                   <small>{category.description}</small>
                 </span>
               </button>
@@ -1163,7 +1206,7 @@ export function SettingsPage({
               <Users aria-hidden="true" />
               <span>
                 <strong>One workspace per salesperson</strong>
-                <small>Each salesperson keeps their own sales and backups.</small>
+                <small>{CLOUD_BUILD ? "Each salesperson signs in to their own private sales workspace." : "Each salesperson keeps their own sales and backups."}</small>
               </span>
             </div>
           </div>
@@ -1556,7 +1599,7 @@ export function SettingsPage({
             </div>
           </div>
           <p className="local-only-explanation">
-            <Laptop aria-hidden="true" /> This workspace is for one salesperson. Each person keeps separate sales and backups.
+            <Laptop aria-hidden="true" /> {CLOUD_BUILD ? "Your sales stay in your account. Other salespeople cannot see your workspace." : "This workspace is for one salesperson. Each person keeps separate sales and backups."}
           </p>
         </SettingsSecondaryDisclosure>
 

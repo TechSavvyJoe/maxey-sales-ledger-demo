@@ -303,9 +303,14 @@
   padding: 22px 24px 44px;
 }
 
-@media (min-width: 721px) and (max-width: 1040px) {
+/* Keep the workspace width monotonic through the rail transition. The former
+   1040/1041 switch added 112px of navigation in a single pixel and made every
+   page narrower when the browser became wider. The rail now grows only after
+   the content has 1024px available, then reaches its full width before the
+   desktop presentation is restored. */
+@media (min-width: 721px) and (max-width: 1231px) {
   :root {
-    --shell-sidebar-width: 96px;
+    --shell-sidebar-width: clamp(96px, calc(100vw - 1024px), 208px);
   }
 
   .product-lockup {
@@ -343,26 +348,28 @@
   }
 
   .app-shell .sidebar-footer {
-    padding-inline: 8px;
-  }
-
-  .app-shell .sidebar .dealership-logo-link {
-    width: 78px;
-    padding: 4px;
-  }
-
-  .sidebar-profile strong {
-    font-size: 11px;
-  }
-
-  .sidebar-profile span,
-  .app-shell .sidebar-footer > small,
-  .app-shell .sidebar .storage-state {
     display: none;
   }
 
   .app-shell .topbar {
+    grid-template-columns: 96px minmax(0, 296px) minmax(108px, 1fr);
     padding-inline: 18px;
+  }
+
+  .app-shell .topbar-product {
+    display: flex;
+    width: 88px;
+    justify-content: center;
+  }
+
+  .app-shell .topbar-product img {
+    width: 84px;
+    height: 36px;
+    flex-basis: 84px;
+  }
+
+  .app-shell .topbar-product strong {
+    display: none;
   }
 
   .app-shell .main-content {
@@ -370,7 +377,80 @@
   }
 }
 
-@media (min-width: 721px) and (max-width: 1040px) and (max-height: 500px) {
+/* Once the smoothly growing rail has room for complete labels, use the full
+   desktop navigation treatment without changing the workspace width. */
+@media (min-width: 1200px) and (max-width: 1231px) {
+  .product-lockup {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 10px 16px;
+  }
+
+  .product-lockup small {
+    display: block;
+  }
+
+  .product-lockup > img {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
+  }
+
+  .product-lockup strong {
+    font-size: 16px;
+  }
+
+  .app-shell .sidebar-nav__item {
+    min-height: 44px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 10px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
+
+  .app-shell .sidebar-footer {
+    display: flex;
+    padding: 14px 16px 16px;
+  }
+
+  .app-shell .topbar {
+    grid-template-columns: minmax(0, 296px) minmax(0, 1fr);
+  }
+
+  .app-shell .topbar-product {
+    display: none;
+  }
+
+  .app-shell .sidebar .dealership-logo-link {
+    width: 108px;
+    padding: 4px 6px;
+  }
+
+  .sidebar-profile strong {
+    font-size: 13px;
+  }
+
+  .sidebar-profile span,
+  .app-shell .sidebar-footer > small {
+    display: block;
+  }
+
+  .app-shell .sidebar .storage-state {
+    display: flex;
+  }
+
+  .app-shell .topbar {
+    padding: 0 max(24px, calc((100% - var(--shell-content-width)) / 2 + 24px));
+  }
+
+  .app-shell .main-content {
+    padding: 22px 24px 44px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1231px) and (max-height: 500px) {
   .app-shell .sidebar-nav__item {
     min-height: 44px;
     flex-direction: row;

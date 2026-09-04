@@ -2,14 +2,14 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
 import type { Socket } from "node:net";
-import { initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
+import type { RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
+import { createReadyCloudTestEnvironment } from "./firestore-emulator-readiness";
 
 const PROJECT_ID = "demo-sales-ledger-rules";
 const APP_ORIGIN = "http://127.0.0.1:4210";
 const AUTH_ORIGIN = "http://127.0.0.1:9099";
 const API_KEY = "fake-cloud-test-key";
-const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const ALLOWED_ORIGINS = new Set([APP_ORIGIN, AUTH_ORIGIN, "http://127.0.0.1:8080"]);
 const NON_LOOPBACK_REQUEST = /^(?!http:\/\/127\.0\.0\.1:(?:4210|8080|9099)(?:\/|$))/;
 let environment: RulesTestEnvironment;
@@ -63,16 +63,6 @@ function isBlockedSdkAuxiliary(address: URL, method: string) {
   const unusedPopupScript = address.origin === "https://apis.google.com" && address.pathname === "/js/api.js"
     && queryKeys.every((key) => key === "onload") && /^__iframefcb\d+$/.test(address.searchParams.get("onload") ?? "") && method === "GET";
   return connectionProbe || unusedPopupScript;
-}
-
-// Never let a misconfigured test fall through to a production Firebase service.
-function requireEmulatorAddress(variable: string, port: number) {
-  const configured = process.env[variable];
-  if (!configured) return; // All clients below also receive explicit loopback addresses.
-  const address = new URL(`http://${configured}`);
-  if (!LOOPBACK_HOSTS.has(address.hostname) || Number(address.port) !== port || address.username || address.password || address.pathname !== "/") {
-    throw new Error(`${variable} must point to the local emulator on port ${port}.`);
-  }
 }
 
 async function restrictToEmulators(context: BrowserContext) {
@@ -212,12 +202,7 @@ test.use({
 });
 
 test.beforeAll(async ({ browserName }) => {
-  requireEmulatorAddress("FIRESTORE_EMULATOR_HOST", 8080);
-  requireEmulatorAddress("FIREBASE_AUTH_EMULATOR_HOST", 9099);
-  environment = await initializeTestEnvironment({
-    projectId: PROJECT_ID,
-    firestore: { host: "127.0.0.1", port: 8080 },
-  });
+  environment = await createReadyCloudTestEnvironment();
   if (browserName === "webkit") await startDenyProxy();
 });
 

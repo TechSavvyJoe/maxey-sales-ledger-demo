@@ -5,7 +5,7 @@
   margin-top: 6px;
   color: #765019;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.4;
 }
 
@@ -80,7 +80,7 @@
 
 .report-milestone-row__level {
   color: #765019;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .report-milestone-open {

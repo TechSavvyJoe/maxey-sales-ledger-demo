@@ -5,7 +5,7 @@
 .cloud-account-bar__identity { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .cloud-account-bar__identity strong { font-size: 14px; overflow-wrap: anywhere; }
 .cloud-account-bar__identity span { font-size: 12px; color: #52687c; }
-.cloud-account-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 11px; border: 1px solid #b9cadb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: 650; white-space: nowrap; }
+.cloud-account-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 11px; border: 1px solid #b9cadb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
 .cloud-account-bar button svg { width: 16px; height: 16px; }
 .cloud-account-bar button:disabled { opacity: .5; cursor: wait; }
 .cloud-account-bar button:focus-visible { outline: 3px solid #0876d1; outline-offset: 2px; }

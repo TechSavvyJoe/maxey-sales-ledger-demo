@@ -1,7 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { access, readFile } from "node:fs/promises";
 import path from "node:path";
+import type { RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { createReadyCloudTestEnvironment } from "./firestore-emulator-readiness";
 
 const PROJECT_ID = "demo-sales-ledger-rules";
 const APP_ORIGIN = "http://127.0.0.1:4220";
@@ -10,6 +13,7 @@ const API_KEY = "fake-compiled-cloud-test-key";
 const CLOUD_MANIFEST_DESCRIPTION = "Private vehicle sales, commission, and performance tracker with automatic account-based cloud saving.";
 const LOCAL_ORIGINS = new Set([APP_ORIGIN, AUTH_ORIGIN, "http://127.0.0.1:8080"]);
 const NON_LOOPBACK_REQUEST = /^(?!http:\/\/127\.0\.0\.1:(?:4220|8080|9099)(?:\/|$))/;
+let environment: RulesTestEnvironment;
 
 interface EmulatorCode { email: string; oobCode: string }
 
@@ -83,15 +87,16 @@ async function signInWithEmailLink(page: Page, request: APIRequestContext, email
   await expect(page.locator(".dashboard-page")).toBeVisible();
 }
 
+test.beforeAll(async () => {
+  environment = await createReadyCloudTestEnvironment();
+});
+
+test.afterAll(async () => {
+  await environment?.cleanup();
+});
+
 test.beforeEach(async ({ baseURL }) => {
   expect(baseURL, "The compiled-cloud smoke test may only use its dedicated loopback app.").toBe(APP_ORIGIN);
-  for (const [name, port] of [["FIREBASE_AUTH_EMULATOR_HOST", 9099], ["FIRESTORE_EMULATOR_HOST", 8080]] as const) {
-    const configured = process.env[name];
-    expect(configured, `${name} must be supplied by firebase emulators:exec.`).toBeTruthy();
-    const address = new URL(`http://${configured}`);
-    expect(["127.0.0.1", "localhost", "[::1]"]).toContain(address.hostname);
-    expect(Number(address.port)).toBe(port);
-  }
 });
 
 test("compiled cloud signs in, saves in the background, and reloads without a service worker", async ({ context, page, request }) => {
@@ -157,4 +162,49 @@ test("compiled cloud signs in, saves in the background, and reloads without a se
   const builtIndex = await readFile(path.resolve("dist-cloud/index.html"), "utf8");
   expect(builtIndex).not.toContain("/src/main.tsx");
   expect(builtIndex).toMatch(/\.\/assets\/index-[A-Za-z0-9_-]+\.js/);
+});
+
+test("compiled Firebase Settings stays responsive and uses cloud saving instead of Drive setup", async ({ context, page, request }, testInfo) => {
+  test.setTimeout(150_000);
+  const unexpectedOrigins = await blockRemoteRequests(context);
+  await page.goto(APP_ORIGIN);
+  await signInWithEmailLink(page, request, await createAccount(request));
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await expect(page.locator(".settings-page")).toBeVisible();
+
+  const nav = page.getByRole("navigation", { name: "Settings categories", exact: true });
+  for (const [width, height] of [[320, 568], [390, 844], [844, 390], [1180, 820], [1440, 900], [2560, 1440]]) {
+    await page.setViewportSize({ width, height });
+    for (const category of ["Profile & goals", "Days off", "Pay plan", "Volume bonuses", "Cloud saving"]) {
+      await nav.getByRole("button", { name: category, exact: true }).click();
+      await expect(nav.getByRole("button", { name: category, exact: true })).toHaveAttribute("aria-current", "page");
+      await expect(page.locator(".settings-category-panel:visible")).toHaveCount(1);
+      const geometry = await page.evaluate(() => ({
+        viewport: window.innerWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        targets: [...document.querySelectorAll(".settings-category-button")].map((button) => {
+          const bounds = button.getBoundingClientRect();
+          return { width: bounds.width, height: bounds.height };
+        }),
+      }));
+      expect(geometry.pageWidth, `${width}px ${category} must fit the viewport`).toBeLessThanOrEqual(width + 1);
+      expect(geometry.targets.every((target) => target.width >= 43.9 && target.height >= 43.9)).toBe(true);
+    }
+    await expect(page.locator(".cloud-data-copy")).toContainText("Automatic saving:");
+    await expect(page.getByRole("button", { name: "Download a copy", exact: true })).toBeVisible();
+    await expect(page.getByText(/Google Drive/)).toHaveCount(0);
+    await expect(page.locator(".automatic-backup-card, .google-drive-backup-card")).toHaveCount(0);
+    await page.screenshot({ path: testInfo.outputPath(`firebase-settings-${width}x${height}.png`), fullPage: true });
+    if (width === 390 || width === 1180) {
+      const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+      expect(accessibility.violations).toEqual([]);
+    }
+  }
+  await nav.getByRole("button", { name: "Profile & goals", exact: true }).click();
+  await page.getByLabel("Salesperson name", { exact: false }).fill("Cloud layout example");
+  await expect(page.locator(".settings-dirty-state")).toContainText("All changes saved.");
+  await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await expect(page.getByLabel("Salesperson name", { exact: false })).toHaveValue("Cloud layout example");
+  expect([...unexpectedOrigins]).toEqual([]);
 });

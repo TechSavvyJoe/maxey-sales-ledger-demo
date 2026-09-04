@@ -183,7 +183,7 @@ test("commission goal and money projection follow the salesperson across dashboa
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel("Salesperson name *").fill("Goal Test");
   await page.getByLabel(/commission goal/).fill("9000");
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
+  await expect(page.locator(".settings-dirty-state")).toContainText("All changes saved.");
 
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
   const projection = page.locator(".dashboard-v2-plan--money");
@@ -221,8 +221,7 @@ test("work schedule changes the workday pace and survives a reload", async ({ pa
   await expect(schedule).toContainText("24 scheduled workdays · 2 days off");
   await page.getByRole("button", { name: /^Profile & goals/ }).click();
   await page.getByLabel("Salesperson name *").fill("Pace Test");
-  await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.getByText("Settings saved and calculations refreshed.")).toBeVisible();
+  await expect(page.locator(".settings-dirty-state")).toContainText("All changes saved.");
 
   await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
   await expect(page.locator(".dashboard-v2-plan").first()).toContainText("24 scheduled workdays");
@@ -493,7 +492,7 @@ test("sales log keeps filtered context clear and offers practical sorting", asyn
   const sortControl = page.getByLabel("Sort sales");
   await sortControl.selectOption("customer");
   const customerNames = await (usesSaleCards
-    ? salesSurface.locator(".sale-card__main > strong")
+    ? salesSurface.locator(".sale-card__identity > strong")
     : salesSurface.locator(".row-primary-action > strong")
   ).allTextContents();
   expect(customerNames).toEqual(
@@ -530,7 +529,9 @@ test("sales log keeps filtered context clear and offers practical sorting", asyn
     expect(filterLayout.rowCount).toBe(2);
     expect(filterLayout.minimumButtonHeight).toBeGreaterThanOrEqual(44);
     const toolbarBox = await page.locator(".sales-toolbar").boundingBox();
-    expect(toolbarBox?.height).toBeLessThanOrEqual(180);
+    // Search, two balanced 44px filter rows, and sort stay in DOM order on a
+    // phone. The small height increase avoids an orphaned third filter slot.
+    expect(toolbarBox?.height).toBeLessThanOrEqual(204);
     const accessibility = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
       .analyze();

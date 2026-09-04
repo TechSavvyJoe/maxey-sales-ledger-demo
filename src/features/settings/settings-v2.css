@@ -89,7 +89,7 @@
 .settings-page .settings-category-button strong {
   color: inherit;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: var(--font-weight-bold);
   line-height: 1.25;
 }
 
@@ -486,5 +486,304 @@
 @media (prefers-reduced-motion: reduce) {
   .settings-page .settings-category-button {
     transition: none;
+  }
+}
+
+/* Stable responsive Settings navigation ---------------------------------
+   Size this workspace from the room it actually receives after the app rail,
+   rather than from the browser window. The category strip stays one row at
+   every size and reveals longer supporting text only when its own content area
+   has room. This prevents the former side-rail voids, 3+2 and 2+2+1 wraps, and
+   squeezed-five-card states. */
+
+.settings-page {
+  container-name: settings-workspace;
+  container-type: inline-size;
+  width: min(100%, 1280px);
+  margin-inline: auto;
+}
+
+.main-content:has(> .settings-page) > .workspace-notice {
+  width: min(100%, 1280px);
+  margin-inline: auto;
+}
+
+.settings-page .settings-v2-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.settings-page .settings-v2-layout > .settings-category-nav {
+  position: static;
+  top: auto;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px;
+  overflow: hidden;
+}
+
+.settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button {
+  display: grid;
+  min-width: 0;
+  min-height: 60px;
+  grid-column: auto;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  overflow: hidden;
+  padding: 5px 3px;
+  text-align: center;
+}
+
+.settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button.is-active {
+  box-shadow: inset 0 -3px 0 var(--blue-600);
+}
+
+.settings-page .settings-category-button__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.settings-page .settings-category-button__copy,
+.settings-page .settings-category-button__copy strong,
+.settings-page .settings-category-button__label {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-page .settings-category-button__label {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-page .settings-category-button__label--full,
+.settings-page .settings-category-button small {
+  display: none;
+}
+
+.settings-page .settings-category-button__label--compact {
+  display: block;
+}
+
+.settings-page .settings-category-content,
+.settings-page .settings-category-panel {
+  width: 100%;
+  min-width: 0;
+  align-self: start;
+}
+
+.settings-page .settings-category-panel {
+  display: grid;
+  grid-auto-flow: row;
+  grid-auto-rows: max-content;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+}
+
+.settings-page .settings-category-panel > * {
+  width: 100%;
+  min-width: 0;
+  grid-column: 1;
+  align-self: start;
+}
+
+.settings-page .settings-category-panel:focus-visible {
+  border-radius: 10px;
+  outline: 3px solid rgba(18, 104, 167, 0.3);
+  outline-offset: 3px;
+}
+
+@container settings-workspace (min-width: 600px) and (max-width: 1039px) {
+  .settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button {
+    min-height: 52px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    place-items: center start;
+    gap: 6px;
+    padding: 5px 7px;
+    text-align: left;
+  }
+
+  .settings-page .settings-category-button__label {
+    font-size: 12px;
+  }
+}
+
+@container settings-workspace (min-width: 1040px) {
+  .settings-page .settings-v2-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .settings-page .settings-v2-layout > .settings-category-nav {
+    position: static;
+    top: auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    width: 100%;
+    padding: 5px;
+    overflow: hidden;
+  }
+
+  .settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button {
+    min-height: 56px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    place-items: center start;
+    gap: 9px;
+    overflow: hidden;
+    padding: 7px 9px;
+    text-align: left;
+  }
+
+  .settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button.is-active {
+    box-shadow: inset 0 -3px 0 var(--blue-600);
+  }
+
+  .settings-page .settings-category-button__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .settings-page .settings-category-button__label--full,
+  .settings-page .settings-category-button small {
+    display: block;
+  }
+
+  .settings-page .settings-category-button__label--compact {
+    display: none;
+  }
+
+  .settings-page .settings-category-button__label {
+    font-size: 13px;
+    line-height: 1.25;
+    text-overflow: clip;
+  }
+}
+
+@media (max-width: 350px) {
+  .settings-page .settings-v2-layout > .settings-category-nav {
+    gap: 1px;
+    padding: 3px;
+  }
+
+  .settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button {
+    min-height: 58px;
+    gap: 2px;
+    padding: 3px 0;
+  }
+
+  .settings-page .settings-category-button__icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .settings-page .settings-category-button__label {
+    overflow: visible;
+    font-size: 11px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    text-overflow: clip;
+    white-space: normal;
+  }
+}
+
+/* The schedule is intentionally a compact workspace, not a full-width card
+   with a narrow calendar stranded against its left edge. It remains fluid on
+   smaller screens, then stops growing at a comfortable desktop reading width. */
+.settings-page .schedule-settings {
+  max-width: 860px;
+  margin-inline: auto;
+}
+
+.settings-page .schedule-settings :is(
+  .work-schedule-weekdays,
+  .work-schedule-grid,
+  .work-schedule-actions
+) {
+  width: 100%;
+  max-width: none;
+}
+
+/* Short landscape windows need the first real setting on screen immediately.
+   Only redundant, idle chrome is removed; every interactive target stays at
+   least 44px and save/error status returns as soon as it needs attention. */
+@media (min-width: 600px) and (max-height: 500px) {
+  .main-content:has(> .settings-page) {
+    padding-top: 8px;
+    padding-bottom: 24px;
+  }
+
+  .main-content:has(> .settings-page) > .workspace-notice {
+    min-height: 46px;
+    padding-block: 0;
+  }
+
+  .main-content:has(> .settings-page) > .workspace-notice small {
+    display: none;
+  }
+
+  .settings-page.page-stack {
+    gap: 6px;
+  }
+
+  .settings-page .page-heading {
+    min-height: 44px;
+    align-items: center;
+  }
+
+  .settings-page .page-heading__eyebrow,
+  .settings-page .page-heading p {
+    display: none;
+  }
+
+  .settings-page .page-heading h1 {
+    margin: 0;
+    font-size: 22px;
+  }
+
+  .settings-page .settings-dirty-state.is-idle {
+    display: none;
+  }
+
+  .settings-page .settings-v2-layout {
+    gap: 6px;
+  }
+
+  .settings-page .settings-v2-layout > .settings-category-nav {
+    padding: 2px;
+  }
+
+  .settings-page .settings-v2-layout > .settings-category-nav > .settings-category-button {
+    min-height: 44px;
+    grid-template-columns: 25px minmax(0, 1fr);
+    gap: 5px;
+    padding: 2px 5px;
+  }
+
+  .settings-page .settings-category-button__icon {
+    width: 25px;
+    height: 25px;
+  }
+
+  .settings-page #settings-panel-profile .settings-section {
+    padding: 10px;
+  }
+
+  .settings-page #settings-panel-profile .section-header p {
+    display: none;
+  }
+
+  .settings-page #settings-panel-profile .settings-form-grid {
+    margin-top: 6px;
   }
 }

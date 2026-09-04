@@ -834,8 +834,8 @@ export function SaleFormSheet({
               </div>
             </div>
 
+            <span className="sr-only" role="status" aria-live="polite">{commissionAnnouncement}</span>
             <section className="commission-preview sale-commission-preview" aria-labelledby="sale-commission-heading">
-              <span className="sr-only" role="status" aria-live="polite">{commissionAnnouncement}</span>
               <div className="commission-preview__heading">
                 <Calculator aria-hidden="true" />
                 <span>

@@ -75,7 +75,7 @@ function openSaleFromReportRow(event: MouseEvent<HTMLElement>, sale: Sale, onOpe
   if (!(target instanceof Element) || target.closest("button, a, input, select, textarea, summary, [role='button'], [role='link'], [contenteditable='true']")) return;
   const selection = window.getSelection();
   if (selection && !selection.isCollapsed && (event.currentTarget.contains(selection.anchorNode) || event.currentTarget.contains(selection.focusNode))) return;
-  event.currentTarget.querySelector<HTMLButtonElement>(".report-open-sale")?.focus({ preventScroll: true });
+  event.currentTarget.querySelector<HTMLButtonElement>(".report-open-sale-identity, .report-open-sale")?.focus({ preventScroll: true });
   onOpenSale(sale);
 }
 
@@ -876,7 +876,7 @@ export function ReportsPage({
                               const attention = attentionBySale.get(item.sale.id);
                               return (
                                 <tr key={item.sale.id} className="report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
-                                  <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></th>
+                                  <th scope="row"><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} onOpenSale={onOpenSale} /><ReportMilestoneIndicator item={item} /></th>
                                   <td><ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} stacked /></td>
                                   <td><StatusBadge status={item.sale.status} /></td>
                                   <td><ProductBadges sale={item.sale} /></td>
@@ -903,7 +903,7 @@ export function ReportsPage({
                           return (
                             <article className={cn("report-sale-card report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                               <header>
-                                <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} /><ReportMilestoneIndicator item={item} /></div>
+                                <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} onOpenSale={onOpenSale} /><ReportMilestoneIndicator item={item} /></div>
                                 <StatusBadge status={item.sale.status} />
                               </header>
                               <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
@@ -1078,7 +1078,7 @@ export function ReportsPage({
                         return (
                           <article className={cn("weekly-deal-row report-openable-sale", attention && "needs-review")} key={item.sale.id} onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                             <div className="weekly-deal-row__identity">
-                              <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} />
+                              <ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} onOpenSale={onOpenSale} />
                               <ReportMilestoneIndicator item={item} />
                               <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
                             </div>

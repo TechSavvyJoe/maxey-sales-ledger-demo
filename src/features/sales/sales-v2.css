@@ -12,11 +12,18 @@
 .app-shell .sales-page {
   width: 100%;
   overflow-x: clip;
+  container-name: sales-workspace;
+  container-type: inline-size;
 }
 
 .app-shell .sales-toolbar {
-  grid-template-columns: minmax(240px, 1fr) auto auto;
+  grid-template-areas: "search filters actions";
+  grid-template-columns: minmax(280px, 1fr) auto auto;
 }
+
+.app-shell .sales-toolbar > .search-field { grid-area: search; }
+.app-shell .sales-toolbar > .filter-chips { grid-area: filters; }
+.app-shell .sales-toolbar > .sales-toolbar__actions { grid-area: actions; }
 
 .app-shell .sales-toolbar > *,
 .app-shell .sales-toolbar__actions,
@@ -139,19 +146,6 @@
 
 /* A 1280px display has roughly 1024px of workspace after the product rail. */
 @media (min-width: 1121px) and (max-width: 1320px) {
-  .app-shell .sales-toolbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px 12px;
-  }
-
-  .app-shell .filter-chips {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-width: thin;
-  }
-
   .app-shell .sales-table:not(.sales-table--deleted) {
     width: 100%;
     min-width: 0;
@@ -176,6 +170,96 @@
   .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(8) { width: 13%; }
   .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(9) { width: 12%; }
   .app-shell .sales-table:not(.sales-table--deleted) thead th:nth-child(10) { width: 48px; }
+}
+
+/* Toolbar breakpoints follow the usable Sales canvas, rather than the outer
+   browser. This prevents the same viewport from becoming cramped when the
+   app's navigation rail changes width. */
+@container sales-workspace (max-width: 1080px) {
+  .app-shell .sales-toolbar {
+    grid-template-areas:
+      "search search"
+      "filters actions";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    align-items: center;
+  }
+
+  .app-shell .filter-chips {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+}
+
+@container sales-workspace (max-width: 760px) {
+  .app-shell .sales-toolbar {
+    grid-template-areas:
+      "search"
+      "filters"
+      "actions";
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .app-shell .sales-toolbar__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .app-shell .sort-control {
+    width: 100%;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+
+  .app-shell .sort-control select {
+    width: 100%;
+  }
+
+  .app-shell .sales-clear-button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .app-shell .sales-clear-button > svg {
+    width: 17px;
+    height: 17px;
+  }
+}
+
+@container sales-workspace (max-width: 500px) {
+  .app-shell .filter-chips {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 6px;
+    overflow: visible;
+    padding: 0;
+  }
+
+  .app-shell .filter-chip {
+    grid-column: span 2;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding: 5px 6px;
+    font-size: 13px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .app-shell .filter-chip:nth-child(n + 4) {
+    grid-column: span 3;
+  }
+
+  .app-shell .filter-chip.is-empty:not(.is-active) {
+    display: inline-flex;
+  }
 }
 
 /* Compact laptops use scannable two-column deal cards instead of a squeezed table. */
@@ -218,6 +302,7 @@
   }
 
   .app-shell .sale-card__main {
+    position: relative;
     display: block;
     width: 100%;
     min-width: 0;
@@ -227,6 +312,36 @@
     background: transparent;
     padding: 14px;
     text-align: left;
+  }
+
+  .app-shell .sale-card__identity {
+    position: static;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  /* Keep the familiar click-anywhere card behavior without putting metrics or
+     product groups inside the button's accessible name. */
+  .app-shell .sale-card__identity::after {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    content: "";
+  }
+
+  .app-shell .sale-card__identity:focus-visible {
+    outline: 3px solid var(--blue-700);
+    outline-offset: 3px;
   }
 
   .app-shell .sale-card__topline {
@@ -239,7 +354,8 @@
     font-size: 12px;
   }
 
-  .app-shell .sale-card__main > strong {
+  .app-shell .sale-card__main > strong,
+  .app-shell .sale-card__identity > strong {
     display: block;
     color: var(--navy-900);
     font-size: 17px;
@@ -248,7 +364,8 @@
     overflow-wrap: anywhere;
   }
 
-  .app-shell .sale-card .sale-card__main > .sale-card__vehicle {
+  .app-shell .sale-card .sale-card__main > .sale-card__vehicle,
+  .app-shell .sale-card .sale-card__identity > .sale-card__vehicle {
     overflow: visible;
     color: var(--blue-700);
     font-weight: var(--font-weight-semibold);
@@ -257,7 +374,8 @@
     overflow-wrap: anywhere;
   }
 
-  .app-shell .sale-card .sale-card__main > .sale-card__stock {
+  .app-shell .sale-card .sale-card__main > .sale-card__stock,
+  .app-shell .sale-card .sale-card__identity > .sale-card__stock {
     color: var(--color-text-muted);
     font-size: 12px;
     font-weight: var(--font-weight-regular);
@@ -265,7 +383,8 @@
     white-space: normal;
   }
 
-  .app-shell .sale-card__main > span:not(.sale-card__topline) {
+  .app-shell .sale-card__main > span:not(.sale-card__topline),
+  .app-shell .sale-card__identity > span {
     display: block;
     overflow: hidden;
     margin-top: 2px;
@@ -472,79 +591,6 @@
 }
 
 @media (max-width: 720px) {
-  .app-shell .sales-toolbar {
-    grid-template-columns: minmax(0, 1fr) 138px;
-    gap: 8px;
-  }
-
-  .app-shell .search-field {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .app-shell .sales-toolbar__actions {
-    display: flex;
-    grid-column: 2;
-    grid-row: 1;
-    width: 100%;
-    gap: 4px;
-  }
-
-  .app-shell .sort-control {
-    width: 100%;
-    max-width: none;
-    flex: 1;
-    padding-inline: 8px;
-  }
-
-  .app-shell .sort-control > svg:first-child {
-    display: none;
-  }
-
-  .app-shell .sort-control select {
-    width: 100%;
-    padding-right: 18px;
-  }
-
-  .app-shell .sales-clear-button {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    padding: 0;
-    font-size: 0;
-  }
-
-  .app-shell .sales-clear-button > svg {
-    width: 17px;
-    height: 17px;
-  }
-
-  .app-shell .filter-chips {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-row: 2;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    width: 100%;
-    gap: 6px;
-    overflow: visible;
-    padding: 0;
-  }
-
-  .app-shell .filter-chip {
-    width: 100%;
-    min-width: 0;
-    justify-content: center;
-    padding: 5px 6px;
-    font-size: 13px;
-    line-height: 1.15;
-    text-align: center;
-    white-space: normal;
-  }
-
-  .app-shell .filter-chip.is-empty:not(.is-active) {
-    display: inline-flex;
-  }
-
   .app-shell .sales-card-list {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -599,25 +645,11 @@
 .sale-payment-method { min-width: 0; margin: 8px 0 0; border: 0; padding: 0; }
 .sale-payment-method legend { margin-bottom: 8px; font-size: 14px; font-weight: 700; }
 .sale-payment-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 8px; }
-.sale-payment-choice { display: flex; min-height: 48px; min-width: 0; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--color-control-border); border-radius: 8px; color: var(--slate-900); background: white; font-size: 13px; line-height: 1.4; font-weight: 650; cursor: pointer; }
+.sale-payment-choice { display: flex; min-height: 48px; min-width: 0; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--color-control-border); border-radius: 8px; color: var(--slate-900); background: white; font-size: 13px; line-height: 1.4; font-weight: var(--font-weight-semibold); cursor: pointer; }
 .sale-payment-choice.is-selected { border-color: var(--blue-700); background: #eff6ff; color: var(--blue-700); }
 .sale-payment-choice input { width: 16px; height: 16px; flex: 0 0 16px; accent-color: var(--blue-700); }
 .sale-payment-choice:focus-within { outline: 3px solid var(--blue-700); outline-offset: 2px; }
 .sale-payment-clear { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 0; color: var(--blue-700); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
-
-@media (max-width: 360px) {
-  .app-shell .sales-toolbar {
-    grid-template-columns: minmax(0, 1fr) 122px;
-  }
-
-  .app-shell .sort-control {
-    padding-left: 7px;
-  }
-
-  .app-shell .sort-control select {
-    font-size: 13px;
-  }
-}
 
 /* Keep the earnings preview about this sale, with the same breakdown at Save. */
 .sale-form .sale-commission-preview { border-color: var(--color-border); }
@@ -648,7 +680,7 @@
 .sale-form .sale-footer-breakdown > span { display: block; min-width: 0; padding-right: 8px; border-right: 1px solid var(--slate-200); }
 .sale-form .sale-footer-breakdown > span:last-child { border: 0; padding-right: 0; }
 .sale-form .sale-footer-breakdown strong { margin-top: 4px; color: var(--navy-900); font-size: 16px; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.sale-form .sale-footer-breakdown .sale-footer-total strong { color: var(--blue-800); font-weight: 800; }
+.sale-form .sale-footer-breakdown .sale-footer-total strong { color: var(--blue-800); font-weight: var(--font-weight-bold); }
 .sale-form .sale-footer-method { display: block; margin-top: 3px; color: var(--slate-600); font-size: 11px; font-weight: 600; line-height: 1.2; }
 .app-shell .sale-milestone-link,
 .app-shell .sale-card__actions .sale-milestone-link {
@@ -787,4 +819,120 @@
   .sale-form .sale-commission-components > div { padding: 8px 9px; }
   .sale-form .sale-commission-components dd { font-size: 18px; }
   .sale-form .sale-form__footer { padding-inline: 14px; }
+}
+
+/* Short landscape screens need the editor's limited height for inputs. The
+   detailed in-flow commission card is the same information already kept in
+   the sticky footer, so only the footer remains visible in this mode. */
+@media (max-height: 480px) and (orientation: landscape) {
+  .sale-sheet {
+    width: min(760px, 100dvw) !important;
+    max-width: min(760px, 100dvw) !important;
+  }
+
+  .sale-sheet .sale-form__header {
+    padding: 8px 58px 7px 12px;
+  }
+
+  .sale-sheet .sale-form__header h2 {
+    font-size: 18px;
+  }
+
+  .sale-sheet .sale-form__header > p {
+    display: none;
+  }
+
+  .sale-sheet > button.absolute {
+    top: 2px;
+    right: 6px;
+  }
+
+  .sale-sheet .sale-form__scroll {
+    padding-bottom: 8px;
+    scroll-padding-block: 52px 12px;
+    scrollbar-gutter: auto;
+  }
+
+  .sale-sheet .form-section,
+  .sale-sheet .form-summary-error,
+  .sale-sheet .duplicate-warning,
+  .sale-sheet .sale-draft-restored {
+    margin-top: 8px;
+    margin-inline: 12px;
+  }
+
+  .sale-sheet .sale-commission-preview {
+    display: none;
+  }
+
+  .sale-sheet .form-fields {
+    gap: 6px 10px;
+  }
+
+  .sale-sheet .sale-form__footer {
+    display: grid;
+    grid-template-areas:
+      "state state"
+      "estimate actions";
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 4px 10px;
+    padding: 5px 10px max(5px, env(safe-area-inset-bottom));
+  }
+
+  .sale-sheet .sale-form__save-state {
+    grid-area: state;
+    font-size: 11px;
+    line-height: 1.2;
+  }
+
+  .sale-sheet .sale-footer-breakdown {
+    grid-area: estimate;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: min(260px, 40vw);
+    min-width: 220px;
+    flex: none;
+    gap: 6px;
+  }
+
+  .sale-sheet .sale-footer-breakdown > span {
+    padding-right: 5px;
+  }
+
+  .sale-sheet .sale-footer-breakdown small {
+    font-size: 10px;
+  }
+
+  .sale-sheet .sale-footer-breakdown strong {
+    margin-top: 1px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .sale-sheet .sale-footer-method {
+    display: none;
+  }
+
+  .sale-sheet .sale-form__footer-actions,
+  .sale-sheet .sale-form__footer-actions:has(> :nth-child(3)),
+  .sale-sheet .sale-form__footer-actions:not(:has(> :nth-child(3))) {
+    grid-area: actions;
+    display: flex;
+    width: auto;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .sale-sheet .sale-form__footer-actions button,
+  .sale-sheet .sale-form__footer-actions button[type="submit"],
+  .sale-sheet .sale-form__footer-actions:has(> :nth-child(3)) button[type="submit"],
+  .sale-sheet .sale-form__footer-actions:not(:has(> :nth-child(3))) button[type="submit"] {
+    grid-column: auto;
+    grid-row: auto;
+    width: auto;
+    min-height: 44px;
+    padding-inline: 10px;
+    white-space: nowrap;
+  }
 }

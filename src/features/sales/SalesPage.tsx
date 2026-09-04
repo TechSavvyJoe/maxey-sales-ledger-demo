@@ -523,21 +523,28 @@ export function SalesPage({
             <div className="sales-card-list">
               {filteredSales.slice(0, visibleCount).map((item) => (
                 <article key={item.sale.id} className={cn("sale-card", attentionBySaleId.has(item.sale.id) && "needs-review", item.sale.source === "demo" && "is-demo")}>
-                  <button type="button" className="sale-card__main" onClick={() => onEditSale(item.sale)}>
+                  <div className="sale-card__main">
                     <span className="sale-card__topline">
                       <time dateTime={item.sale.saleDate}>{formatSaleDate(item.sale.saleDate)}</time>
                       <StatusBadge status={item.sale.status} />
                     </span>
-                    <strong>{item.sale.customerLastName || "No last name"}</strong>
-                    <span className="sale-card__vehicle">{item.sale.vehicleDescription || "Vehicle not entered"}</span>
-                    <span className="sale-card__stock">Stock {item.sale.stockNumber || "not entered"}{item.sale.source === "demo" ? " · Demo" : ""}</span>
+                    <button
+                      type="button"
+                      className="sale-card__identity"
+                      aria-label={`Edit sale for ${item.sale.customerLastName || "customer not entered"}${item.sale.vehicleDescription ? `, ${item.sale.vehicleDescription}` : ""}${item.sale.stockNumber ? `, stock ${item.sale.stockNumber}` : ""}`}
+                      onClick={() => onEditSale(item.sale)}
+                    >
+                      <strong>{item.sale.customerLastName || "No last name"}</strong>
+                      <span className="sale-card__vehicle">{item.sale.vehicleDescription || "Vehicle not entered"}</span>
+                      <span className="sale-card__stock">Stock {item.sale.stockNumber || "not entered"}{item.sale.source === "demo" ? " · Demo" : ""}</span>
+                    </button>
                     <dl>
                       <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                       <div><dt>F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
                       <div><dt>Est. commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
                     </dl>
                     <SaleProductBadges sale={item.sale} />
-                  </button>
+                  </div>
                   <div className="sale-card__actions">
                     <div className="sale-card__indicators">
                       {attentionBySaleId.has(item.sale.id) ? (

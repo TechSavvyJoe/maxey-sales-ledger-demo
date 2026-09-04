@@ -1,5 +1,139 @@
 import { expect, test } from "@playwright/test";
 
+async function expectCompleteNavigationLabels(locator: import("@playwright/test").Locator, labels: string[]) {
+  const buttons = locator.getByRole("tab");
+  await expect(buttons).toHaveCount(labels.length);
+  for (const label of labels) {
+    const button = buttons.filter({ hasText: label }).first();
+    await expect(button).toHaveText(label);
+    const geometry = await button.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const bounds = element.getBoundingClientRect();
+      return {
+        height: bounds.height,
+        left: bounds.left,
+        right: bounds.right,
+        parentLeft: element.parentElement!.getBoundingClientRect().left,
+        parentRight: element.parentElement!.getBoundingClientRect().right,
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+        overflow: style.overflow,
+        textOverflow: style.textOverflow,
+        whiteSpace: style.whiteSpace,
+      };
+    });
+    expect(geometry.height, `${label} keeps a full-size touch target`).toBeGreaterThanOrEqual(44);
+    expect(geometry.left).toBeGreaterThanOrEqual(geometry.parentLeft - 1);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.parentRight + 1);
+    expect(geometry.scrollWidth, `${label} is not clipped`).toBeLessThanOrEqual(geometry.clientWidth + 1);
+    expect(geometry.textOverflow).not.toBe("ellipsis");
+    expect(geometry.whiteSpace).not.toBe("nowrap");
+  }
+}
+
+async function expectRepresentationFollowsContainer(
+  container: import("@playwright/test").Locator,
+  table: import("@playwright/test").Locator,
+  cards: import("@playwright/test").Locator,
+  cardsAtOrBelow: number,
+) {
+  const available = await container.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return element.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight);
+  });
+  if (available <= cardsAtOrBelow) {
+    await expect(table, `table is replaced at ${available}px of actual report space`).toBeHidden();
+    await expect(cards, `cards are used at ${available}px of actual report space`).toBeVisible();
+    const layout = await cards.evaluate((element) => ({ available: element.clientWidth, content: element.scrollWidth }));
+    expect(layout.content).toBeLessThanOrEqual(layout.available + 1);
+  } else {
+    await expect(table, `table remains available at ${available}px of actual report space`).toBeVisible();
+    await expect(cards, `duplicate cards stay hidden at ${available}px of actual report space`).toBeHidden();
+    const layout = await table.evaluate((element) => ({ available: element.clientWidth, content: element.scrollWidth }));
+    expect(layout.content).toBeLessThanOrEqual(layout.available + 1);
+  }
+}
+
+test("report destinations remain fully readable at compact and 200%-zoom-equivalent widths", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "This test covers its own viewport matrix.");
+  await page.goto("/");
+  await expect(page.getByText("Opening your sales workspace")).toBeHidden();
+  await page.getByRole("button", { name: "Reports", exact: true }).first().click();
+
+  for (const width of [481, 520, 640]) {
+    await page.setViewportSize({ width, height: 900 });
+    const subjectTabs = page.getByRole("tablist", { name: "Monthly report subject" });
+    await expectCompleteNavigationLabels(subjectTabs, ["Overview", "Sales", "F&I", "Commission"]);
+    await subjectTabs.getByRole("tab", { name: "F&I", exact: true }).click();
+    const fiTabs = page.locator(".fi-report-center").first().getByRole("tablist", { name: "F&I report sections" });
+    await expectCompleteNavigationLabels(fiTabs, ["Overview", "Products", "Financing", "Combinations", "Deals"]);
+    const widthState = await page.evaluate(() => ({ document: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth }));
+    expect(widthState.document, `no horizontal overflow at ${width}px`).toBeLessThanOrEqual(widthState.viewport + 1);
+  }
+});
+
+test("sales, F&I evidence, and year views choose tables from their actual report width", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chrome", "This test covers its own viewport matrix.");
+  await page.clock.setFixedTime(new Date("2026-08-31T16:00:00.000Z"));
+  await page.goto("/");
+  await expect(page.getByText("Opening your sales workspace")).toBeHidden();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Data & backups/ }).click();
+  await page.getByRole("button", { name: /^(?:Load sample history|Load full-year demo)$/ }).click();
+  await expect(page.getByText(/(?:Sample history|Full-year demo) loaded/)).toBeVisible();
+  await page.getByRole("button", { name: "Reports", exact: true }).first().click();
+
+  for (const width of [800, 1181, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.getByRole("tab", { name: "Monthly report", exact: true }).click();
+    const monthSubjects = page.getByRole("tablist", { name: "Monthly report subject" });
+    await monthSubjects.getByRole("tab", { name: "Sales", exact: true }).click();
+    const salesDetail = page.locator(".report-sales-detail");
+    await expectRepresentationFollowsContainer(
+      salesDetail,
+      salesDetail.locator(":scope > .report-table-wrap"),
+      salesDetail.locator(":scope > .report-sales-cards"),
+      899,
+    );
+
+    await monthSubjects.getByRole("tab", { name: "F&I", exact: true }).click();
+    const fiCenter = page.locator(".fi-report-center").first();
+    await fiCenter.getByRole("tab", { name: "Deals", exact: true }).click();
+    const evidence = fiCenter.locator(".fi-center-evidence");
+    await expectRepresentationFollowsContainer(
+      evidence,
+      evidence.locator(".fi-center-evidence-table"),
+      evidence.locator(".fi-center-evidence-cards"),
+      819,
+    );
+
+    await page.getByRole("tab", { name: "Full-year report", exact: true }).click();
+    const yearReport = page.locator(".year-report");
+    const yearSubjects = page.getByRole("tablist", { name: "Year report subject" });
+    await yearSubjects.getByRole("tab", { name: "Monthly results", exact: true }).click();
+    await expectRepresentationFollowsContainer(
+      yearReport,
+      yearReport.locator(".year-table-wrap"),
+      yearReport.locator(".year-report-cards"),
+      959,
+    );
+
+    await yearSubjects.getByRole("tab", { name: "F&I", exact: true }).click();
+    const yearFi = yearReport.locator(".year-fi-trend");
+    if (await yearFi.getAttribute("open") === null) await yearFi.locator(":scope > summary").click();
+    await expectRepresentationFollowsContainer(
+      yearReport,
+      yearReport.locator(".year-fi-trend__table-wrap"),
+      yearReport.locator(".year-fi-trend__cards"),
+      1049,
+    );
+
+    const pageWidth = await page.evaluate(() => ({ content: document.documentElement.scrollWidth, available: document.documentElement.clientWidth }));
+    expect(pageWidth.content).toBeLessThanOrEqual(pageWidth.available + 1);
+  }
+});
+
 test("product and finance reports fit their canvas and month arrows stay usable", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "This test covers its own viewport matrix.");
   await page.clock.setFixedTime(new Date("2026-08-31T16:00:00.000Z"));

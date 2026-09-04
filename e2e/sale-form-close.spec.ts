@@ -176,7 +176,16 @@ test("every close path saves and restores an unfinished new-sale draft", async (
   await openNewSale(page);
   await expect(page.getByLabel("Customer last name")).toHaveValue("Miller");
 
-  await page.mouse.click(20, 200);
+  const dialogBounds = await saleDialog.boundingBox();
+  expect(dialogBounds).not.toBeNull();
+  if (dialogBounds!.x > 1) {
+    // A backdrop exists beside the desktop sheet, but the phone editor
+    // deliberately fills the screen. Do not click a phone form field and
+    // mistake that for an outside-close action.
+    await page.mouse.click(dialogBounds!.x / 2, Math.min(200, dialogBounds!.height / 2));
+  } else {
+    await page.locator(".sale-form__footer-actions").getByRole("button", { name: "Close", exact: true }).click();
+  }
   await expect(page.getByRole("heading", { name: "Add sale" })).toBeHidden();
   await openNewSale(page);
   await expect(page.getByLabel("Customer last name")).toHaveValue("Miller");

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -104,14 +104,18 @@ function MetricCard({
   );
 }
 
+const expandedDashboardQuery = "(min-width: 721px) and (min-height: 501px)";
+
 function useResponsiveDisclosure() {
-  const userToggledRef = useRef(false);
-  const [open, setOpen] = useState(() => window.matchMedia("(min-width: 721px)").matches);
+  const [open, setOpen] = useState(() => window.matchMedia(expandedDashboardQuery).matches);
 
   useEffect(() => {
-    const query = window.matchMedia("(min-width: 721px)");
+    const query = window.matchMedia(expandedDashboardQuery);
     const handleChange = (event: MediaQueryListEvent) => {
-      if (!userToggledRef.current) setOpen(event.matches);
+      // A disclosure choice is useful while the layout stays in the same mode,
+      // but should not override the next mode's density default. Compact views
+      // start closed; wider workspaces start open.
+      setOpen(event.matches);
     };
     query.addEventListener("change", handleChange);
     return () => query.removeEventListener("change", handleChange);
@@ -122,7 +126,6 @@ function useResponsiveDisclosure() {
     onToggle: (event: React.SyntheticEvent<HTMLDetailsElement>) => {
       const nextOpen = event.currentTarget.open;
       if (nextOpen === open) return;
-      userToggledRef.current = true;
       setOpen(nextOpen);
     },
   };

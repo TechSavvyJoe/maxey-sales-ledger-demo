@@ -51,6 +51,10 @@ async function expectReportIdentity(sale: Locator, includeLastName = true) {
   await expect(sale.locator(".report-sale-identity__primary")).toHaveText(includeLastName ? "Example" : VEHICLE);
   if (includeLastName) await expect(sale.locator(".report-sale-identity__vehicle")).toHaveText(VEHICLE);
   else await expect(sale.getByText("Example", { exact: true })).toHaveCount(0);
+  await expect(sale.getByRole("button", {
+    name: includeLastName ? `Open Example — ${VEHICLE}` : `Open ${VEHICLE}`,
+    exact: true,
+  })).toBeVisible();
   await expect(sale.locator(".report-sale-meta time")).toHaveText("08/20/2026");
   await expect(sale.locator(".report-sale-meta").getByRole("button", { name: `Open sale ${STOCK}`, exact: true })).toBeVisible();
 
@@ -101,11 +105,11 @@ test("monthly report rows and phone cards open a sale and retain report context 
   await expect(page.getByLabel("Total F&I gross", { exact: true })).toHaveValue("600.00");
 });
 
-test("report stock buttons support keyboard activation and restore focus on close", async ({ page }, testInfo) => {
+test("prominent report identities support keyboard activation and restore focus on close", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome", "Native keyboard behavior is covered on desktop.");
   await createAwaitingSale(page);
   const panel = await openMonthlySales(page);
-  const button = (await visibleMonthlySale(panel)).getByRole("button", { name: `Open sale ${STOCK}`, exact: true });
+  const button = (await visibleMonthlySale(panel)).getByRole("button", { name: `Open Example — ${VEHICLE}`, exact: true });
   await button.focus();
   await button.press("Enter");
   await expectSaleEditor(page);
@@ -129,8 +133,7 @@ test("filtered F&I evidence opens the same sale without losing filters or paymen
   const sale = await visibleEvidenceSale(evidence);
   await expect(sale).toHaveClass(/report-openable-sale/);
   await expectReportIdentity(sale);
-  if (await table.isVisible()) await sale.locator(".report-sale-identity__primary").click();
-  else await sale.locator(".report-sale-identity__vehicle").click();
+  await sale.getByRole("button", { name: `Open Example — ${VEHICLE}`, exact: true }).click();
   await expectSaleEditor(page);
   await expect(page.getByRole("checkbox", { name: "Service contract / warranty", exact: true })).toBeChecked();
   await page.getByRole("dialog", { name: "Edit sale" }).getByRole("button", { name: "Close" }).click();

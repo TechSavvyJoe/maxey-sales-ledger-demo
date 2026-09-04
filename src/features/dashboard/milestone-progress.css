@@ -21,12 +21,12 @@
   margin: 0 0 4px;
   color: #23567f;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--font-weight-semibold);
   line-height: 1.4;
 }
 
 .milestone-progress h3 svg { width: 15px; height: 15px; flex: none; }
-.milestone-progress__lead > strong { display: block; font-size: 21px; font-weight: 750; line-height: 1.25; }
+.milestone-progress__lead > strong { display: block; font-size: 21px; font-weight: var(--font-weight-bold); line-height: 1.25; }
 .milestone-progress p { margin: 5px 0 0; color: var(--slate-600); font-size: 12px; line-height: 1.4; }
 .milestone-progress__lead progress { display: block; width: 100%; max-width: 280px; height: 4px; margin-top: 10px; appearance: none; border: 0; border-radius: 2px; overflow: hidden; background: #dce7f0; }
 .milestone-progress__lead progress::-webkit-progress-bar { background: #dce7f0; }
@@ -35,7 +35,7 @@
 .milestone-progress__rewards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 0; }
 .milestone-progress__rewards > div:only-child { grid-column: 1 / -1; }
 .milestone-progress__rewards dt { font-size: 12px; font-weight: 600; line-height: 1.4; }
-.milestone-progress__rewards dd { margin: 3px 0; font-size: 23px; font-weight: 750; line-height: 1.25; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.milestone-progress__rewards dd { margin: 3px 0; font-size: 23px; font-weight: var(--font-weight-bold); line-height: 1.25; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .milestone-progress__rewards small { display: block; margin-top: 3px; color: var(--slate-600); font-size: 11px; font-weight: 400; line-height: 1.4; }
 .milestone-progress .milestone-progress__note { margin-top: 8px; font-size: 11px; }
 .milestone-progress--reached { background: #f8fafc; }
