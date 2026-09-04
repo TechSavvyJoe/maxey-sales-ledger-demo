@@ -31,6 +31,10 @@ import {
 const PROFILE_ID = "primary";
 const SNAPSHOT_ATTEMPTS = 5;
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+// React development mode deliberately mounts a screen twice. Keep the first
+// settings document creation shared for a Firebase instance and account so a
+// remount never races itself or flashes a harmless write warning to the user.
+const initializationByFirestore = new WeakMap<object, Map<string, Promise<void>>>();
 
 export interface CloudTrackerData {
   settings: ProfileSettings;
@@ -187,7 +191,7 @@ function prepareSale(sale: Sale): Sale {
   assertDocumentId(prepared.id, "sale");
   if (prepared.status === "void") throw new Error("Undelivered sales are not saved. Delete the record instead.");
   if (prepared.source !== undefined && prepared.source !== "manual") {
-    throw new Error("Importing or copying demonstration records into an online account is not available in this pilot.");
+    throw new Error("Importing or copying demonstration records into a cloud workspace is not available here.");
   }
   assertTimestamp(prepared.createdAt, "sale");
   assertTimestamp(prepared.updatedAt, "sale");
@@ -196,7 +200,7 @@ function prepareSale(sale: Sale): Sale {
 }
 
 /**
- * Online-first pilot repository. The caller must supply a memory-cache-only
+ * Online-first cloud repository. The caller must supply a memory-cache-only
  * Firestore instance. All writes are transactions, never locally queued setDoc
  * calls. Their promises resolve only after Firestore acknowledges the commit.
  */
@@ -235,16 +239,40 @@ export function createFirebaseRepository(
 
   async function initialize(): Promise<void> {
     assertOnline();
-    await runTransaction(firestore, async (transaction) => {
-      assertOnline();
-      const existing = await transaction.get(settingsRef);
-      if (existing.exists()) {
-        parseSettingsDocument(existing);
-        return;
+    const inFlightForFirestore = initializationByFirestore.get(firestore) ?? new Map<string, Promise<void>>();
+    initializationByFirestore.set(firestore, inFlightForFirestore);
+    const existing = inFlightForFirestore.get(uid);
+    if (existing) return existing;
+
+    const firstLoad = (async () => {
+      try {
+        await runTransaction(firestore, async (transaction) => {
+          assertOnline();
+          const settingsSnapshot = await transaction.get(settingsRef);
+          if (settingsSnapshot.exists()) {
+            parseSettingsDocument(settingsSnapshot);
+            return;
+          }
+          const settings = profileSchema.parse(normalizeSettings(createDefaultSettings()));
+          transaction.set(settingsRef, { ...settings, cloudRevision: 0 });
+        }, { maxAttempts: 3 });
+      } catch (caught) {
+        // Two separate devices can still initialize an empty account at the
+        // same moment. Accept that race only after confirming the valid server
+        // record created by the other device; all other failures remain visible.
+        const code = typeof caught === "object" && caught !== null && "code" in caught ? String(caught.code) : "";
+        if (code !== "already-exists") throw caught;
+        parseSettingsDocument(await getDocFromServer(settingsRef));
       }
-      const settings = profileSchema.parse(normalizeSettings(createDefaultSettings()));
-      transaction.set(settingsRef, { ...settings, cloudRevision: 0 });
-    }, { maxAttempts: 3 });
+    })();
+    inFlightForFirestore.set(uid, firstLoad);
+    try {
+      await firstLoad;
+    } catch (error) {
+      // Do not poison future retries after a real offline or permission error.
+      inFlightForFirestore.delete(uid);
+      throw error;
+    }
   }
 
   async function readConsistentSnapshot(): Promise<ConsistentSnapshot> {

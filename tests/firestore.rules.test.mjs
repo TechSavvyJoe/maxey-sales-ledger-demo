@@ -169,23 +169,34 @@ describe('private incomplete editor drafts', () => {
   });
 });
 
-describe('pilot gate and account isolation', () => {
-  it('lets an authenticated user read only their own pilot status, not grant themselves access', async () => {
-    const database = ownerDb(disabledId);
-    await assertSucceeds(getDoc(doc(database, `pilotUsers/${disabledId}`)));
+describe('personal cloud workspace and account isolation', () => {
+  it('lets an authenticated user create exactly one profile for their own isolated workspace', async () => {
+    const selfId = 'fictional-self-service';
+    const database = ownerDb(selfId);
+    const profile = { uid: selfId, enabled: true, createdAt: FIRST };
+    await assertSucceeds(setDoc(doc(database, `pilotUsers/${selfId}`), profile));
+    await assertSucceeds(getDoc(doc(database, `pilotUsers/${selfId}`)));
     await assertFails(getDoc(doc(database, `pilotUsers/${ownerId}`)));
     await assertFails(getDocs(collection(database, 'pilotUsers')));
-    await assertFails(setDoc(doc(database, `pilotUsers/${disabledId}`), { enabled: true }));
-    await assertFails(deleteDoc(doc(ownerDb(), `pilotUsers/${ownerId}`)));
+    await assertFails(setDoc(doc(database, `pilotUsers/${selfId}`), { ...profile, enabled: false }));
+    await assertFails(setDoc(doc(database, `pilotUsers/${selfId}`), { ...profile, uid: ownerId }));
+    await assertFails(setDoc(doc(database, `pilotUsers/${selfId}`), { ...profile, extra: true }));
+    await assertFails(setDoc(doc(database, `pilotUsers/${selfId}`), profile));
+    await assertFails(deleteDoc(doc(database, `pilotUsers/${selfId}`)));
   });
 
-  it('rejects unauthenticated, missing-allowlist, and disabled users', async () => {
+  it('rejects unauthenticated, cross-account, and disabled data writes until a personal profile exists', async () => {
     await seed();
-    for (const database of [environment.unauthenticatedContext().firestore(), ownerDb('fictional-not-invited'), ownerDb(disabledId)]) {
+    const selfId = 'fictional-not-enrolled';
+    const self = ownerDb(selfId);
+    await assertFails(setDoc(ref(self, selfId, 'settings/primary'), settings()));
+    await assertSucceeds(setDoc(doc(self, `pilotUsers/${selfId}`), { uid: selfId, enabled: true, createdAt: FIRST }));
+    await assertSucceeds(setDoc(ref(self, selfId, 'settings/primary'), settings()));
+    for (const database of [environment.unauthenticatedContext().firestore(), ownerDb(disabledId)]) {
       await assertFails(getDoc(ref(database, ownerId, 'settings/primary')));
-      await assertFails(setDoc(ref(database, 'fictional-not-invited', 'settings/primary'), settings()));
+      await assertFails(setDoc(ref(database, disabledId, 'settings/primary'), settings()));
     }
-    await assertFails(setDoc(ref(ownerDb(disabledId), disabledId, 'settings/primary'), settings()));
+    await assertFails(setDoc(ref(ownerDb(otherId), ownerId, 'settings/primary'), settings()));
   });
 
   it('allows two enabled accounts to create and read only their own workspace', async () => {

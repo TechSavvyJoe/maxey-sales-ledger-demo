@@ -99,7 +99,7 @@ export function useTrackerData() {
       if (CLOUD_BUILD && hasLoadedData.current) return null;
       const accessDenied = typeof caught === "object" && caught !== null && "code" in caught && caught.code === "permission-denied";
       setError(CLOUD_BUILD
-        ? accessDenied ? "This account does not have access to the private pilot yet. Ask the app owner to activate it, then reload."
+        ? accessDenied ? "This cloud workspace cannot open with this account. Sign out, then try a different account or reload."
           : caught instanceof Error ? caught.message : "Your cloud ledger could not be opened. Check your connection and account access."
         : "Your saved sales could not be opened in this browser.");
       return null;
@@ -125,7 +125,7 @@ export function useTrackerData() {
     // forever.
     void Promise.resolve().then(refresh);
     const stopCloud = subscribeStorageChanges(() => void refresh(), () => {
-      if (mountedRef.current && !hasLoadedData.current) setError("Your cloud ledger could not be opened. Check your connection and ask the app owner to check your pilot access.");
+      if (mountedRef.current && !hasLoadedData.current) setError("Your cloud ledger could not be opened. Check your connection, then reload Sales Ledger.");
     });
     if (!CLOUD_BUILD && "BroadcastChannel" in window) {
       channelRef.current = new BroadcastChannel(CHANNEL_NAME);

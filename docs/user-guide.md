@@ -4,7 +4,7 @@
 
 ### Your private cloud account
 
-Open [Sales Ledger](https://maxey-sales-ledger-private.web.app) and choose **Continue with Google**. No installation or Drive connection is needed. If Google is unavailable, choose **Use an email link instead**. The first sign-in needs account approval from the person who shared the app. The page opens your workspace automatically once approved.
+Open [Sales Ledger](https://maxey-sales-ledger-private.web.app) and choose **Continue with Google**. No installation or Drive connection is needed. If Google is unavailable, choose **Use an email link instead**. Your first sign-in creates your own private cloud workspace automatically; the page then opens it for you.
 
 Use the same Google account on your computer, tablet or phone to open the same cloud sales and settings. **Remember me on this private device** is optional; leave it off on shared computers and sign out when finished. Signing in does not upload or change sales from the demo or an on-device workspace.
 
@@ -32,7 +32,7 @@ In on-device mode, always use the same address and the same browser on the same 
 6. If a synced folder is unavailable, use **Google Drive backup** to create a checked download and open Google Drive for a manual upload.
 7. Download a full backup after entering initial records so the manual recovery path is also confirmed.
 
-Steps 5–7 above are on-device recovery options; they are not needed to connect a cloud account. For training in on-device mode, **Load demo data** adds clearly labeled fictional sales. The public GitHub Pages link opens with three calendar years of fictional history automatically for a new visitor (January two years ago through today). Changes and removals stay in that visitor's browser; use **Settings → Reset sample data** to restore the walkthrough. The private cloud account starts empty and does not load demo data.
+Steps 5–7 above are on-device recovery options; they are not needed to connect a cloud account. For training in on-device mode, **Load demo data** adds clearly labeled fictional sales. The public GitHub Pages link opens with three calendar years of fictional history automatically for a new visitor (January 2024 through today). Changes and removals stay in that visitor's browser; use **Settings → Reset sample data** to restore the walkthrough. The private cloud account starts empty and does not load demo data.
 
 ## Add a sale
 

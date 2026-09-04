@@ -53,7 +53,7 @@ export function AuthFrame({ children }: { children: ReactNode }) {
       <section className="cloud-auth__card" aria-labelledby="cloud-auth-title">
         <div className="cloud-auth__brand">
           <img src={`${import.meta.env.BASE_URL}brand/sales-ledger-mark.svg`} width="40" height="40" alt="" />
-          <div><strong>Sales Ledger</strong><span>Private workspace</span></div>
+      <div><strong>Sales Ledger</strong><span>Personal cloud workspace</span></div>
         </div>
         {children}
       </section>
@@ -219,8 +219,8 @@ function CloudAuthContent({ client, children }: { client: FirebaseCloudClient; c
   return (
     <AuthFrame>
       <div className="cloud-auth__eyebrow"><Cloud size={16} aria-hidden="true" /> {client.config.useEmulators ? "Local test only" : "Private cloud saving"}</div>
-      <h1 id="cloud-auth-title">{emailLink ? "Finish signing in" : "Your sales. Your workspace."}</h1>
-      <p>{emailLink ? "Enter the email address that received this link." : "Sign in once. Your sales and settings stay with your account across your devices."}</p>
+      <h1 id="cloud-auth-title">{emailLink ? "Finish signing in" : "Your sales, saved securely."}</h1>
+      <p>{emailLink ? "Enter the email address that received this link." : "Sign in once. Your sales and settings stay with your account across your devices, separate from every other salesperson."}</p>
       <label className="cloud-auth__remember"><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} disabled={busy} /><span>Remember me on this private device<small>Leave off on shared computers. Sign out when you finish.</small></span></label>
       {!emailLink && <><button className="cloud-auth__button cloud-auth__google" type="button" onClick={() => void googleSignIn()} disabled={busy}>{busy ? <LoaderCircle size={18} aria-hidden="true" /> : null}Continue with Google <ArrowRight size={18} aria-hidden="true" /></button>
         <button className="cloud-auth__text-button cloud-auth__email-toggle" type="button" aria-expanded={showEmail} aria-controls="cloud-email-form" disabled={busy} onClick={() => setShowEmail((value) => !value)}>{showEmail ? "Hide email sign-in" : "Use an email link instead"}</button></>}
@@ -232,7 +232,7 @@ function CloudAuthContent({ client, children }: { client: FirebaseCloudClient; c
       {emailLink && <button className="cloud-auth__text-button" type="button" disabled={busy} onClick={() => { setEmailLink(null); setError(null); clearSavedEmail(); window.history.replaceState(null, "", emailLinkReturnUrl(window.location.href)); }}>Request a new sign-in link</button>}
       {error && <p className="cloud-auth__error" id="cloud-auth-error" role="alert">{error}</p>}
       {notice && <p className="cloud-auth__notice" role="status">{notice}</p>}
-      <p className="cloud-auth__privacy"><ShieldCheck size={18} aria-hidden="true" /><span>Your workspace opens only after access is approved. Existing on-device sales are not uploaded when you sign in.</span></p>
+      <p className="cloud-auth__privacy"><ShieldCheck size={18} aria-hidden="true" /><span>Signing in creates your own private workspace. Existing on-device sales are never uploaded automatically.</span></p>
       <details className="cloud-auth__help"><summary>Having trouble signing in?</summary><p>Open this address directly in Chrome, Edge, Safari or Firefox if sign-in does not open inside another app. You can also use an email link.</p></details>
     </AuthFrame>
   );

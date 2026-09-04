@@ -119,8 +119,8 @@ async function readEmailCodes(request: APIRequestContext): Promise<EmulatorCode[
 
 async function createPilotAccount(request: APIRequestContext, label: string) {
   const email = `${label}-${randomUUID()}@example.test`;
-  // A synthetic emulator account supplies the UID for the admin-only pilot
-  // allowlist. Its tokens are never injected into the browser: login is UI-only.
+  // A synthetic emulator account exercises the same self-service enrollment
+  // path as a salesperson. Its token is never injected into the browser.
   const response = await request.post(`${AUTH_ORIGIN}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`, {
     maxRedirects: 0,
     data: { email, password: `emulator-only-${randomUUID()}`, returnSecureToken: true },
@@ -130,10 +130,6 @@ async function createPilotAccount(request: APIRequestContext, label: string) {
   if (!body || typeof body !== "object" || !("localId" in body) || typeof body.localId !== "string" || !/^[A-Za-z0-9_-]+$/.test(body.localId)) {
     throw new Error("The local Auth emulator did not return a valid synthetic UID.");
   }
-  const uid = body.localId;
-  await environment.withSecurityRulesDisabled(async (admin) => {
-    await admin.firestore().doc(`pilotUsers/${uid}`).set({ enabled: true });
-  });
   return email;
 }
 
@@ -141,7 +137,7 @@ async function signInWithEmail(page: Page, request: APIRequestContext, email: st
   const priorCodes = new Set((await readEmailCodes(request)).filter((entry) => entry.email === email).map((entry) => entry.oobCode));
   await page.goto(APP_ORIGIN);
   await expect(page.getByText("Local test only", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Your sales. Your workspace.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your sales, saved securely.", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Use an email link instead", exact: true }).click();
   await page.getByLabel("Your email address", { exact: true }).fill(email);
   await page.getByRole("button", { name: "Email me a sign-in link", exact: true }).click();
@@ -197,7 +193,7 @@ async function addMiniSale(page: Page, stock: string, customerLastName = "Exampl
   await expect(page.locator(".sale-footer-method")).toContainText("Mini");
   await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
-  await expect(page.getByRole("region", { name: "Cloud account", exact: true })).toContainText("Saved to cloud at");
+  await expect(page.getByRole("region", { name: "Cloud account", exact: true })).toContainText("Saved securely at");
   await openSales(page);
   await expect(visibleSales(page)).toContainText(stock);
   await expect(visibleSales(page)).toContainText("$540");
@@ -239,7 +235,7 @@ test.beforeEach(async ({ baseURL }) => {
   expect(baseURL, "Cloud journeys may only run against the dedicated local app.").toBe(APP_ORIGIN);
 });
 
-test("email-link login, Mini commission, second-device visibility, and account isolation", async ({ browser, context, page, request }, testInfo) => {
+test("self-service email-link login, Mini commission, second-device visibility, and account isolation", async ({ browser, context, page, request }, testInfo) => {
   const firstBlocked = await restrictToEmulators(context);
   const accountA = await createPilotAccount(request, "ledger-a");
   const accountB = await createPilotAccount(request, "ledger-b");
@@ -310,7 +306,7 @@ test("email-link login, Mini commission, second-device visibility, and account i
     await expect(page.getByText(`${removedStock} was removed from calculations.`, { exact: true })).toBeVisible();
 
     await page.getByRole("region", { name: "Cloud account", exact: true }).getByRole("button", { name: "Sign out", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Your sales. Your workspace.", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your sales, saved securely.", exact: true })).toBeVisible();
     await expect(page.getByRole("region", { name: "Cloud account", exact: true })).toHaveCount(0);
     await expect(page.locator(".sales-surface, .dashboard-page")).toHaveCount(0);
     await expect(page.getByText(stock, { exact: true })).toHaveCount(0);
@@ -403,7 +399,7 @@ test("automatic saving rejects stale edits and preserves offline typing until re
     await expect(visibleSales(page)).toContainText("$4,500");
     await secondPage.getByRole("button", { name: "Done", exact: true }).click();
     await expect(secondPage.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
-    await expect(secondPage.getByRole("region", { name: "Cloud account", exact: true })).toContainText("Saved to cloud at");
+    await expect(secondPage.getByRole("region", { name: "Cloud account", exact: true })).toContainText("Saved securely at");
     await expect(visibleSales(page)).toContainText("$4,500");
     await editSale(page, stock);
     await expect(page.getByRole("textbox", { name: "Front gross", exact: true })).toHaveValue("4500.00");

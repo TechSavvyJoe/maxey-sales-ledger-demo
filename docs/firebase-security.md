@@ -1,6 +1,6 @@
-# Firebase private-pilot security
+# Firebase private-cloud security
 
-This is a private, online-first pilot, separate from the public local-only demo.
+This is a private, online-first cloud workspace, separate from the public local-only demo.
 Configuration and automated tests alone are not proof of a secured live deployment.
 The September 3, 2026 private deployment is documented in `firebase-pilot-setup.md`.
 Its rules were independently hash-matched and anonymous access was denied. The
@@ -13,8 +13,9 @@ No live user records are needed for the automated tests in this repository.
 - Every sales, settings, history, activity, and editor-draft request requires Firebase
   Authentication, a matching UID in `/users/{uid}`, and
   `/pilotUsers/{uid}.enabled == true`.
-- A signed-in user may read their own pilot-status document, including a disabled
-  status. Clients cannot list, create, modify, or delete pilot-status documents.
+- A signed-in user may read their own access document. On their first visit, they may
+  create only `/pilotUsers/{their UID}` with exactly their UID, `enabled: true`, and a
+  valid creation timestamp. Clients cannot list, update, or delete access documents.
 - There is no manager access, public collection, or general authenticated-user
   permission. Unrecognized paths are denied.
 - The domain value `profileId: "primary"` is not an authorization boundary. The
@@ -22,30 +23,23 @@ No live user records are needed for the automated tests in this repository.
 - Firebase API configuration identifies the project; it is not an administrative
   credential. Never put a service-account private key or admin SDK in this app.
 
-## Provisioning the first pilot owner
+## Self-service personal workspaces
 
-Only after the user authorizes provisioning and the intended Firebase project is
-verified:
+After the intended Firebase project, Authentication providers, and reviewed rules
+are deployed, a salesperson signs in with their own Google account or email link.
+The app creates one immutable access document for that exact authenticated UID, then
+creates the empty settings document inside that same account. No shared collection,
+wildcard permission, email-matching rule, or per-person console step is used.
 
-1. Enable the intended sign-in provider, let the owner sign in, and verify that
-   exact account's UID in **Firebase Console → Authentication → Users**. Do not
-   infer a UID from an email address or enter credentials into chat.
-2. Using the verified project's administrator console, create the Firestore
-   document **pilotUsers / the verified UID**, with one Boolean field:
-   **enabled = true**. Do not create a public allowlist, wildcard entry, or email
-   matching rule. An authorized server Admin SDK can create this same document;
-   it must run outside the browser with appropriately restricted IAM.
-3. Deploy the reviewed rules through the authorized release workflow before
-   letting the app create its empty settings document. Verify own-account access
-   succeeds and a different non-enabled account fails.
-4. To revoke pilot data access, the administrator sets **enabled = false**.
-   Separately handle Firebase Auth account/session revocation when needed.
+The rule permits the narrowest possible self-service enrollment: a user may create
+only their own `pilotUsers/{uid}` record, with the required fields and `enabled` set
+to true. It does not let that account list other users, modify its status, or read
+another account's ledger. An administrator can still set `enabled = false` through
+the Firebase console to disable a workspace, and can separately revoke the Firebase
+Auth session when appropriate.
 
-Creating local files does not create an Auth user or allowlist entry. The separate
-private project, database, providers and hosting have now been provisioned. The
-first owner entry was created only after an exact Auth lookup confirmed the app
-UID, verified email and Google provider. Follow the same verification before any
-additional enrollment. Setup/CLI authentication is not evidence of an app Auth user.
+Creating local files or using Firebase CLI does not create an app account. The
+separate project, database, providers, hosting, and deployed rules remain required.
 
 ## Data and transaction contract
 
@@ -61,8 +55,8 @@ Each sale, history, or activity write requires the settings revision to advance
 in the same atomic transaction. An updated sale must preserve its exact previous
 version in history. Soft deletes retain a timestamped sale and prior version;
 physical deletion is denied. Imports, full restores, and demo mutations are
-disabled in both the cloud adapter and pilot interface. Only manual sale sources
-and supported pilot activity actions are accepted by these rules.
+disabled in both the cloud adapter and cloud interface. Only manual sale sources
+and supported activity actions are accepted by these rules.
 
 Transactions compare the editor's original sale revision and timestamp, or the
 original settings timestamp, with the latest server value. They must repeat that
@@ -70,7 +64,7 @@ comparison on every transaction retry, never silently accept a refreshed expecte
 version. `cloudRevision` is a snapshot/export consistency barrier, not a replacement
 for that comparison. Client domain timestamps are not trusted server audit times.
 
-The pilot uses memory-only Firestore caching, no durable offline write queue, and
+The cloud workspace uses memory-only Firestore caching, no durable offline write queue, and
 reports success only after a server acknowledgement. Failed saves preserve the
 editor and say that changes are unsaved. Account changes must detach old listeners,
 invalidate pending responses, and clear the previous account's displayed state.
@@ -87,11 +81,12 @@ the account/repository changes. A draft acknowledgement must not clear a failed
 authoritative sale-save warning. Sale/settings writes return the exact committed
 record so a subsequent refresh failure cannot be confused with a failed commit.
 
-The admission screen subscribes only to the signed-in account's pilot entry before
-mounting the ledger. Waiting for approval is a normal sign-in state, not a claim
-that saved data could not open. Approval opens the workspace automatically;
-revocation removes the ledger tree. A prior UID or Firestore instance's approval
-cannot be reused by the next session. This does not broaden enrollment permissions.
+The admission screen reads only the signed-in account's access entry before mounting
+the ledger. If it does not exist, the app creates the validated entry for that same
+UID and confirms it from the server before opening the workspace. A disabled entry
+removes the ledger tree. A prior UID or Firestore instance's access cannot be reused
+by the next session. A temporary listener interruption does not eject someone from
+an already open workspace; the visible cloud-status control guides reconnection.
 
 ## Validation limits and honest claims
 
@@ -128,9 +123,10 @@ pnpm exec firebase emulators:exec --only firestore --project demo-sales-ledger-r
 
 The test script requires `FIRESTORE_EMULATOR_HOST`, rejects non-loopback hosts,
 and uses the `demo-sales-ledger-rules` project ID. Every fixture is fictional.
-Coverage includes two enabled accounts, non-enabled and unauthenticated clients,
-cross-account denials, malformed fields, revision conflicts, mandatory immutable
-history, physical-delete denial, append-only activity, and pilot revocation.
+Coverage includes self-service account creation, two separate accounts, disabled and
+unauthenticated clients, cross-account denials, malformed fields, revision conflicts,
+mandatory immutable history, physical-delete denial, append-only activity, and access
+revocation.
 The September 3 autosave implementation passed 22 emulator tests, including five
 new tests for bounded incomplete drafts, owner-only access, tombstone revisions,
 nested malformed data and separation from authoritative sales. The emulator was

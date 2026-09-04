@@ -59,7 +59,7 @@ function repository() {
 }
 
 function localOnly() {
-  if (CLOUD_BUILD || cloud) throw new Error("Import and full-ledger replacement are not enabled in the cloud pilot. Your saved sales have not been changed.");
+  if (CLOUD_BUILD || cloud) throw new Error("Import and full-ledger replacement are not enabled in cloud saving. Your saved sales have not been changed.");
   return local;
 }
 

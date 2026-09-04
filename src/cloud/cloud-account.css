@@ -1,9 +1,11 @@
-.cloud-account-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; border: 1px solid #cbd8e5; border-radius: 8px; background: #fff; color: #143854; min-width: 0; }
+.cloud-account-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 14px; border: 1px solid #cbd8e5; border-radius: 12px; background: linear-gradient(135deg, #ffffff, #f8fbff); box-shadow: 0 1px 2px rgb(23 56 84 / .04); color: #143854; min-width: 0; }
 .cloud-account-bar > svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.cloud-account-bar--saving { border-color: #9bc8eb; }
+.cloud-account-bar--attention { border-color: #e5bb70; background: #fffdf8; }
 .cloud-account-bar__identity { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .cloud-account-bar__identity strong { font-size: 14px; overflow-wrap: anywhere; }
 .cloud-account-bar__identity span { font-size: 12px; color: #52687c; }
-.cloud-account-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 7px 10px; border: 1px solid #b9cadb; border-radius: 6px; background: #fff; font-size: 13px; font-weight: 650; white-space: nowrap; }
+.cloud-account-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 11px; border: 1px solid #b9cadb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: 650; white-space: nowrap; }
 .cloud-account-bar button svg { width: 16px; height: 16px; }
 .cloud-account-bar button:disabled { opacity: .5; cursor: wait; }
 .cloud-account-bar button:focus-visible { outline: 3px solid #0876d1; outline-offset: 2px; }

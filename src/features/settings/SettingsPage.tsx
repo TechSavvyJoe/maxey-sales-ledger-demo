@@ -1453,15 +1453,13 @@ export function SettingsPage({
           className="data-settings"
           title={CLOUD_BUILD ? "Cloud saving" : "Data & backups"}
           description={CLOUD_BUILD ? "Your account, saving, and recovery" : "Backup, restore, import, and privacy"}
-          summary={CLOUD_BUILD ? `${activeSales.length.toLocaleString()} active sales · Account storage` : `${activeSales.length.toLocaleString()} active sales · ${settings.lastBackupAt ? "backup recorded" : "backup recommended"}`}
+          summary={CLOUD_BUILD ? `${activeSales.length.toLocaleString()} active sales · Private storage` : `${activeSales.length.toLocaleString()} active sales · ${settings.lastBackupAt ? "backup recorded" : "backup recommended"}`}
           icon={<Database />}
         >
           {CLOUD_BUILD ? <div className="cloud-data-copy">
             <p><strong>Save here. Open it on your next computer.</strong></p>
-            <p>Saved sales and settings are stored with your signed-in account. No folder connection or manual upload is needed. Use the same account on another device.</p>
-            <p>This pilot needs an internet connection to save. If saving fails, keep your entries open and reconnect. A saved message appears only after the cloud accepts the change.</p>
-            <p>Accidentally deleted a sale? Open <strong>Sales → Recently deleted</strong> to restore it. Earlier sale revisions are retained for owner-assisted recovery. Scheduled disaster-recovery backups are not enabled in this pilot.</p>
-            <p>Your ledger is separate from other salespeople’s ledgers. The app owner can administer stored records. Importing an existing ledger will be a separate, reviewed step.</p>
+            <p><strong>Automatic saving:</strong> Your sales and settings follow your signed-in account. Use the same account on another device—no folders or uploads needed. If saving needs attention, leave the page open and reconnect.</p>
+            <p><strong>Recovery:</strong> Open <strong>Sales → Recently deleted</strong> to restore a deleted sale. Earlier sale versions are retained for recovery support; automatic recovery backups are not included.</p>
             <Button variant="outline" disabled={isDirty} onClick={() => void exportBackup()}><FileJson aria-hidden="true" /> Download a copy</Button>
           </div> : <>
           <div className="storage-card">
@@ -1587,7 +1585,7 @@ export function SettingsPage({
 
         <section className="about-strip">
           <span><Info aria-hidden="true" /> Sales Ledger</span>
-          <span>{CLOUD_BUILD ? "Cloud pilot · Internet connection required to save" : "Saved in this browser · Works offline after the first load"}</span>
+          <span>{CLOUD_BUILD ? "Cloud saving · Internet connection required" : "Saved in this browser · Works offline after the first load"}</span>
         </section>
           </div>
         </div>

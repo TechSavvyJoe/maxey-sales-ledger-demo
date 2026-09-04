@@ -1,25 +1,11 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
-import App from "@/App";
-import { activateCloudRepository, getCloudStorageState, subscribeCloudStorageState } from "@/persistence/database";
+import { lazy, Suspense } from "react";
 import { readFirebaseCloudConfig } from "./config";
 import { CloudAuthGate } from "./CloudAuthGate";
 import { CloudAccessGate } from "./CloudAccessGate";
-import { createFirebaseRepository } from "./firebaseRepository";
-import type { Firestore } from "firebase/firestore";
-import type { User } from "firebase/auth";
+import type { CloudWorkspaceSession } from "./CloudWorkspace";
 
 const configuration = readFirebaseCloudConfig();
-
-function CloudWorkspace({ session }: { session: { user: User; firestore: Firestore; signOut: () => Promise<void> } }) {
-  const repository = useMemo(() => createFirebaseRepository(session.firestore, session.user.uid), [session.firestore, session.user.uid]);
-  const activeAccount = useSyncExternalStore(subscribeCloudStorageState, getCloudStorageState);
-  useEffect(() => {
-    const deactivate = activateCloudRepository(repository, { uid: session.user.uid, email: session.user.email ?? "Signed-in account" });
-    return deactivate;
-  }, [repository, session.user.uid, session.user.email]);
-  if (activeAccount?.uid !== session.user.uid) return <p role="status" className="app-fatal">Opening your cloud ledger…</p>;
-  return <App cloudAccount={{ email: session.user.email ?? "Signed-in account", onSignOut: session.signOut }} />;
-}
+const CloudWorkspace = lazy(() => import("./CloudWorkspace"));
 
 export default function FirebaseApp() {
   if (configuration.status !== "enabled") {
@@ -31,6 +17,6 @@ export default function FirebaseApp() {
   }
   return <CloudAuthGate config={configuration.config}>{(session) => <CloudAccessGate key={session.user.uid}
     firestore={session.firestore} uid={session.user.uid} email={session.user.email ?? "Your account"} signOut={session.signOut}>
-    <CloudWorkspace session={session} />
+    <Suspense fallback={<p role="status" className="app-fatal">Opening your cloud ledger…</p>}><CloudWorkspace session={session as CloudWorkspaceSession} /></Suspense>
   </CloudAccessGate>}</CloudAuthGate>;
 }

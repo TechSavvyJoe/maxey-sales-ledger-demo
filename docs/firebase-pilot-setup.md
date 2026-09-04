@@ -30,9 +30,9 @@ Both fictional records remain only in Recently deleted/history, not active sales
 ## What the pilot does
 
 - Google sign-in, with an email sign-in link alternative. No Drive connection, desktop installation, or account-specific developer configuration.
-- Each approved pilot account has its own settings, sales and activity. Firestore rules enforce the signed-in UID; the app owner retains administrative access.
+- Each signed-in account has its own settings, sales and activity. On first sign-in, the app creates only that account's private workspace. Firestore rules enforce the signed-in UID; the app owner retains administrative access.
 - A successful save means Firestore acknowledged it. Updates also record the prior sale revision for owner-assisted recovery; deleted records can be restored through Recently deleted.
-- Fresh accounts start empty. Existing local/demo records are never uploaded just because someone signs in.
+- Fresh accounts start empty.        Existing local/demo records are never uploaded just because someone signs in.
 - Shared computers use session-only authentication by default. Remembering an account is an explicit choice. Data uses memory cache, not a persistent shared-device ledger cache.
 - The local-only/GitHub Pages demo remains a separate build and continues working as before.
 
@@ -55,7 +55,7 @@ The current Identity Platform / Spark configuration permits 3,000 daily active u
 3. Enable Google Authentication with the correct support email. Enable Email/Password's **email-link/passwordless** option separately; the app does not expose password login. Add the exact private hosting domains to authorized domains. For local development, add loopback only if intentionally testing live auth; emulator testing needs no live domain registration.
 4. Put Firebase's public web configuration into the ignored `.env.cloud.local` file. Use `.env.example` as the template. Set `VITE_FIREBASE_ENABLED=true`, `VITE_PUBLIC_DEMO=false`, and keep `VITE_FIREBASE_EMULATORS` unset/false. Never place admin credentials or a service-account key in any `VITE_*` value.
 5. Build with `pnpm build:cloud`. This produces `dist-cloud`; it does not replace the local/demo `dist`. Deployment must specify the verified pilot project explicitly: `firebase deploy --project VERIFIED_PILOT_PROJECT_ID --only firestore:rules,firestore:indexes,hosting`. Do not paste the placeholder as a real project ID.
-6. First sign into the private site normally. Verify the resulting UID and email in that project's Authentication console. An authorized owner then creates `pilotUsers/{verified UID}` with `{ enabled: true }`. The browser cannot enroll itself. Repeat only for the small, explicitly approved pilot group; see `firebase-security.md`.
+6. Share the private site. A salesperson signs in normally with Google or an email link; the app creates only that account's immutable `pilotUsers/{uid}` access record and empty workspace. The user cannot read other accounts, list accounts, or alter access records. See `firebase-security.md`.
 7. Test the actual hosted address in normal Chrome/Edge and Safari, not only an embedded app browser. Google may reject embedded user agents; an ordinary browser or the email fallback is the supported handoff, never user-agent spoofing.
 
 Only the public web config identifies the app; it does not grant access to ledgers. Security comes from authentication and rules. The owner must separately configure quotas, support, privacy/retention terms and operational recovery before wider sharing.

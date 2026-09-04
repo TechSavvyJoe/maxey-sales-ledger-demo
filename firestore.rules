@@ -22,6 +22,14 @@ service cloud.firestore {
       return value is string && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])$');
     }
 
+    // A self-service profile can only unlock the authenticated person's own
+    // isolated ledger. It grants no access to any other account or collection.
+    function validPilotProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'enabled', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'enabled', 'createdAt'])
+        && data.uid == uid && data.enabled == true && isoDateTime(data.createdAt);
+    }
+
     // The global revision provides an atomic snapshot barrier. Domain timestamps
     // stay separate so an unrelated sale does not stale a settings editor.
     function advancesCloudRevision(uid) {
@@ -178,7 +186,9 @@ service cloud.firestore {
 
     match /pilotUsers/{uid} {
       allow get: if request.auth != null && request.auth.uid == uid;
-      allow list, create, update, delete: if false;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && validPilotProfile(request.resource.data, uid);
+      allow list, update, delete: if false;
     }
 
     match /users/{uid}/settings/{settingsId} {

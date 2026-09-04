@@ -396,7 +396,7 @@ export function Dashboard({
             <span className="eyebrow">{IS_PUBLIC_DEMO_BUILD ? "Explore Sales Ledger" : "Welcome to your private sales workspace"}</span>
             <h2 id="onboarding-title">{CLOUD_BUILD ? "Your cloud ledger is ready for your first sale" : IS_PUBLIC_DEMO_BUILD ? "Explore the sample history" : `Start your workspace, import a tracker, or explore the ${DEMO_DATASET_LABEL} demo`}</h2>
             <p>
-              {CLOUD_BUILD ? "Add a sale, then set your goals and pay plan in Settings. Saved changes will follow your account when you sign in on another device. This pilot starts empty; no demo or existing sales have been uploaded." : IS_PUBLIC_DEMO_BUILD ? `See fictional sales from ${demoRangeDescription()}, including commissions, F&I, pacing, and milestones. No sign-in is needed.` : "Your sales stay in this browser profile. Commission estimates update automatically by month, and you can export a backup anytime."}
+              {CLOUD_BUILD ? "Add a sale, then set your goals and pay plan in Settings. Saved changes will follow your account when you sign in on another device. Your cloud workspace starts empty; no demo or existing sales have been uploaded." : IS_PUBLIC_DEMO_BUILD ? `See fictional sales from ${demoRangeDescription()}, including commissions, F&I, pacing, and milestones. No sign-in is needed.` : "Your sales stay in this browser profile. Commission estimates update automatically by month, and you can export a backup anytime."}
             </p>
             <div className="onboarding-banner__actions">
               <Button type="button" onClick={onAddSale}>
