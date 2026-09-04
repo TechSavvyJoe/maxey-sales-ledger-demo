@@ -463,6 +463,25 @@
 /* The primary category header is not collapsible, so keep its complete context
    in one readable column instead of forcing title and status into tiny cells. */
 @media (max-width: 340px) {
+  .settings-page .settings-secondary-disclosure > .settings-disclosure__summary {
+    grid-template-columns: minmax(0, 1fr) 20px;
+  }
+
+  .settings-page .settings-secondary-disclosure .settings-disclosure__title {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .settings-page .settings-secondary-disclosure .settings-disclosure__status {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .settings-page .settings-secondary-disclosure .settings-disclosure__chevron {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
   .settings-page .settings-primary-section .settings-disclosure__summary {
     min-height: 82px;
     grid-template-columns: minmax(0, 1fr);

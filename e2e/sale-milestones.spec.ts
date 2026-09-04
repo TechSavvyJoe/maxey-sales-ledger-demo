@@ -91,7 +91,7 @@ test("milestone links explain prior-sales uplift and added bonus without inflati
   await expect(page.locator(".sale-milestone-summary")).not.toContainText("partial estimate");
   expect(await page.locator(".sale-sheet").evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
   await page.locator(".sale-milestone-summary").scrollIntoViewIfNeeded();
-  await page.screenshot({ path: `/private/tmp/ledger-sale-milestone-${testInfo.project.name}.png` });
+  await page.screenshot({ path: testInfo.outputPath("sale-milestone.png") });
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   await page.getByRole("dialog", { name: "Edit sale" }).getByRole("button", { name: "Close" }).click();
   await expect(firstMilestone).toBeFocused();

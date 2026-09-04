@@ -194,6 +194,16 @@ test("compiled Firebase Settings stays responsive and uses cloud saving instead 
     await expect(page.getByRole("button", { name: "Download a copy", exact: true })).toBeVisible();
     await expect(page.getByText(/Google Drive/)).toHaveCount(0);
     await expect(page.locator(".automatic-backup-card, .google-drive-backup-card")).toHaveCount(0);
+    if (width <= 390) {
+      const headings = await page.locator(".settings-secondary-disclosure .settings-disclosure__title strong").evaluateAll((nodes) =>
+        nodes.map((node) => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height })),
+      );
+      expect(headings).toHaveLength(2);
+      for (const heading of headings) {
+        expect(heading.width, "Collapsed section titles need a readable text column").toBeGreaterThanOrEqual(160);
+        expect(heading.height, "A short section title must not stack word by word").toBeLessThanOrEqual(48);
+      }
+    }
     await page.screenshot({ path: testInfo.outputPath(`firebase-settings-${width}x${height}.png`), fullPage: true });
     if (width === 390 || width === 1180) {
       const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
