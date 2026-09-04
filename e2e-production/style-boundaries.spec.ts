@@ -130,7 +130,7 @@ test("production sale entry preserves focus, validation, and product selection",
   await expect(product).toBeChecked();
   await boundary(product, 3, true);
   await boundary(stock, 3);
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(stock).toHaveAttribute("aria-invalid", "true");
   await expect(stock).toHaveCSS("border-color", "rgb(180, 35, 24)");
 });

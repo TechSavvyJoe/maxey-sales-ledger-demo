@@ -3,10 +3,10 @@
 ## Version 1.9 improvements
 
 - Rebuilt Reports into a scope-first center for **Month**, **Week**, **Year through the selected month**, and **Payroll**, with compact in-page navigation and explicit current, closed, future, and comparison wording.
-- Added full product performance reporting for **Service contract / warranty**, **Tire & Wheel**, and **GAP**, plus dealer-financing analysis as a separate deal outcome. Every outcome keeps Yes, No, and Not marked distinct.
+- Added full product performance reporting for **Service contract / warranty**, **Tire & Wheel**, and **GAP**, plus **Finance Penetration** and a clear **Finance**, **Cash**, or **Outside Finance** payment-method breakdown. Every product outcome keeps Yes, No, and Not marked distinct.
 - Added penetration, tracking completion, product units per deal, any-product, two-or-more, all-three, confirmed-no-product, exact-mix, inclusive-bundle, financing-cohort, gross, commission, and data-quality analysis.
 - Kept one authoritative total F&I gross amount per deal. Matching-product and bundle cohorts show the whole deal total, are explicitly overlapping and non-additive, and never claim unsupported product-level dollars.
-- Added filtered deal evidence so product, financing, unmarked, and missing-total metrics can be checked against the exact stock-number records behind them.
+- Added filtered deal evidence so product, payment-method, unmarked, and missing-total metrics can be checked against the customer, vehicle, date, and stock-number records behind them.
 - Expanded Excel with Product Performance, Financing, Product Mix & Bundles, Weekly Performance, and Data Quality sheets while retaining the customer-name privacy choice and private-backup separation.
 - Added previous-month sales/F&I comparison and a selected-year monthly F&I trend, while keeping YTD totals bounded by the selected reporting month.
 - Clarified weekly management with this-week sales, target share, cumulative Saturday checkpoint, additional deliveries needed by Saturday, remaining monthly goal, and pace versus expected-to-date as separate measures.
@@ -18,7 +18,7 @@
 
 - Added a focused **Week** report that divides the selected month into the store’s Monday–Saturday weeks, respects each salesperson’s saved days off, and lets the user inspect one week’s deliveries, credited units, gross, core commission, product results, and deal list.
 - Turned the monthly delivery goal into workday-weighted weekly checkpoints. The Dashboard and current-week report state exactly how many additional valid deliveries are needed by week end to reach that checkpoint; past weeks remain final and future weeks are not forecast as sales.
-- Added per-deal yes/no outcomes for **Service contract / warranty**, **Tire & Wheel**, **GAP**, and **Dealer financed** without creating unsupported per-product dollar amounts. Total eligible F&I gross remains the only F&I dollar input.
+- Added per-deal yes/no outcomes for **Service contract / warranty**, **Tire & Wheel**, and **GAP**, plus a separate **Finance** payment-method choice, without creating unsupported per-product dollar amounts. Total eligible F&I gross remains the only F&I dollar input.
 - Added month and week F&I penetration counts/rates using valid delivered deals as the denominator. A half deal contributes one eligible delivered deal to penetration while credited units remain separate; pre-upgrade records with no product selections retain a visible not-marked state.
 - Added month-specific delivery and commission goal overrides while preserving the profile defaults for months that do not have an override.
 - Replaced conflicting review totals with one canonical attention model shared by Dashboard, Sales, and Reports. One affected sale counts once and can carry both calculation and overdue-pending reasons.
@@ -100,7 +100,7 @@ Automatic folder backups are recovery copies, not live two-way synchronization. 
 - Introduced an original ledger-and-check product identity across desktop, mobile, loading, file recovery, reports, favicons, and installable-app icons.
 - Added a complete logo package with primary, reversed, monochrome, lockup, transparent PNG exports, mask-safe app artwork, and a presentation sheet.
 - Rebuilt Add Sale around a faster everyday path: customer, stock, gross, and F&I stay prominent while vehicle, credit, and notes remain one tap away.
-- Added deliberate first-field focus, a sticky live sale estimate, and a faster **Save & add another** loop for high-volume months.
+- Added deliberate first-field focus, a sticky live sale estimate, and a faster **Add & enter next** loop for high-volume months.
 - Preserved every existing sale field and all calculation behavior, including the more-than-10 retroactive rate rule and 20% eligible F&I rate.
 - Fixed a restore workflow edge case so the preview stays open, the safety-backup confirmation is retained, and restored settings refresh without remounting the page.
 - Tightened the local launcher's browser policy to authorize only the exact file-recovery script instead of allowing arbitrary inline scripts.
@@ -121,19 +121,19 @@ Automatic folder backups are recovery copies, not live two-way synchronization. 
 
 ## Release scope
 
-Production-grade local-first personal sales and commission tracking for an individual Bob Maxey Ford of Howell salesperson. Coworkers can use the same hosted app, but every browser profile has an isolated workspace and separate backups.
+Sales Ledger now has two deliberately separate releases. The private Firebase edition gives each signed-in salesperson an isolated personal cloud workspace with acknowledged background saving and cross-device access. The local/demo edition remains a local-first personal tracker whose data stays in that browser profile unless the user exports or configures a recovery copy.
 
 ## Highlights
 
-- One large, clear month/year switcher shared by Dashboard, Sales, and Reports.
-- Guided sales entry for customer last name, stock number, vehicle, status, unit credit, front gross, eligible F&I gross, tracked F&I outcomes, and notes.
+- One compact, responsive month/year switcher shared by Dashboard, Sales, and Reports.
+- Guided sales entry for customer last name, stock number, vehicle, status, an optional split deal, front gross, eligible F&I gross, tracked F&I products, payment method, and notes.
 - Tested monthly front/F&I calculation engine using integer cents and effective-dated pay-plan versions.
 - More-than-10 delivery rule applies the configured 35% front rate retroactively to the first valid delivery; exactly 10 remains at 30%.
 - Cumulative bonus tiers are included in Estimated Commission as milestones are reached.
 - Weekly, monthly, full-year, previous-month, goal/pace, trend, and payroll-reconciliation views.
 - CSV, Excel, print/PDF, and complete checksum-verified JSON backup/restore.
 - Legacy tracker import with preview, row rejection, deterministic IDs, and app-side commission recalculation.
-- Installable offline-capable PWA with no accounts, analytics, telemetry, third-party CDN, or cloud sync.
+- Private account-based cloud saving through Firebase, plus a separate installable offline-capable local/demo PWA. Neither build uses analytics, telemetry, or a third-party CDN.
 - Desktop, tablet, and mobile layouts with keyboard support, visible focus, reduced motion, accessible chart data, and automated WCAG A/AA checks.
 
 ## Data and payroll boundaries
@@ -146,7 +146,9 @@ Production-grade local-first personal sales and commission tracking for an indiv
 
 ## Deployment
 
-Deploy the contents of `dist/` to an approved static HTTPS host. Apply `public/_headers` or equivalent CSP, frame, MIME, referrer, permissions, and cache rules. Browser storage belongs to the exact hostname/port and browser profile; moving origins or devices requires JSON backup and restore.
+The public/local build is produced in `dist/` and can be deployed to an approved static HTTPS host with equivalent CSP, frame, MIME, referrer, permissions, and cache rules. Its browser storage belongs to the exact hostname/port and browser profile, so moving origins or devices requires JSON backup and restore.
+
+The private account-based build is produced separately in `dist-cloud/` and deployed only to the reviewed Firebase project with the tested Firestore rules. Signing in never uploads an existing local/demo ledger. Scheduled backups and point-in-time recovery are not enabled; see the private-pilot checklist before a broader coworker rollout.
 
 ## Automated release gate
 

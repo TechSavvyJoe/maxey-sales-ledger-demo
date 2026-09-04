@@ -81,7 +81,8 @@ describe("email-link safety", () => {
     expect(cloudAuthErrorMessage({ code: "auth/network-request-failed", message: "secret" })).toMatch(/internet connection/);
     expect(cloudAuthErrorMessage({ code: "auth/unauthorized-domain" })).toMatch(/app owner/);
     expect(cloudAuthErrorMessage({ code: "auth/popup-blocked" })).toMatch(/email sign-in link/);
-    expect(cloudAuthErrorMessage({ code: "unknown", message: "Unable to process request due to missing initial state. sessionStorage is inaccessible." })).toMatch(/in-app browser blocked/i);
+    expect(cloudAuthErrorMessage({ code: "unknown", message: "Unable to process request due to missing initial state. sessionStorage is inaccessible." })).toMatch(/protected sign-in storage is unavailable/i);
+    expect(cloudAuthErrorMessage({ code: "auth/unsupported-persistence-type", message: "private@example.com token=secret" })).toMatch(/open the exact private Sales Ledger link directly in Chrome/i);
     expect(cloudAuthErrorMessage({ code: "unknown", message: "private@example.com token=secret" })).not.toMatch(/private@example.com|secret/);
   });
 });

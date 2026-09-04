@@ -1,6 +1,6 @@
 # ADR-011: Account-scoped editor drafts and exact save acknowledgements
 
-**Status:** Accepted for implementation; deploy after emulator and browser acceptance
+**Status:** Accepted and deployed to the private pilot; broaden only after live multi-account acceptance
 **Date:** 2026-09-03
 **Deciders:** Owner-requested autosaving; implementation review by the Sales Ledger agents
 
@@ -10,7 +10,7 @@ Salespeople expect entries to survive ordinary navigation without manually makin
 backups. Incomplete text (a blank stock number, a trailing decimal, an unfinished
 manual payout) is not yet a valid Sale and must not silently alter commissions.
 Two devices must not silently overwrite the same editor draft. The private pilot
-must retain its approved-account boundary and memory-only shared-device cache.
+must retain its authenticated-UID account-isolation boundary and memory-only shared-device cache.
 
 ## Decision
 
@@ -26,9 +26,10 @@ editor to a stale revision or invite a duplicate new-sale submission. The new-sa
 draft includes a stable eventual Sale ID for recovery after interrupted cleanup.
 
 Google is the primary sign-in action and email links are a secondary disclosed
-option. An own-account approval subscription precedes mounting the ledger. It
-distinguishes waiting for approval from connection errors and opens automatically
-once approved. Session-only authentication remains the shared-device default.
+option. Before mounting the ledger, the app reads the signed-in UID's access profile,
+creates that same UID's narrowly validated immutable profile when absent, and confirms
+it from the server. A disabled profile remains unavailable, and setup failures remain
+distinct from authentication. Session-only authentication remains the shared-device default.
 
 ## Alternatives and trade-offs
 
@@ -49,12 +50,13 @@ The separate draft store is not part of the existing ledger backup format.
 Targeted tests cover raw-input recovery, unknown F&I answers, nested size bounds,
 wrong-account denial, transaction retries, stale clear/recreate prevention,
 late responses after sign-out, admission/revocation, and saved-warning separation.
-Run Firestore emulator and responsive browser journeys before deployment. No live
-accounts, billing, IAM or production data are changed by this implementation.
 
-The 22-test Firestore security suite passed locally on September 3, 2026,
-including five draft-boundary tests. Browser acceptance and live deployment remain
-separate gates; this result does not assert those have happened.
+On September 4, 2026, all 22 Firestore security tests and all nine cloud browser
+journeys passed against isolated Auth and Firestore emulators, including desktop,
+phone-sized and WebKit projects. The feature is deployed to the private pilot.
+That evidence does not replace the still-open live second-account, managed-Windows,
+phone, retention and disaster-recovery acceptance gates documented in the pilot
+release checklist. Billing was not enabled by this implementation.
 
 Primary references: [Firebase transactions](https://firebase.google.com/docs/firestore/manage-data/transactions),
 [authentication persistence](https://firebase.google.com/docs/auth/web/auth-state-persistence),

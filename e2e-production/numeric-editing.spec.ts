@@ -38,7 +38,7 @@ test("published-build number fields retain focus, normalize without refresh, and
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await context.setOffline(true);
   await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByRole("status")).toContainText("All changes saved. Settings save automatically.");
   await expect(page.locator(".settings-validation-summary")).toBeHidden();
   await expect(minimum).toHaveValue("12");
   await expect(bonus).toHaveValue("350.25");

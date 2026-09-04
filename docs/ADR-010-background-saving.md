@@ -5,7 +5,7 @@ Status: Implemented; release acceptance is tracked separately.
 
 ## Decision
 
-Google sign-in is the primary cloud entry point. Account admission remains private and explicit; this release does not open enrollment or enable billing. The access screen distinguishes successful sign-in awaiting approval from a connection failure.
+Google sign-in is the primary cloud entry point. Enrollment is self-service for the configured Firebase Authentication providers: a browser may create only the signed-in UID's immutable enabled profile, then the rules isolate every ledger under that UID. This does not enable billing, manager access, or cross-account access. The access screen distinguishes workspace setup from a connection failure.
 
 Valid edits to existing sales save after a short typing pause. Unfinished input and new sales are protected in a separate account-scoped draft store; a new draft is not a delivered sale and never enters sales, commission, or bonus totals. An explicit Add sale commits a new record. Settings and payroll amounts also save after a pause, with manual save available as a fallback.
 
@@ -15,16 +15,16 @@ Blank numeric input is not zero. Validation blocks incomplete or invalid setting
 
 ## Safety and limits
 
-- Account-scoped authorization applies to sales, settings, history, and drafts. Browser clients cannot grant pilot access.
+- Account-scoped authorization applies to sales, settings, history, and drafts. A browser client can create only its authenticated UID's initial enabled profile; it cannot list, update, disable, or delete access profiles or open another UID's ledger.
 - The cloud build does not upload an existing local ledger or fall back to a different device ledger.
 - Shared-device sign-in remains session-scoped by default. Persistent device sign-in requires the user's explicit choice.
 - Firestore transactions require a working connection. Offline cloud changes remain visibly unsaved in the open editor; this is not an offline-sync guarantee. Never claim a cloud save before acknowledgement.
 - A saved draft can be recovered; an unacknowledged offline draft can be lost if its tab is discarded. Close/sign-out guards must describe that risk honestly.
-- Per-change history is not an independent disaster-recovery backup. Scheduled backup/PITR and broader enrollment require a separate operational decision.
+- Per-change history is not an independent disaster-recovery backup. Scheduled backup/PITR and any future invite-only or domain-restricted admission policy require separate operational decisions.
 - Old and new overlapping edits cannot be made conflict-free by cosmetic status indicators. Conflict recovery remains an explicit user action.
 
 ## Verification requirements
 
-Cover new draft → close → reopen; valid edit → autosave → reload; text entered during a slow write; invalid numeric text; duplicate stock; interrupted write; stale sale and draft revisions; approval changes; account switching; unchanged local/demo data; and all responsive states. Validate Firestore rules in the emulator before deploying them, then verify the exact hosted build and a synthetic live workflow.
+Cover new draft → close → reopen; valid edit → autosave → reload; text entered during a slow write; invalid numeric text; duplicate stock; interrupted write; stale sale and draft revisions; enrollment and disabled-access changes; account switching; unchanged local/demo data; and all responsive states. Validate Firestore rules in the emulator before deploying them, then verify the exact hosted build and a synthetic live workflow.
 
 Technical references: [Firestore transactions](https://firebase.google.com/docs/firestore/manage-data/transactions), [transaction contention](https://firebase.google.com/docs/firestore/transaction-data-contention), and [WCAG 2.2](https://www.w3.org/TR/WCAG22/).

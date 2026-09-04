@@ -4276,6 +4276,74 @@ button:not(:disabled),
   color: var(--slate-500);
 }
 
+.app-recovery {
+  min-height: 100dvh;
+  padding-inline: clamp(20px, 6vw, 64px);
+}
+
+.app-recovery__icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  margin-bottom: 8px;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.app-recovery__icon svg {
+  width: 27px;
+  height: 27px;
+}
+
+.app-recovery__eyebrow {
+  margin: 0;
+  color: var(--blue-700) !important;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.app-recovery__button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 18px;
+  border: 1px solid var(--blue-700);
+  border-radius: 9px;
+  background: var(--blue-700);
+  color: white;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.app-recovery__button:hover {
+  border-color: var(--navy-900);
+  background: var(--navy-900);
+}
+
+.app-recovery__button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.app-recovery__button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-recovery small {
+  color: var(--slate-700);
+}
+
 @media (max-width: 1180px) {
   .sidebar { width: 208px; }
   .workspace { margin-left: 208px; }

@@ -287,7 +287,25 @@ test("payroll normalizes typed money, validates in place, and keeps blank distin
 test("unsaved payroll survives cancelled navigation and conflicts with newer edits in another tab", async ({ page, context }) => {
   await openPayroll(page);
   const paid = page.getByLabel("Commission paid", { exact: true });
-  await paid.pressSequentially("123.45");
+
+  const otherPage = await context.newPage();
+  await otherPage.goto("/");
+  await openPayroll(otherPage);
+  const otherPaid = otherPage.getByLabel("Commission paid", { exact: true });
+
+  // An incomplete value cannot win the 1.2-second autosave race while the
+  // external tab commits. Once the conflict is established, correct it to the
+  // valid unsaved amount whose navigation and recovery behavior we exercise.
+  await paid.fill(".");
+  await otherPaid.fill("100");
+  await otherPaid.press("Enter");
+  await expect(otherPaid).toHaveValue("100.00");
+  await expect(page.getByRole("alert").filter({ hasText: "Payroll changed in another tab" })).toBeVisible();
+  await page.bringToFront();
+  await paid.fill("123.45");
+  await expect(paid).toHaveValue("123.45");
+  await expect(page.getByRole("button", { name: "Save now", exact: true })).toBeDisabled();
+
   const period = page.getByRole("button", { name: /Choose reporting month/ });
   const originalPeriod = await period.getAttribute("aria-label");
   const discardedPrompts: string[] = [];
@@ -307,24 +325,15 @@ test("unsaved payroll survives cancelled navigation and conflicts with newer edi
   await expect(paid).toHaveValue("123.45");
   page.off("dialog", dismiss);
 
-  const otherPage = await context.newPage();
-  await otherPage.clock.setFixedTime(new Date("2026-08-31T16:00:00.000Z"));
-  await otherPage.goto("/");
-  await openPayroll(otherPage);
-  const otherPaid = otherPage.getByLabel("Commission paid", { exact: true });
-  await otherPaid.pressSequentially("100");
-  await otherPaid.press("Enter");
-  await expect(otherPaid).toHaveValue("100.00");
-  await expect(page.getByRole("alert").filter({ hasText: "Payroll changed in another tab" })).toBeVisible();
-  await expect(paid).toHaveValue("123.45");
-  await expect(page.getByRole("button", { name: "Try saving again", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "Load latest payroll amount", exact: true }).click();
   await expect(paid).toHaveValue("100.00");
 
+  await otherPage.bringToFront();
   await clearWithKeyboard(otherPaid);
   await otherPaid.pressSequentially("200");
   await otherPaid.press("Enter");
   await expect(otherPaid).toHaveValue("200.00");
+  await page.bringToFront();
   await expect(paid).toHaveValue("200.00");
   await expect(page.getByRole("alert").filter({ hasText: "Payroll changed in another tab" })).toBeHidden();
 });

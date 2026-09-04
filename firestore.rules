@@ -246,8 +246,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // No public data, manager role, catch-all authenticated access, or client
-    // provisioning. Any newly added collection remains closed by default.
+    // No public data, manager role, or catch-all authenticated access. The only
+    // client enrollment is the narrowly validated own-UID profile above. Any
+    // newly added collection remains closed by default.
     match /{document=**} {
       allow read, write: if false;
     }

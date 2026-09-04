@@ -21,7 +21,7 @@ The active scope must remain visible in the report heading, controls, empty stat
 
 ### Outcomes and F&I gross
 
-Service contract / warranty, Tire & Wheel, and GAP are product outcomes. **Dealer financed** is a separate financing outcome, not a product.
+Service contract / warranty, Tire & Wheel, and GAP are product outcomes. **Finance** is a payment method arranged through the dealership and is measured as **Finance Penetration**; Cash and Outside Finance are tracked separately. Financing is not a product.
 
 Every outcome has three report states:
 
@@ -39,7 +39,7 @@ The wide table and narrow-screen cards are two presentations of the same report.
 
 ### Trust boundary
 
-Sales Ledger is local-first. Reports reflect records in the current browser profile and the selected period. They are personal estimates and reconciliation aids, not DMS, CRM, manager, or payroll-authoritative records. Exporting a report does not send it to payroll or prove that anyone received or approved it. Full recovery backups remain separate from shareable report exports.
+Reports reflect records in the signed-in cloud workspace or the current on-device browser workspace, depending on the edition opened. They are personal estimates and reconciliation aids, not DMS, CRM, manager, or payroll-authoritative records. Exporting a report does not send it to payroll or prove that anyone received or approved it. Full recovery copies remain separate from shareable report exports.
 
 ## Consequences
 
@@ -51,8 +51,8 @@ Sales Ledger is local-first. Reports reflect records in the current browser prof
 ## Acceptance checks
 
 - Each report identifies Month, Week, Year, or Payroll and its selected period before presenting metrics.
-- Outcome reporting distinguishes Yes, No, and Not marked, and presents dealer financing separately from products.
+- Outcome reporting distinguishes Yes, No, and Not marked, and presents Finance separately from products.
 - Only the deal-level total F&I gross is accepted as the source F&I dollar input; matching-cohort gross is labeled non-additive.
 - Year YTD totals end at the selected month.
 - Wide tables and narrow cards expose the same material records and meanings.
-- Reports and exports retain the local-first, estimate-only, and private-backup boundaries.
+- Reports and exports retain their edition's storage boundary, estimate-only status, and separation from private recovery data.

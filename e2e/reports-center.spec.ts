@@ -204,13 +204,16 @@ test("phone reports use disclosures and cards without page-level sideways scroll
   await center.getByRole("tab", { name: "Products", exact: true }).click();
   await expect(center.locator(".fi-center-product-table")).toBeHidden();
   await expect(center.locator(".fi-center-finance-table")).toBeHidden();
-  const disclosureGroups = center.locator(".fi-center-phone-disclosures");
-  await expect(disclosureGroups).toHaveCount(2);
-  await expect(disclosureGroups.nth(0).locator(".fi-center-product-card")).toHaveCount(3);
-  await expect(disclosureGroups.nth(1).locator("details")).toHaveCount(3);
+  const disclosureGroup = center.locator(".fi-center-phone-disclosures");
+  await expect(disclosureGroup).toHaveCount(1);
+  await expect(disclosureGroup.locator(".fi-center-product-card")).toHaveCount(3);
 
-  await expect(disclosureGroups.nth(0).locator(".fi-center-product-card").first()).toContainText("6 of 12");
-  await expect(disclosureGroups.nth(0)).not.toContainText("Answers recorded");
+  await expect(disclosureGroup.locator(".fi-center-product-card").first()).toContainText("6 of 12");
+  await expect(disclosureGroup).not.toContainText("Answers recorded");
+
+  await center.getByRole("tab", { name: "Financing", exact: true }).click();
+  await expect(disclosureGroup).toHaveCount(1);
+  await expect(disclosureGroup.locator("details")).toHaveCount(3);
 
   await monthSubjects.getByRole("tab", { name: "Sales", exact: true }).click();
   const salesDetail = page.locator(".report-sales-disclosure");
@@ -256,14 +259,19 @@ test("tablet reports keep all overflow inside named report regions", async ({ pa
     .getByRole("tab", { name: "F&I", exact: true })
     .click();
 
+  const center = page.locator(".fi-report-center").first();
+  const kpiRows = await center.locator(".fi-center-kpis > *").evaluateAll((cards) => (
+    new Set(cards.map((card) => Math.round(card.getBoundingClientRect().top))).size
+  ));
+  expect(kpiRows).toBe(1);
+
+  await center.getByRole("tab", { name: "Deals", exact: true }).click();
+  const evidenceTable = center.locator(".fi-center-evidence-table");
+  await expect(evidenceTable).toBeVisible();
+  await expect(evidenceTable).toHaveAttribute("tabindex", "0");
   const dimensions = await page.evaluate(() => ({
     pageWidth: document.documentElement.scrollWidth,
     viewportWidth: document.documentElement.clientWidth,
   }));
   expect(dimensions.pageWidth).toBe(dimensions.viewportWidth);
-  const kpiRows = await page.locator(".fi-center-kpis").first().locator(":scope > *").evaluateAll((cards) => (
-    new Set(cards.map((card) => Math.round(card.getBoundingClientRect().top))).size
-  ));
-  expect(kpiRows).toBe(1);
-  await expect(page.locator(".fi-center-table-wrap").first()).toHaveAttribute("tabindex", "0");
 });

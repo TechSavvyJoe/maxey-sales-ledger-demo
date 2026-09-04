@@ -8,7 +8,7 @@ Open [Sales Ledger](https://maxey-sales-ledger-private.web.app) and choose **Con
 
 Use the same Google account on your computer, tablet or phone to open the same cloud sales and settings. **Remember me on this private device** is optional; leave it off on shared computers and sign out when finished. Signing in does not upload or change sales from the demo or an on-device workspace.
 
-Valid edits to existing sales and settings save in the background after you stop typing. Incomplete sale entries are protected separately as drafts and do not affect commission totals. A new sale stays a draft until you choose **Save sale** or **Save & add another**. Check the editor's save status before closing. **Saved to cloud** means the server acknowledged the change—not just that you typed it.
+Valid edits to existing sales and settings save in the background after you stop typing. Incomplete sale entries are protected separately as drafts and do not affect commission totals. A new sale stays a draft until you choose **Add sale** or **Add & enter next**. Check the editor's save status before closing. **Saved to cloud** means the server acknowledged the change—not just that you typed it.
 
 The cloud app needs an internet connection to save. If a save fails, keep the editor open, reconnect and retry. Closing or refreshing before acknowledgement may lose the newest changes. A draft saved online can reopen from your account; this is not an offline upload queue. Concurrent changes from another device are flagged for review instead of silently overwriting each other.
 
@@ -32,7 +32,7 @@ In on-device mode, always use the same address and the same browser on the same 
 6. If a synced folder is unavailable, use **Google Drive backup** to create a checked download and open Google Drive for a manual upload.
 7. Download a full backup after entering initial records so the manual recovery path is also confirmed.
 
-Steps 5–7 above are on-device recovery options; they are not needed to connect a cloud account. For training in on-device mode, **Load demo data** adds clearly labeled fictional sales. The public GitHub Pages link opens with three calendar years of fictional history automatically for a new visitor (January 2024 through today). Changes and removals stay in that visitor's browser; use **Settings → Reset sample data** to restore the walkthrough. The private cloud account starts empty and does not load demo data.
+Steps 5–7 above are on-device recovery options; they are not needed to connect a cloud account. For training in on-device mode, **Settings → Data & backups → Load full-year demo** adds clearly labeled fictional sales. The public GitHub Pages link opens with three calendar years of fictional history automatically for a new visitor (January 2024 through today). Changes and removals stay in that visitor's browser; use **Settings → Reset sample data** to restore the walkthrough. The private cloud account starts empty and does not offer demo data.
 
 ## Add a sale
 
@@ -43,7 +43,7 @@ Select **Add sale** from any page. The form opens on customer last name and keep
 3. Enter customer last name, stock number, credited front gross, and total eligible F&I gross.
 4. Check the products sold—**Service contract / warranty**, **Tire & Wheel**, and **GAP**—and select **Finance**, **Cash**, or **Outside Finance**. Payment method is separate from product sales. Leave F&I gross blank until your F&I manager supplies it.
 5. Vehicle and Notes stay visible. Use the small **Split deal** checkbox for a half deal. If a manager sets a specific payout, enable **Spiff / manual front commission** and enter your personal front payout, not an add-on or the whole shared deal's payout.
-6. Review **Front**, **F&I**, and **Sale total**, then select **Save sale** or **Save & add another**. The second option focuses a clean last-name field and resets the manual payout option for the next deal.
+6. Review **Front**, **F&I**, and **Sale total**, then select **Add sale** or **Add & enter next**. The second option focuses a clean last-name field and resets the manual payout option for the next deal.
 
 Currency fields accept values such as `2500`, `$2,500`, or `2500.00`. Stock numbers are preserved as entered, including leading zeroes.
 
@@ -95,7 +95,7 @@ If the same sale changed in another tab after you opened it, Sales Ledger refuse
 - **This week** converts the monthly delivery goal into a cumulative, workday-weighted checkpoint and shows how many more valid deliveries are needed by the current Saturday. It does not pretend future sales have already happened.
 - **Commission pace and projection** uses workday pace, the observed automatic-pay mix, the effective front rate, Mini, and cumulative bonuses. Existing manual payouts are included once, not repeated on future sales. It shows low/high whole-delivery scenarios and is a planning estimate, not guaranteed payroll.
 - When a month closes, the commission panel switches to **Final recorded commission** and stops describing the saved result as an active projection.
-- **F&I outcomes** shows product results for service contract/warranty, Tire & Wheel, and GAP, plus dealer financing as a separate operational outcome. Each valid delivered deal is one denominator deal, including a half deal; credited units remain separate. Yes, No, and Not marked remain distinct so incomplete entries do not look like confirmed No results.
+- **F&I outcomes** shows product results for service contract/warranty, Tire & Wheel, and GAP, plus Finance, Cash, and Outside Finance as separate payment methods. **Finance Penetration** is the share of delivered sales financed through the dealership. Each valid delivered deal is one denominator deal, including a half deal; credited units remain separate. Yes, No, and Not marked remain distinct so incomplete entries do not look like confirmed No results.
 - **Performance insights** shows front and F&I gross per valid delivery, F&I entry coverage, the previous-three-covered-month average, selected-year totals, and progress to the higher front rate.
 - **Attention needed** lists the same affected records used by Sales and Reports. Select an item or recent sale to edit it directly.
 - **Previous month** and the selected-year trend provide quick context without changing tabs.

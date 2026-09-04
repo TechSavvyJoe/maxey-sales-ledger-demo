@@ -1,6 +1,6 @@
 # Accessibility audit
 
-**Audit target:** Maxey Sales Ledger 1.6\\
+**Audit target:** Maxey Sales Ledger 1.9\\
 **Standard:** WCAG 2.2 Level A and AA\\
 **Automated coverage:** Desktop, mobile, and tablet Chromium viewports
 

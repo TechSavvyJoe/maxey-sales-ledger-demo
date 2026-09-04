@@ -130,7 +130,7 @@ async function addSaleAndClose(profileDirectory) {
     await page.getByLabel(/Stock number/).fill("LAUNCH-0001");
     await page.getByLabel("Front gross").fill("2000");
     await page.getByLabel(/Total F&I gross/).fill("500");
-    await page.getByRole("button", { name: "Save sale", exact: true }).click();
+    await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
     await page.getByText("Sale added.").waitFor();
   } finally {
     await context.close();

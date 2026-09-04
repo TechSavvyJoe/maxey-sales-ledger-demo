@@ -78,15 +78,25 @@ export function sameOriginEmailLink(currentHref: string, expectedOrigin: string)
   }
 }
 
+const BLOCKED_BROWSER_MESSAGE = "Protected sign-in storage is unavailable in this browser. If you opened Sales Ledger inside another app, open the exact private Sales Ledger link directly in Chrome, Edge, Safari, or Firefox, then sign in again. You can also use an email link in a full browser.";
+
 /** Provider error messages may contain email addresses or links; never surface them. */
-export function cloudAuthErrorMessage(error: unknown): string {
+export function cloudAuthBrowserIssueMessage(error: unknown): string | null {
   const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
   const providerMessage = typeof error === "object" && error !== null && "message" in error
     ? String(error.message).toLowerCase()
     : "";
-  if (/missing initial state|sessionstorage|web storage|storage-partitioned|storage partitioned/.test(providerMessage)) {
-    return "This in-app browser blocked the protected sign-in step. Open the private Sales Ledger link directly in Chrome, Edge, Safari, or Firefox, then sign in again.";
+  if (["auth/operation-not-supported-in-this-environment", "auth/unsupported-persistence-type", "auth/web-storage-unsupported"].includes(code)
+    || /missing initial state|sessionstorage|localstorage|web storage|storage-partitioned|storage partitioned/.test(providerMessage)) {
+    return BLOCKED_BROWSER_MESSAGE;
   }
+  return null;
+}
+
+export function cloudAuthErrorMessage(error: unknown): string {
+  const browserIssue = cloudAuthBrowserIssueMessage(error);
+  if (browserIssue) return browserIssue;
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
   switch (code) {
     case "auth/network-request-failed":
       return "Sign-in could not connect. Check your internet connection and try again.";
@@ -95,8 +105,6 @@ export function cloudAuthErrorMessage(error: unknown): string {
     case "auth/unauthorized-continue-uri":
       return "This address is not enabled for private sign-in yet. Ask the app owner to check the private app address.";
     case "auth/popup-blocked":
-    case "auth/operation-not-supported-in-this-environment":
-    case "auth/web-storage-unsupported":
       return "Open the private app in Chrome, Edge, Safari or Firefox and allow its sign-in window. You can also use an email sign-in link.";
     case "auth/popup-closed-by-user":
     case "auth/cancelled-popup-request":

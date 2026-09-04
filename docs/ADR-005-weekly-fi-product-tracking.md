@@ -29,7 +29,7 @@ Each sale can record three product outcomes and one separate financing outcome:
 - Service contract / warranty
 - Tire & Wheel
 - GAP
-- Dealer financed — a financing outcome, not a product
+- Finance — financing arranged through the dealership; a payment method, not a product
 
 The app continues to store one total eligible F&I gross amount for the deal. It does not collect, infer, divide, or estimate a dollar amount for an individual product or financing outcome.
 
@@ -44,8 +44,8 @@ Older records can omit the outcome values. Omitted values remain distinguishable
 
 - **Delivered** means a valid delivered deal count.
 - **Credited units** remains the sum of deal credit and is not reused as a penetration denominator.
-- **Core commission** means sale-level front plus F&I commission and excludes the monthly volume bonus.
-- **Estimated commission** means the monthly core commission plus the included cumulative volume bonus.
+- **Sale commission** means sale-level front plus F&I commission and excludes the monthly volume bonus.
+- **Estimated commission** means the monthly sale commissions plus the included cumulative volume bonus.
 - Dashboard, Sales, and Reports use the same canonical record-based attention selector.
 
 ## Consequences

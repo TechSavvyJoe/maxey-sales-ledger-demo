@@ -2,9 +2,9 @@
 
 ## Honest release scope
 
-Sales Ledger is a production-grade local-first personal sales tracker for one salesperson on a trusted browser profile. The same hosted application can be shared with coworkers, but each person has an isolated browser database and controls their own private recovery folder and manual backups.
+Sales Ledger has two intentionally separate operating modes. The private Firebase edition is a production-quality personal-workspace pilot: every signed-in salesperson receives an isolated cloud ledger, valid changes save in the background after server acknowledgement, and the workspace follows that account across supported devices. The local/demo edition remains a production-grade local-first personal tracker for one salesperson on a trusted browser profile.
 
-It is not a centrally managed multi-user system, official dealership DMS/CRM, payroll system, authoritative audit ledger, or cross-device synchronization service. Optional OneDrive/Google Drive folder use is a verified local recovery-file write, not proof of cloud upload. The Google Drive website handoff checks the downloaded file but cannot confirm the user uploaded it.
+Neither edition is an official dealership DMS/CRM, payroll system, manager dashboard, or authoritative audit ledger. The cloud edition is not yet a broadly managed production service because scheduled Firestore backups/PITR, live two-account acceptance, retention, and owner support procedures remain open operational gates. Optional OneDrive/Google Drive folder use in the local edition is a verified local recovery-file write, not proof of cloud upload.
 
 ## Engineering verification completed
 
@@ -23,6 +23,8 @@ It is not a centrally managed multi-user system, official dealership DMS/CRM, pa
 - CSV formula-injection protection and optional customer-last-name omission.
 - Local audit history with pay-plan change details, cross-tab refresh notification, and stale-revision protection that prevents one editor from silently replacing a newer sale.
 - Persistent demo-data labeling across the workspace while sample records are included in totals and exports.
+- Account-scoped Firebase rules, self-service own-UID enrollment, Google/email-link sign-in, background cloud editor drafts, acknowledged autosave, cross-account denial, stale-write protection, and three-browser emulator journeys.
+- A safe reload screen for tabs left open across a deployment, preventing expired lazy page files from producing a blank application.
 
 Exact executed results for the release package are recorded in the final handoff rather than hard-coded here so this document cannot become stale.
 
@@ -30,18 +32,22 @@ Exact executed results for the release package are recorded in the final handoff
 
 - Reconcile a real exactly-10-delivery month and a real more-than-10-delivery month against an official payroll record.
 - Review eligible F&I gross, corrections, chargebacks, and payroll rounding when comparing results.
-- Compare tracked service-contract/warranty, Tire & Wheel, and GAP product outcomes—and the separate dealer-financing outcome—with the source sold log. Confirm Yes, No, and Not marked remain distinct. Only one total eligible F&I gross value is stored for each deal.
+- Compare tracked service-contract/warranty, Tire & Wheel, and GAP product outcomes—and the separate Finance, Cash, and Outside Finance payment methods—with the source sold log. Confirm Yes, No, and Not marked remain distinct. Only one total eligible F&I gross value is stored for each deal.
 
 The app should remain labeled an estimate until these are complete.
 
-## Hosted deployment acceptance required
+## Hosted deployment acceptance
+
+The private Firebase host has passed an owner-account live create/edit/reload/delete/restore smoke test on the earlier approval build, plus current authenticated rendering and anonymous-denial checks. The current self-service build has complete emulator coverage, but a second real account and phone/managed-Windows acceptance still remain before broad coworker rollout. See `firebase-pilot-setup.md` for the exact evidence and gates.
+
+For the local/demo build or any new host:
 
 - Deploy the contents of `dist/` on an approved HTTPS static host.
 - Confirm the host applies equivalent CSP, frame, MIME, referrer, permissions, and cache headers from `public/_headers`.
 - Open the exact production URL in supported desktop and phone browsers.
 - Exercise add/edit/delete/undo/Recently Deleted restore, month switch, weekly checkpoint/drilldown, outcome tracking, Month/Week/Year/Payroll reports, Excel/CSV/PDF, and JSON backup.
 - Confirm Month uses the selected month, Week uses the selected Monday-through-Saturday window, Year YTD ends at the selected month, and Payroll remains isolated to the selected month.
-- With deals that have multiple recorded outcomes, confirm each cohort includes a matching deal's one total F&I gross once, cohort gross is labeled non-additive, and dealer financing is not presented as a product.
+- With deals that have multiple recorded outcomes, confirm each cohort includes a matching deal's one total F&I gross once, cohort gross is labeled non-additive, and Finance is presented as a payment method rather than a product.
 - Compare the same populated report at wide and narrow widths; the table and cards must preserve the selected scope, row order, labels, values, states, and record-level action.
 - Install the app, reload it once online, disconnect the network, then reopen it. The automated production check covers offline reload, adding a sale, primary-page navigation, and CSV export; complete a hosted manual edit plus Excel/PDF/JSON export check on supported deployment devices.
 - Restore a real backup into a separate test profile and reconcile record/totals counts.
@@ -61,7 +67,10 @@ The app should remain labeled an estimate until these are complete.
 
 ## Known limitations
 
-- No centralized recovery, user authentication, authorization, manager dashboard, or remote observability.
+- The local/demo edition has no centralized recovery, authentication, authorization, manager dashboard, or remote observability.
+- The private cloud edition has authentication and per-account authorization, but no manager role, central dealership workspace, scheduled Firestore backup, point-in-time recovery, user purge workflow, or remote support dashboard.
+- Self-service enrollment allows any person who reaches the private URL and completes a configured Google or email sign-in to create only their own isolated workspace. It is not an invite-only directory.
+- The public repository and demo bundle contain illustrative/default pay-plan rules; record data remains private, but the calculation defaults are not confidential source material.
 - Automatic recovery folders require current desktop Edge or Chrome and a secure hosted/localhost origin. Browser policy may block access, permissions may need reconnection, and Sales Ledger cannot detect OneDrive or Google Drive upload completion.
 - The Google Drive website handoff is manual. Sales Ledger cannot choose the remote folder, browse Drive, confirm upload, or restore directly from Google Drive.
 - Local activity history is useful for user review but is not tamper-evident.

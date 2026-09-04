@@ -1,10 +1,17 @@
 import { mkdir, rm } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
 
 const baseURL = process.env.RELEASE_URL ?? "http://127.0.0.1:4180";
-const outputDirectory = new URL("../release-screenshots/", import.meta.url);
+const configuredOutputDirectory = process.env.RELEASE_SCREENSHOT_DIR?.trim();
+const outputDirectory = configuredOutputDirectory
+  ? path.resolve(configuredOutputDirectory)
+  : fileURLToPath(new URL("../release-screenshots/", import.meta.url));
 const fixedNow = new Date("2026-08-31T16:00:00.000Z");
-await rm(outputDirectory, { recursive: true, force: true });
+// A caller-selected directory may contain unrelated evidence, so only clear
+// the known repository output. Tests can point at a fresh temporary directory.
+if (!configuredOutputDirectory) await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
 
 async function settleVisualState(page) {
@@ -67,7 +74,7 @@ async function writeScreenshot(page, filename, fullPage = false) {
       })
     : null;
   await page.screenshot({
-    path: new URL(filename, outputDirectory).pathname,
+    path: path.join(outputDirectory, filename),
     fullPage,
     animations: "disabled",
     caret: "hide",
@@ -102,10 +109,10 @@ async function prepare(page) {
   await page.getByRole("button", { name: /^Data & backups/ }).click();
   const dataSettings = page.locator(".data-settings");
   await dataSettings.waitFor();
-  await dataSettings.getByRole("button", { name: "Load demo data" }).click();
-  await page.getByText(/Demonstration sales loaded/).waitFor();
+  await dataSettings.getByRole("button", { name: /^(?:Load sample history|Load full-year demo)$/ }).click();
+  await page.getByText(/^(?:Sample history|Full-year demo) loaded\.$/).waitFor();
   await openPage(page, "Dashboard", page.locator(".dashboard-page"));
-  await page.getByText(/DEMO-\d{6}-13/).first().waitFor();
+  await page.locator(".recent-sales__list").getByText(/DEMO-\d{6}-\d{2}/).first().waitFor();
   await dismissToasts(page);
 }
 
@@ -147,7 +154,6 @@ async function captureWeeklyReport(context, filename, fullPage = false) {
     .getByRole("region", { name: "Selected week results" })
     .locator(".report-metric")
     .filter({ hasText: "This-week sold" })
-    .getByText("3", { exact: true })
     .waitFor();
 
   await dismissToasts(page);
@@ -162,7 +168,11 @@ async function captureMonthlyReport(context, subject, filename, fullPage = false
   const subjectTabs = page.getByRole("tablist", { name: "Monthly report subject" });
   await subjectTabs.getByRole("tab", { name: subject, exact: true }).click();
   if (subject === "Overview") {
-    await page.getByRole("region", { name: "Monthly report summary" }).getByText("12", { exact: true }).waitFor();
+    await page
+      .getByRole("region", { name: "Monthly report summary" })
+      .locator(".report-metric")
+      .filter({ hasText: /^Delivered/ })
+      .waitFor();
   } else {
     await page.getByRole("heading", { name: "Products, financing, and total F&I gross" }).waitFor();
   }
@@ -185,7 +195,7 @@ await captureAddSale(desktopPage, "add-sale-desktop.png");
 await desktopPage.close();
 await captureView(desktop, "Settings", (page) => page.getByRole("heading", { name: "Settings" }), "settings-desktop.png", true);
 await captureView(desktop, "Sales", (page) => page.getByRole("heading", { name: /sales$/i }), "sales-desktop.png");
-await captureMonthlyReport(desktop, "Overview", "reports-month-overview-desktop.png", true);
+await captureMonthlyReport(desktop, "Overview", "reports-desktop.png", true);
 await captureMonthlyReport(desktop, "F&I", "reports-fi-desktop.png", true);
 await captureWeeklyReport(desktop, "reports-week-desktop.png", true);
 await desktop.close();
@@ -220,10 +230,10 @@ await captureAddSale(mobilePage, "add-sale-mobile.png");
 await mobilePage.close();
 await captureView(mobile, "Settings", (page) => page.getByRole("heading", { name: "Settings" }), "settings-mobile.png", true);
 await captureView(mobile, "Sales", (page) => page.getByRole("heading", { name: /sales$/i }), "sales-mobile.png");
-await captureMonthlyReport(mobile, "Overview", "reports-month-overview-mobile.png", true);
+await captureMonthlyReport(mobile, "Overview", "reports-mobile.png", true);
 await captureMonthlyReport(mobile, "F&I", "reports-fi-mobile.png", true);
 await captureWeeklyReport(mobile, "reports-week-mobile.png", true);
 await mobile.close();
 
 await browser.close();
-console.log(`Release screenshots written to ${outputDirectory.pathname}`);
+console.log(`Release screenshots written to ${outputDirectory}`);

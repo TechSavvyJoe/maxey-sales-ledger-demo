@@ -21,7 +21,7 @@ async function addSale(page: Page, ordinal: number) {
     await expect(page.locator(".sale-milestone-summary__heading > strong")).toHaveText("$800.00");
     await expect(page.locator(".sale-milestone-summary__total dd")).toHaveText("$1,845.00");
   }
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
 }
 
@@ -79,7 +79,8 @@ test("compiled milestone journey from next reward through delivery, reports, and
   await expect(page.locator(".sale-milestone-summary__total dd")).toHaveText("$2,495.00");
   await page.locator(".sale-milestone-summary").scrollIntoViewIfNeeded();
   await testInfo.attach("milestone-sale", { body: await page.screenshot(), contentType: "image/png" });
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
 
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Open report exports", exact: true }).click();

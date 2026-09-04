@@ -4,7 +4,7 @@ Accepted 2026-09-02. Supplements ADR-006; reporting and presentation changes onl
 
 ## Purpose and priorities
 
-Sales Ledger helps a salesperson record delivered deals, understand commission, monitor goals and working-day pace, and review sales and F&I results. It records front gross, one commissionable total F&I gross, three product outcomes (Service contract, Tire & Wheel, GAP), dealer financing, and separate split credit. It does not record presentations, leads, funding, lender terms, product costs, finance reserve, cancellations, or product eligibility.
+Sales Ledger helps a salesperson record delivered deals, understand commission, monitor goals and working-day pace, and review sales and F&I results. It records front gross, one commissionable total F&I gross, three product outcomes (Service contract, Tire & Wheel, GAP), a Finance/Cash/Outside Finance payment method, and separate split credit. It does not record presentations, leads, funding, lender terms, product costs, finance reserve, cancellations, or product eligibility.
 
 The reporting priorities are delivered sales, earned commission and goal progress; gross and commission per sale; product volume/penetration and products per sale; financing-group results; and comparisons with the salesperson's own history. Missing details belong beside the metric they affect.
 
@@ -18,7 +18,7 @@ The reporting priorities are delivered sales, earned commission and goal progres
 | Deals with tracked products | Sales with at least one tracked product marked Yes / eligible delivered sales | Count, denominator, rate; incomplete outcomes remain separate. |
 | Product penetration | Product's Yes count / eligible delivered sales | Each product row says percentage of all sales; no product-level dollar attribution. |
 | Finance Penetration | Dealer-arranged financing Yes count / eligible delivered sales | User-requested metric name; cash and outside financing are outside the numerator. |
-| GAP on dealer-financed sales | GAP Yes and dealer financing Yes / dealer financing Yes | Additional financing-group measure. It is not an eligibility-adjusted rate or all-financed-sales measure. |
+| GAP on Finance sales | GAP Yes on Finance sales / Finance sales | Additional payment-method measure. It is not an eligibility-adjusted rate or all-financed-sales measure. |
 | Front/combined gross per sale | Recorded relevant gross / eligible delivered sales | Supporting gross detail. |
 
 Actual delivered records are the denominator, including a split deal once. Credited units remain a separate descriptive field. Do not reapply split percentages to gross or rewrite the configured retroactive rates or bonus rules.

@@ -28,6 +28,7 @@ const maximumSourceFiles = 5_000;
 const maximumSourceBytes = 150 * 1024 * 1024;
 
 const sourceFiles = [
+  ".env.example",
   ".gitignore",
   ".oxlintrc.json",
   "README.md",
@@ -37,10 +38,17 @@ const sourceFiles = [
   "app-icon-192.png",
   "components.json",
   "favicon-64.png",
+  "firebase.json",
+  "firestore.indexes.json",
+  "firestore.rules",
   "index.html",
   "package.json",
+  "playwright.cloud-compiled.config.ts",
+  "playwright.cloud.config.ts",
   "playwright.config.ts",
   "playwright.production.config.ts",
+  "playwright.quality.config.ts",
+  "playwright.release.config.ts",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   "postcss.config.js",
@@ -51,7 +59,7 @@ const sourceFiles = [
   "vite.config.ts",
   "vitest.config.ts",
 ];
-const sourceDirectories = ["brand", "docs", "e2e", "e2e-production", "launcher", "public", "scripts", "src", "vendor"];
+const sourceDirectories = [".github", "brand", "docs", "e2e", "e2e-cloud", "e2e-production", "launcher", "public", "scripts", "src", "tests", "vendor"];
 const requiredScreenshotNames = [
   "add-sale-desktop.png",
   "add-sale-mobile.png",
@@ -350,6 +358,8 @@ async function assertBuildAndScreenshotFreshness() {
     newestModifiedTime(path.join(projectRoot, "public")),
     stat(path.join(projectRoot, "index.html")).then((details) => details.mtimeMs),
     stat(path.join(projectRoot, "package.json")).then((details) => details.mtimeMs),
+    stat(path.join(projectRoot, "scripts", "generate-sw.mjs")).then((details) => details.mtimeMs),
+    stat(path.join(projectRoot, "scripts", "service-worker-cache.mjs")).then((details) => details.mtimeMs),
     stat(path.join(projectRoot, "vite.config.ts")).then((details) => details.mtimeMs),
   ]);
   if (Math.max(...applicationInputTimes) > builtServiceWorker.mtimeMs) {
@@ -436,10 +446,22 @@ async function assertRequiredExtractedLayout(extractedRoot, archiveNames) {
     }
   }
   for (const relativePath of [
+    ".env.example",
+    ".github/workflows/cloud-validation.yml",
+    "e2e-cloud/cloud-journey.spec.ts",
+    "firebase.json",
+    "firestore.indexes.json",
+    "firestore.rules",
     "package.json",
     "pnpm-lock.yaml",
+    "playwright.cloud-compiled.config.ts",
+    "playwright.cloud.config.ts",
+    "e2e-cloud/compiled-cloud.smoke.ts",
     "src/App.tsx",
+    "src/components/AppErrorBoundary.tsx",
     "scripts/package-release.mjs",
+    "scripts/test-compiled-cloud.mjs",
+    "tests/firestore.rules.test.mjs",
     "e2e/core-flow.spec.ts",
     "e2e-production/offline.spec.ts",
   ]) {

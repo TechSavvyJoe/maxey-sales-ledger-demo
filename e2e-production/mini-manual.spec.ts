@@ -36,13 +36,14 @@ test("compiled Mini settings and personal spiff payouts survive save, reload, an
   await amount.press("Tab");
   await expect(amount).toHaveValue("500.00");
   await expectPayout(page, "$500.00", "$120.00", "$620.00");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
   await page.reload();
   await reopenSale(page);
   await expect(amount).toHaveValue("500.00");
   await expectPayout(page, "$500.00", "$120.00", "$620.00");
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
 
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await page.getByLabel("Salesperson name *").fill("Mini Example");
@@ -53,7 +54,7 @@ test("compiled Mini settings and personal spiff payouts survive save, reload, an
   await mini.press("Tab");
   await expect(mini).toHaveValue("400");
   await page.getByRole("button", { name: "Save settings", exact: true }).first().click();
-  await expect(page.locator(".settings-dirty-state")).toBeHidden();
+  await expect(page.getByRole("status")).toContainText("All changes saved. Settings save automatically.");
   await page.reload();
   await reopenSale(page);
   // Changing Mini never changes an explicitly entered personal payout.
@@ -62,7 +63,8 @@ test("compiled Mini settings and personal spiff payouts survive save, reload, an
   await expectPayout(page, "$200.00", "$120.00", "$320.00");
   await page.getByRole("checkbox", { name: "Split deal", exact: true }).uncheck();
   await expectPayout(page, "$400.00", "$120.00", "$520.00");
-  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit sale", exact: true })).toBeHidden();
   await page.reload();
   await reopenSale(page);
   await expect(manual).not.toBeChecked();

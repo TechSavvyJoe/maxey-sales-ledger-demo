@@ -11,7 +11,8 @@ import { CloudAuthGate } from "./CloudAuthGate";
 const mocks = vi.hoisted(() => ({
   auth: { currentUser: null as User | null },
   listener: null as ((user: User | null) => void) | null,
-  errorListener: null as (() => void) | null,
+  errorListener: null as ((error?: unknown) => void) | null,
+  initializeFirebaseCloud: vi.fn(),
   setRememberMe: vi.fn(),
   openFirestoreForUser: vi.fn(),
   clearFirestore: vi.fn(),
@@ -24,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("firebase/auth", () => ({
   GoogleAuthProvider: class { setCustomParameters() {} },
-  onAuthStateChanged: vi.fn((_auth: unknown, next: (user: User | null) => void, error: () => void) => {
+  onAuthStateChanged: vi.fn((_auth: unknown, next: (user: User | null) => void, error: (caught?: unknown) => void) => {
     let active = true;
     mocks.listener = next;
     mocks.errorListener = error;
@@ -40,15 +41,19 @@ vi.mock("firebase/auth", () => ({
 
 const config = { apiKey: "demo-api-key", authDomain: "demo-sales-ledger.firebaseapp.com", projectId: "demo-sales-ledger", appId: "demo-app-id", useEmulators: false };
 vi.mock("./firebaseClient", () => ({
-  initializeFirebaseCloud: vi.fn(() => ({
+  initializeFirebaseCloud: mocks.initializeFirebaseCloud,
+}));
+
+function firebaseClient() {
+  return {
     auth: mocks.auth,
     config: { useEmulators: false },
     remembersDevice: () => false,
     setRememberMe: mocks.setRememberMe,
     openFirestoreForUser: mocks.openFirestoreForUser,
     clearFirestore: mocks.clearFirestore,
-  })),
-}));
+  };
+}
 
 function user(uid: string): User { return { uid } as User; }
 function showGate(onSession?: (session: FirebaseCloudSession) => void) {
@@ -77,6 +82,7 @@ beforeEach(() => {
   mocks.auth.currentUser = null;
   mocks.listener = null;
   mocks.errorListener = null;
+  mocks.initializeFirebaseCloud.mockReturnValue(firebaseClient());
   toast.dismiss();
   sessionStorage.clear();
   localStorage.clear();
@@ -119,6 +125,47 @@ describe("private sign-in gate", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Continue with Google/ }));
     expect((await screen.findByRole("alert")).textContent).toMatch(/email sign-in link/);
     expect(screen.getByRole("alert").textContent).not.toContain("private-token");
+  });
+
+  it("explains a missing popup state as a full-browser handoff without exposing provider text", async () => {
+    mocks.popup.mockRejectedValue({
+      code: "auth/argument-error",
+      message: "Unable to process request due to missing initial state. sessionStorage is inaccessible. private@example.com token=secret",
+    });
+    showGate();
+    fireEvent.click(await screen.findByRole("button", { name: /Continue with Google/ }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/Protected sign-in storage is unavailable/);
+    expect(alert.textContent).toMatch(/open the exact private Sales Ledger link directly in Chrome/);
+    expect(alert.textContent).not.toMatch(/private@example\.com|token=secret|missing initial state|sessionStorage/i);
+  });
+
+  it("uses the same sanitized browser handoff when Firebase initialization cannot use storage", () => {
+    mocks.initializeFirebaseCloud.mockImplementationOnce(() => {
+      throw { code: "auth/unsupported-persistence-type", message: "private@example.com token=secret" };
+    });
+    showGate();
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toMatch(/Protected sign-in storage is unavailable/);
+    expect(alert.textContent).toMatch(/open the exact private Sales Ledger link directly in Chrome/);
+    expect(alert.textContent).not.toMatch(/private@example\.com|token=secret|unsupported-persistence/i);
+    expect(screen.queryByTestId("ledger")).toBeNull();
+  });
+
+  it("uses the same sanitized browser handoff when auth-state checking loses storage", async () => {
+    showGate();
+    await screen.findByRole("button", { name: /Continue with Google/ });
+    act(() => {
+      mocks.errorListener?.({
+        code: "auth/operation-not-supported-in-this-environment",
+        message: "sessionStorage is inaccessible for private@example.com token=secret",
+      });
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toMatch(/Protected sign-in storage is unavailable/);
+    expect(alert.textContent).toMatch(/open the exact private Sales Ledger link directly in Chrome/);
+    expect(alert.textContent).not.toMatch(/private@example\.com|token=secret|sessionStorage/i);
+    expect(screen.queryByTestId("ledger")).toBeNull();
   });
 
   it("sends email only after submit, to a query-free same-origin completion URL", async () => {

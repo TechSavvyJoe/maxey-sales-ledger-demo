@@ -15,6 +15,8 @@
     "build:cloud": "node scripts/build-cloud.mjs",
     "test:cloud:rules": "firebase emulators:exec --project demo-sales-ledger-rules --only firestore 'node --test tests/firestore.rules.test.mjs'",
     "test:cloud:e2e": "firebase emulators:exec --project demo-sales-ledger-rules --only auth,firestore 'playwright test --config playwright.cloud.config.ts'",
+    "test:cloud:compiled": "firebase emulators:exec --project demo-sales-ledger-rules --only auth,firestore 'node scripts/test-compiled-cloud.mjs'",
+    "test:service-worker-cache": "node --test scripts/service-worker-cache.test.mjs",
     "lint": "oxlint src --deny-warnings --ignore-pattern 'src/components/ui/**'",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
@@ -23,8 +25,8 @@
     "test:launcher": "pnpm build && node scripts/test-launcher.mjs",
     "test:production": "pnpm build && playwright test --config playwright.production.config.ts",
     "package:release": "node scripts/package-release.mjs",
-    "verify:release": "pnpm lint && pnpm typecheck && pnpm test && pnpm audit --prod && pnpm test:e2e && pnpm test:launcher && pnpm test:production",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "verify:release": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:service-worker-cache && pnpm audit --prod && pnpm test:e2e && pnpm test:launcher && pnpm test:production && pnpm test:cloud:rules && pnpm test:cloud:e2e && pnpm test:cloud:compiled",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:service-worker-cache && pnpm build",
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {

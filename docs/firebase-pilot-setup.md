@@ -1,6 +1,6 @@
 # Private cloud pilot — setup and release checklist
 
-Status: private pilot deployed on September 3, 2026 at [Sales Ledger Private](https://maxey-sales-ledger-private.web.app). Project, hosting, Auth configuration and deployed access rules are verified. The owner signed in with Google, their exact app UID was approved, and live create/edit/reload/delete/restore checks passed with one fictional sale. Remaining broader acceptance gates are listed below; this is not yet a general production-readiness sign-off.
+Status: private pilot deployed on September 3, 2026 at [Sales Ledger Private](https://maxey-sales-ledger-private.web.app), with self-service personal workspaces released on September 4. The current candidate passed the complete local, compiled, security-rules and cloud-emulator release gates on September 4. The original owner-account live create/edit/reload/delete/restore checks used the earlier explicit-approval build; current self-service and multi-account behavior has emulator coverage but still needs the live acceptance listed below. This is not a general production-readiness sign-off.
 
 ## Current deployment
 
@@ -10,12 +10,14 @@ Status: private pilot deployed on September 3, 2026 at [Sales Ledger Private](ht
 - Billing is disabled with no linked billing account. Auth reports subtype `IDENTITY_PLATFORM`; it was observed before the narrow email-provider change and preserved, not changed by that patch. Do not claim the project has never used Identity Platform.
 - Google sign-in and email links are configured; anonymous sign-in is disabled. Email sign-in has `enabled=true` and `passwordRequired=false`. There is no password-login UI, but that does not mean password authentication is impossible through the underlying API.
 - Current private release: the live owner dashboard rendered after a fresh reload with the cloud account connected and no document-level horizontal overflow. No current-build console errors appeared; three older Firestore transport warnings from a prior asset remained in the long-lived tab log. All 45 deployed files matched the tested local build hashes. The root and index return `Cache-Control: no-store`; all 31 versioned assets retain immutable caching. Firebase's auth handler and its JavaScript remain accessible with their own normal cache policy. No service worker is registered in the cloud build.
-- The current deployment released the tested Firestore rules with local SHA-256 `a188c94706b56502788af3c6104e2c4e34bf6ad29d83794cf36bf7b7dda9e77d`. Anonymous requests to pilot status, settings and sales were denied with `403 PERMISSION_DENIED`.
-- The setup login authorizes Firebase administration; it does not create the owner's app account. The owner's actual Google-provider app UID and verified email were checked before creating the single enabled pilot entry. No other pilot accounts were approved. No prior local sales were uploaded. The existing GitHub Pages demo is unchanged.
+- The current release uses the tested Firestore rules with local SHA-256 `31a6a60661284cec9f7a5c9498829697333ddc30b79d4ffcebf281dbf14b033b`. Anonymous requests to pilot status, settings and sales are expected to remain denied with `403 PERMISSION_DENIED`; recheck that response after every rules deployment.
+- A Firebase administration login is separate from an app account. Under the current self-service rules, a signed-in browser can create only its own immutable enabled profile and empty workspace; it cannot list or change access profiles or access another UID. No prior local sales are uploaded. The existing GitHub Pages demo remains separate.
 
 ### Live owner verification
 
-The owner signed in using Google and initially saw the expected approval requirement. After approval, the private dashboard opened empty. A clearly fictional `TEST-CLOUD-SETUP` record verified:
+The checks in this subsection were completed on September 3 against the earlier explicit-approval build. They verify the data path for that build, not current live multi-account self-service acceptance.
+
+The owner signed in using Google and an administrator created the then-required access record. The private dashboard opened empty. A clearly fictional `TEST-CLOUD-SETUP` record verified:
 
 - Negative front gross of -$100 remained in gross reporting while front commission used the $300 Mini; $1,200 F&I gross generated $240 commission, for a $540 sale total.
 - The saved sale and $540 total survived a full page reload.
@@ -73,18 +75,20 @@ Install dependencies using the project's normal package manager. Firebase CLI 15
 
 The emulator configuration binds only to loopback. The tests refuse non-loopback targets. Synthetic fixtures do not authorize uploading real ledger data. Do not run both emulator commands simultaneously on the same ports; the browser test uses those ports after the rules suite.
 
-### Verified locally on September 3, 2026
+### Verification record
 
-- 583 unit/component tests passed, including account-switch, export, delayed-refresh, autosave and client-lifecycle regressions. Type checking, lint and whitespace checks passed.
-- 22 Firestore rules tests passed against the local emulator, including cross-account denial, account-scoped editor drafts and immutable revision history.
-- Nine cloud browser tests passed across Chromium desktop, Pixel-sized Chromium and WebKit: email-link sign-in, acknowledged saves, second-browser sales/settings visibility, download, stale-write rejection, offline draft retention/retry, sign-out and account isolation. These are emulator results, not proof of live Google sign-in or deployment.
+- On September 4, 594 unit/component tests passed, including account-switch, export, delayed-refresh, autosave, safe update recovery and client-lifecycle regressions. Type checking, lint and whitespace checks passed.
+- On September 4, 22 Firestore rules tests passed against the local emulator, including cross-account denial, account-scoped editor drafts and immutable revision history.
+- On September 4, nine cloud browser tests passed across Chromium desktop, Pixel-sized Chromium and WebKit: email-link sign-in, acknowledged saves, second-browser sales/settings visibility, download, stale-write rejection, offline draft retention/retry, sign-out and account isolation. These are emulator results, not proof of live Google sign-in or deployment.
 - Six autosave-quality browser tests passed, covering draft recovery, automatic saving after changes, incomplete or invalid input, stale-conflict protection, retry behavior and close/reopen continuity.
-- The complete isolated release suite passed **80 of 80 applicable browser journeys**; five public-demo-only device variants were intentionally skipped in the private release configuration.
+- On September 4, the complete local browser matrix passed **176 of 176 applicable journeys** across desktop, phone and tablet projects; 79 project-inapplicable variants were intentionally skipped. The compiled production build separately passed all 10 release journeys, and the packaged launcher passed persistence, version, traversal and port-collision checks.
 - The responsive browser matrix covers widths **320, 390, 720, 721, 768, 844, 1024, 1041, 1280, 1440, 1920, 2560, 3440, 3840 and 5120 CSS pixels**, including the 844 × 390 short-landscape case.
 - The compiled public-demo build passed desktop and phone smoke checks with no Firebase requests, Firebase SDK chunks, external requests, page errors or horizontal overflow across the checked screens. Its 17 downloaded JavaScript files were inspected.
 - The production dependency audit reported no known vulnerabilities at the time of the check.
 
 The cloud client explicitly uses Firebase's long-polling transport. In a controlled WebKit comparison, the default transport stalled a post-save read after a successful commit; long polling passed the same assertions without increasing timeouts. WebKit browser tests use a loopback-only deny proxy and no browser request interception, because interception itself disturbed its streaming connections. Firebase documents long polling as a workaround for buffering proxies/antivirus, with a possible performance cost; recheck it when upgrading the SDK. [Firebase transport setting](https://firebase.google.com/docs/reference/js/v8/firebase.firestore.Settings#experimentalforcelongpolling)
+
+The dedicated `cloud-validation` GitHub Actions workflow runs the Firestore rules suite, the three-browser source-mode cloud journeys, and a Chromium smoke test of the compiled private-cloud build on every pull request and push to `main`. It uses Node 22 and Java 21, installs only the required Chromium and WebKit engines, and uploads Playwright traces when either browser check fails. The manual `verify:release` command includes all three private-cloud checks too, so Java 21 or newer is required for a complete release check.
 
 Cloud snapshots carry a server revision so overlapping reads cannot roll the displayed ledger backward. Exports and notifications are bound to the initiating account session; late work from a signed-out account cannot download data or operate on the next account.
 

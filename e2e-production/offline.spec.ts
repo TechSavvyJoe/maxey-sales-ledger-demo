@@ -28,7 +28,7 @@ test("built application, styles, and lazy pages remain usable after an offline r
   await page.getByLabel(/Stock number/).fill("OFFLINE-001");
   await page.getByLabel("Front gross").fill("2000");
   await page.getByLabel("Vehicle optional").fill("2024 Ford Escape");
-  await page.getByRole("button", { name: "Save sale", exact: true }).click();
+  await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
   await expect(page.getByText("Sale added.")).toBeVisible();
 
   await page.getByRole("button", { name: "Sales", exact: true }).first().click();

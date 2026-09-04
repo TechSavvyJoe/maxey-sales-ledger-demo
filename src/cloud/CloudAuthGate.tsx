@@ -14,7 +14,7 @@ import {
 import type { User } from "firebase/auth";
 import type { Firestore } from "firebase/firestore";
 import { AlertTriangle, ArrowRight, Cloud, LoaderCircle, Mail, ShieldCheck } from "lucide-react";
-import { cloudAuthErrorMessage, emailLinkReturnUrl, sameOriginEmailLink } from "./config";
+import { cloudAuthBrowserIssueMessage, cloudAuthErrorMessage, emailLinkReturnUrl, sameOriginEmailLink } from "./config";
 import type { FirebaseCloudConfig } from "./config";
 import { initializeFirebaseCloud } from "./firebaseClient";
 import type { FirebaseCloudClient } from "./firebaseClient";
@@ -63,11 +63,12 @@ export function AuthFrame({ children }: { children: ReactNode }) {
 
 export function CloudAuthGate({ config, children }: CloudAuthGateProps) {
   const [initialization] = useState(() => {
-    try { return { client: initializeFirebaseCloud(config), signature: JSON.stringify(config) }; }
-    catch { return { client: null, signature: JSON.stringify(config) }; }
+    const signature = JSON.stringify(config);
+    try { return { client: initializeFirebaseCloud(config), signature, browserError: null }; }
+    catch (caught) { return { client: null, signature, browserError: cloudAuthBrowserIssueMessage(caught) }; }
   });
   if (!initialization.client || initialization.signature !== JSON.stringify(config)) {
-    return <AuthFrame><AlertTriangle aria-hidden="true" /><h1 id="cloud-auth-title">Private sign-in could not start</h1><p>The private app setup needs attention. No local ledger has been opened or uploaded.</p><button className="cloud-auth__button" onClick={() => window.location.reload()}>Try again</button></AuthFrame>;
+    return <AuthFrame><AlertTriangle aria-hidden="true" /><h1 id="cloud-auth-title">Private sign-in could not start</h1><p role="alert">{initialization.browserError ?? "The private app setup needs attention. No local ledger has been opened or uploaded."}</p><button className="cloud-auth__button" onClick={() => window.location.reload()}>Try again</button></AuthFrame>;
   }
   return <CloudAuthContent client={initialization.client}>{children}</CloudAuthContent>;
 }
@@ -145,13 +146,13 @@ function CloudAuthContent({ client, children }: { client: FirebaseCloudClient; c
         setChecking(false);
         setError("Your private workspace could not open safely. Reload the app to try again.");
       });
-    }, () => {
+    }, (caught) => {
       if (!active) return;
       transition.current += 1;
       currentSession.current = null;
       toast.dismiss();
       flushSync(() => { setSession(null); setChecking(false); setFatal(true); });
-      setError("Your sign-in could not be checked. Reload the private app to try again.");
+      setError(cloudAuthBrowserIssueMessage(caught) ?? "Your sign-in could not be checked. Reload the private app to try again.");
       void client.clearFirestore().catch(() => undefined);
     });
     return () => {

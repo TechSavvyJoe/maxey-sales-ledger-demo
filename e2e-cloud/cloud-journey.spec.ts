@@ -272,8 +272,11 @@ test("self-service email-link login, Mini commission, second-device visibility, 
     await openSales(secondPage);
 
     await page.getByRole("button", { name: /^Cloud saving/ }).click();
-    await expect(page.locator(".cloud-data-copy")).toContainText("No folder connection or manual upload is needed.");
-    await expect(page.locator(".cloud-data-copy")).toContainText("Scheduled disaster-recovery backups are not enabled in this pilot.");
+    const cloudSaving = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Cloud saving", exact: true }),
+    });
+    await expect(cloudSaving).toContainText("no folders or uploads needed");
+    await expect(cloudSaving).toContainText("automatic recovery backups are not included");
     await expect(page.getByRole("button", { name: "Download a copy", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Import sales|Restore from backup|Choose.*folder|Connect.*folder|Connect Google Drive/i })).toHaveCount(0);
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
