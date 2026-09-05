@@ -36,6 +36,8 @@ Test-harness corrections preserve the user-facing assertions: Year tests accept 
 
 The shared desktop, phone, and tablet browser workflows now run on independent GitHub runners on every main update and pull request. Cloud access rules and Chrome/phone/WebKit saving journeys remain a separate Firebase validation workflow. Failed runs retain traces; tests do not automatically retry until they happen to pass.
 
+The screenshot follow-up `894dd9d` passed 594 unit tests and 191 interface browser tests (95 desktop, 42 tablet, 54 phone). Its private Hosting files were byte-compared with the tested build: 50 of 50 matched. The two compiled Firebase smoke tests and all three macOS WebKit cloud journeys passed locally. Linux cloud CI passed 22 access-rule checks and the Chrome/phone journeys, but WebKit's network process crashed twice at different points, forcing reloads and losing session-only authentication. Those failures remain in [run 33931369229](https://github.com/TechSavvyJoe/maxey-sales-ledger-demo/actions/runs/33931369229). The exact WebKit tests now run on a standard macOS runner, following [Playwright's closest-to-Safari guidance](https://playwright.dev/docs/browsers#webkit); Chrome/phone and compiled checks remain on Linux. No application assertions, timeouts, session policy, or data-access rules were loosened.
+
 Bonus verification measures each row, input, label, amount, and note inside the panel—not just page-level overflow. The compiled Firebase checks include 410- and 460-pixel panels, so the reported in-app-browser geometry is covered by the actual cloud edition.
 
 ## Before broad coworker rollout

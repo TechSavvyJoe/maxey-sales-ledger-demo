@@ -75,10 +75,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install browser engines
-        run: pnpm exec playwright install --with-deps chromium webkit
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Test private cloud journeys
-        run: pnpm test:cloud:e2e
+        run: pnpm exec firebase emulators:exec --project demo-sales-ledger-rules --only auth,firestore 'pnpm exec playwright test --config playwright.cloud.config.ts --project cloud-chrome --project cloud-phone'
 
       - name: Smoke test compiled private cloud
         run: pnpm test:cloud:compiled
@@ -91,5 +91,53 @@ jobs:
           path: |
             test-results/cloud
             test-results/cloud-compiled
+          if-no-files-found: ignore
+          retention-days: 7
+
+  cloud-webkit:
+    name: Cloud Safari-engine journeys
+    # Linux WebKit's network process crashed in both attempts of run
+    # 33931369229, reloading pages and dropping session-only auth. Run the
+    # identical assertions on native macOS for closer Safari coverage:
+    # https://playwright.dev/docs/browsers#webkit
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 11.19.0
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install WebKit
+        run: pnpm exec playwright install --with-deps webkit
+
+      - name: Test private cloud journeys on macOS
+        run: pnpm exec firebase emulators:exec --project demo-sales-ledger-rules --only auth,firestore 'pnpm exec playwright test --config playwright.cloud.config.ts --project cloud-webkit'
+
+      - name: Upload browser traces on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: cloud-webkit-playwright-results
+          path: test-results/cloud
           if-no-files-found: ignore
           retention-days: 7
