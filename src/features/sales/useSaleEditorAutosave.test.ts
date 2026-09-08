@@ -6,8 +6,8 @@ import { validateSaleForm } from "@/domain/validation";
 import type { EditorDraftPayload, EditorDraftRecord } from "@/persistence/editorDrafts";
 import { SaleWriteConflictError } from "@/persistence/errors";
 
-const storage = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), clear: vi.fn(), assertCurrent: vi.fn() }));
-vi.mock("@/persistence/database", () => ({ captureStorageContext: () => storage.assertCurrent }));
+const storage = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), clear: vi.fn(), resolveReverted: vi.fn(), assertCurrent: vi.fn() }));
+vi.mock("@/persistence/database", () => ({ captureStorageContext: () => storage.assertCurrent, resolveRevertedSaleWrite: storage.resolveReverted }));
 vi.mock("@/persistence/editorDrafts", () => ({ loadEditorDraft: storage.load, saveEditorDraft: storage.save, clearEditorDraft: storage.clear }));
 import { saleEditorContentKey, saleEditorProducts, saleEditorValues, useSaleEditorAutosave, type SaleEditorSnapshot } from "./useSaleEditorAutosave";
 
@@ -38,6 +38,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-09-03T18:00:00.000Z"));
   vi.clearAllMocks();
   storage.assertCurrent.mockReset();
+  storage.resolveReverted.mockReset().mockResolvedValue(undefined);
   record = { key: "sale:sale-1", revision: 0, updatedAt: null, payload: null };
   storage.load.mockReset().mockImplementation(async (key: string) => ({ ...record, key }));
   storage.save.mockReset().mockImplementation(async (key: string, payload: EditorDraftPayload, expected: number) => {
@@ -128,6 +129,135 @@ describe("sale editor autosave", () => {
     await idle();
     expect(onSave).toHaveBeenCalledOnce();
     expect(record.payload).toBeNull();
+  });
+
+  it("clears an invalid saved draft when the user restores the original sale values", async () => {
+    const first = await openEditor();
+    act(() => first.result.current.setValues((values) => ({ ...values, stockNumber: "" })));
+    await idle();
+    expect(record.payload?.values.stockNumber).toBe("");
+
+    act(() => first.result.current.setValues((values) => ({ ...values, stockNumber: sale.stockNumber })));
+    expect(first.result.current.needsUnloadWarning).toBe(true);
+    expect(first.result.current.canCloseSafely()).toBe(false);
+    await idle();
+    expect(record.payload).toBeNull();
+    expect(first.onSave).not.toHaveBeenCalled();
+    expect(storage.resolveReverted).toHaveBeenCalledWith(sale);
+    expect(first.result.current.hasChanges).toBe(false);
+    first.unmount();
+
+    const reopened = await openEditor();
+    expect(reopened.result.current.values.stockNumber).toBe(sale.stockNumber);
+    expect(reopened.result.current.restored).toBe(false);
+  });
+
+  it("clears an erased new-sale draft and does not reuse its abandoned sale ID", async () => {
+    const first = await openEditor({ initialSale: null, sales: [] });
+    act(() => first.result.current.setValues((values) => ({ ...values, stockNumber: "ERASE-ME" })));
+    await idle();
+    const abandonedId = record.payload!.draftId;
+    act(() => first.result.current.setValues(snapshotFor(null).values));
+    await act(async () => { await first.result.current.saveNow(); });
+    expect(record.payload).toBeNull();
+    expect(first.onSave).not.toHaveBeenCalled();
+    act(() => first.result.current.setValues((values) => ({ ...values, stockNumber: "FRESH-SALE" })));
+    await idle();
+    expect(record.payload?.draftId).not.toBe(abandonedId);
+    expect(record.payload?.values.stockNumber).toBe("FRESH-SALE");
+  });
+
+  it("protects a reverted form when draft cleanup fails and retries after reconnecting", async () => {
+    const { result, onSave } = await openEditor();
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: "" })));
+    await idle();
+    storage.clear.mockRejectedValueOnce(new Error("Offline"));
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: sale.stockNumber })));
+    await idle();
+    expect(result.current.error?.message).toBe("Offline");
+    expect(result.current.hasChanges).toBe(true);
+    expect(result.current.needsUnloadWarning).toBe(true);
+    expect(result.current.canCloseSafely()).toBe(false);
+    expect(record.payload?.values.stockNumber).toBe("");
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(record.payload).toBeNull();
+    expect(result.current.error).toBeNull();
+    expect(result.current.hasChanges).toBe(false);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("preserves new typing while the erased draft is still being cleared", async () => {
+    const { result, onSave } = await openEditor({ initialSale: null, sales: [] });
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: "ERASE-ME" })));
+    await idle();
+    const abandonedId = record.payload!.draftId;
+    const pending = deferred<EditorDraftRecord>();
+    storage.clear.mockReturnValueOnce(pending.promise);
+    act(() => result.current.setValues(snapshotFor(null).values));
+    await idle();
+    expect(result.current.working).toBe(true);
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: "KEEP-THIS" })));
+    await idle();
+    await act(async () => {
+      record = { ...record, revision: record.revision + 1, payload: null };
+      pending.resolve(record);
+      await pending.promise;
+    });
+    expect(result.current.values.stockNumber).toBe("KEEP-THIS");
+    expect(record.payload?.values.stockNumber).toBe("KEEP-THIS");
+    expect(record.payload?.draftId).not.toBe(abandonedId);
+    expect(result.current.hasProtectedDraft).toBe(true);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("does not erase a different tab's draft when reverting to the saved sale", async () => {
+    const { result, onSave } = await openEditor();
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: "" })));
+    await idle();
+    record = { ...record, revision: record.revision + 1, payload: { ...record.payload!, values: { ...record.payload!.values, stockNumber: "OTHER-TAB" } } };
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: sale.stockNumber })));
+    await idle();
+    expect(result.current.error?.message).toBe("Draft changed elsewhere");
+    expect(record.payload?.values.stockNumber).toBe("OTHER-TAB");
+    expect(result.current.canCloseSafely()).toBe(false);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("retries baseline verification after a cleared draft without repeating the draft clear", async () => {
+    const { result, onSave } = await openEditor();
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: "" })));
+    await idle();
+    storage.resolveReverted.mockRejectedValueOnce(new Error("Could not verify saved sale"));
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: sale.stockNumber })));
+    await idle();
+    expect(record.payload).toBeNull();
+    expect(result.current.values.stockNumber).toBe(sale.stockNumber);
+    expect(result.current.error?.message).toBe("Could not verify saved sale");
+    expect(result.current.needsUnloadWarning).toBe(true);
+    expect(result.current.canCloseSafely()).toBe(false);
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(storage.clear).toHaveBeenCalledOnce();
+    expect(storage.resolveReverted).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBeNull();
+    expect(result.current.hasChanges).toBe(false);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("preserves reverted input and exposes a conflict when saved-sale verification finds another version", async () => {
+    const { result, onSave } = await openEditor();
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: "" })));
+    await idle();
+    storage.resolveReverted.mockRejectedValueOnce(new SaleWriteConflictError(sale.id, sale.stockNumber));
+    act(() => result.current.setValues((values) => ({ ...values, stockNumber: sale.stockNumber })));
+    await idle();
+    expect(record.payload).toBeNull();
+    expect(result.current.values.stockNumber).toBe(sale.stockNumber);
+    expect(result.current.error).toBeInstanceOf(SaleWriteConflictError);
+    expect(result.current.canCloseSafely()).toBe(false);
+    await act(async () => { window.dispatchEvent(new Event("online")); });
+    expect(storage.resolveReverted).toHaveBeenCalledOnce();
+    expect(storage.clear).toHaveBeenCalledOnce();
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it("does not count a new sale until explicitly added, and retries with the same ID", async () => {

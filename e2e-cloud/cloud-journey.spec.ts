@@ -399,6 +399,42 @@ test("automatic saving rejects stale edits and preserves offline typing until re
   }
 });
 
+test("reverting an incomplete edit removes its old cloud draft before reopening", async ({ context, page, request }) => {
+  const blocked = await restrictToEmulators(context);
+  const email = await createPilotAccount(request, "ledger-revert");
+  const stock = `REVERT-${randomUUID().slice(0, 8).toUpperCase()}`;
+  await signInWithEmail(page, request, email);
+  await addMiniSale(page, stock);
+  // Deliberately submit a stale revision to the isolated emulator. This
+  // creates a genuine repository rejection without changing the saved sale.
+  expect(await page.evaluate(async (stockNumber) => {
+    const modulePath = "/src/persistence/database.ts";
+    const database = await import(modulePath);
+    const data = await database.loadTrackerData();
+    const sale = data.sales.find((entry: { stockNumber: string }) => entry.stockNumber === stockNumber);
+    if (!sale) throw new Error("Synthetic test sale not found");
+    try {
+      await database.persistSale({ ...sale, notes: "Rejected stale test edit" }, false, { revision: sale.revision - 1, updatedAt: sale.updatedAt });
+      return "unexpected success";
+    } catch (error) { return error instanceof Error ? error.name : "unknown error"; }
+  }, stock)).toBe("SaleWriteConflictError");
+  await expect(page.locator(".cloud-account-bar")).toContainText("Last save needs attention");
+  await editSale(page, stock);
+  const stockInput = page.getByRole("textbox", { name: /^Stock number/ });
+  await stockInput.fill("");
+  await expect(page.locator(".sale-form__save-state")).toHaveText("Draft saved · complete the fields to update this sale");
+  await stockInput.fill(stock);
+  await expect(page.locator(".sale-form__save-state")).toHaveText("Saved to cloud");
+  await expect(page.locator(".cloud-account-bar")).not.toContainText("Last save needs attention");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Cloud account", exact: true })).toContainText(email);
+  await editSale(page, stock);
+  await expect(stockInput).toHaveValue(stock);
+  await expect(page.locator(".sale-form__save-state")).toHaveText("Saved to cloud");
+  expect([...blocked, ...unexpectedProxyTargets]).toEqual([]);
+});
+
 test("unfinished sale drafts resume on another device without entering totals or crossing accounts", async ({ browser, context, page, request }) => {
   const firstBlocked = await restrictToEmulators(context);
   const accountA = await createPilotAccount(request, "ledger-draft-a");

@@ -395,7 +395,8 @@ export function FiReportCenter({
     setEvidenceSearch("");
     setVisibleEvidenceCount(EVIDENCE_PAGE_SIZE);
     window.requestAnimationFrame(() => {
-      evidenceHeadingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      evidenceHeadingRef.current?.scrollIntoView({ behavior: reduceMotion ? "instant" : "smooth", block: "start" });
       evidenceHeadingRef.current?.focus({ preventScroll: true });
     });
   };
@@ -412,6 +413,15 @@ export function FiReportCenter({
     || analytics.quality.unmarkedFinanceOutcomeCount > 0
     || analytics.quality.fiGrossMissingCount > 0
     || analytics.quality.frontGrossMissingCount > 0;
+  const { pendingRecordCount, excludedDeliveredRecordCount } = analytics.population;
+  const emptyPeriodTitle = excludedDeliveredRecordCount > 0
+    ? "No delivered sales count in this report yet"
+    : pendingRecordCount > 0 ? "No delivered sales yet" : "No delivered sales in this period";
+  const emptyPeriodDescription = excludedDeliveredRecordCount > 0
+    ? `${countLabel(excludedDeliveredRecordCount, "delivered sale")} ${excludedDeliveredRecordCount === 1 ? "is" : "are"} excluded from these totals. Review the flagged records in Sales to see what needs attention.`
+    : pendingRecordCount > 0
+      ? `${countLabel(pendingRecordCount, "pending sale")} ${pendingRecordCount === 1 ? "is" : "are"} not included in F&I results. Mark each sale Delivered in Sales after delivery.`
+      : "Add a delivered sale or choose a period with deliveries to see F&I results.";
 
   const exactMixRows = [
     ["No products", analytics.products.exactMix.noProducts],
@@ -832,7 +842,10 @@ export function FiReportCenter({
           title="Missing details"
           description="Missing answers stay separate from No so the percentages remain honest."
         >
-        {hasMissingDetails ? <div className="fi-center-quality-grid">
+        {eligibleDeals.length === 0 ? <div className="fi-center-empty">
+          <strong>{emptyPeriodTitle}</strong>
+          <p>{emptyPeriodDescription}</p>
+        </div> : hasMissingDetails ? <div className="fi-center-quality-grid">
           <div className="fi-center-quality-item">
             <span className="fi-center-quality-icon" data-ready={analytics.quality.incompletelyTrackedProductDealCount === 0}>
               {analytics.quality.incompletelyTrackedProductDealCount === 0 ? <CheckCircle2 aria-hidden="true" /> : <AlertTriangle aria-hidden="true" />}
@@ -888,6 +901,7 @@ export function FiReportCenter({
           <span className="fi-center-result-count" aria-live="polite">{filteredDeals.length} of {eligibleDeals.length} deals</span>
         </header>
 
+        {eligibleDeals.length > 0 ? <>
         <div className="fi-center-evidence-controls">
           <label>
             <span><Filter aria-hidden="true" /> Show</span>
@@ -918,8 +932,14 @@ export function FiReportCenter({
         <p className="fi-center-filter-summary" aria-live="polite">
           Showing <strong>{selectedFilter.label}</strong>{evidenceSearch.trim() ? ` matching “${evidenceSearch.trim()}”` : ""}.
         </p>
+        </> : null}
 
-        {filteredDeals.length === 0 ? (
+        {eligibleDeals.length === 0 ? (
+          <div className="fi-center-empty">
+            <strong>{emptyPeriodTitle}</strong>
+            <p>{emptyPeriodDescription}</p>
+          </div>
+        ) : filteredDeals.length === 0 ? (
           <div className="fi-center-empty">
             <strong>No deals match this view</strong>
             <p>Change the filter or clear the search to see other eligible deals.</p>

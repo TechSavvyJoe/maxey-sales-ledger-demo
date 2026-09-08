@@ -582,7 +582,7 @@ export function SaleFormSheet({
                 </div>
               </div>
               <p className="status-choice-help">{selectedStatus.description}</p>
-              <span id="unit-credit-help" className="sr-only">Check for half a unit of credit and half the mini{previewPayPlan ? ` (${formatCurrency(getMinimumFrontCommissionCents(previewPayPlan) / 2)})` : ""}. Percentage commission uses your entered gross; enter your share of gross on a split deal. A manual front payout is never split again. An existing custom credit is kept unless you change this option.</span>
+              <span id="unit-credit-help" className="sr-only">Check for half a unit of credit and half the Mini{previewPayPlan ? ` (${formatCurrency(getMinimumFrontCommissionCents(previewPayPlan) / 2)})` : ""}. Percentage commission uses your entered gross; enter your share of gross on a split deal. A manual front payout is never split again. An existing custom credit is kept unless you change this option.</span>
               {errors.unitCredit ? <span id="unit-credit-error" className="field-error">{errors.unitCredit}</span> : null}
             </fieldset>
 
@@ -655,6 +655,11 @@ export function SaleFormSheet({
             </div>
 
             <div className="form-section form-fields sale-money-fields">
+              {Number(values.unitCredit) !== 1 ? (
+                <p id="split-gross-help" className="sale-split-gross-help">
+                  <strong>Enter your share of front and F&amp;I gross.</strong> The Mini adjusts for your credit. A spiff / manual payout stays the amount you enter.
+                </p>
+              ) : null}
               <div className="field-group">
                 <Label htmlFor="front-gross">Front gross</Label>
                 <div className="money-input">
@@ -666,7 +671,7 @@ export function SaleFormSheet({
                     autoComplete="off"
                     value={values.frontGross}
                     aria-invalid={Boolean(errors.frontGross)}
-                    aria-describedby={errors.frontGross ? "front-gross-error" : undefined}
+                    aria-describedby={[Number(values.unitCredit) !== 1 ? "split-gross-help" : "", errors.frontGross ? "front-gross-error" : ""].filter(Boolean).join(" ") || undefined}
                     onChange={(event) => updateValue("frontGross", event.target.value)}
                     onBlur={() => {
                       const cents = parseCurrencyToCents(values.frontGross);
@@ -697,7 +702,7 @@ export function SaleFormSheet({
                     autoComplete="off"
                     value={values.fiGross}
                     aria-invalid={Boolean(errors.fiGross)}
-                    aria-describedby={`fi-gross-help${errors.fiGross ? " fi-gross-error" : ""}`}
+                    aria-describedby={`fi-gross-help${Number(values.unitCredit) !== 1 ? " split-gross-help" : ""}${errors.fiGross ? " fi-gross-error" : ""}`}
                     onChange={(event) => updateValue("fiGross", event.target.value)}
                     onBlur={() => {
                       const cents = parseCurrencyToCents(values.fiGross);

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 import { createElement } from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { calculateMonth, DEFAULT_PAY_PLAN } from "@/domain/commission";
 import { calculateMonthReportAnalytics } from "@/domain/reportAnalytics";
@@ -35,8 +35,8 @@ function sale(index: number): Sale {
   };
 }
 
-function renderReport() {
-  const summary = calculateMonth(Array.from({ length: 60 }, (_, index) => sale(index)), "2026-08", DEFAULT_PAY_PLAN);
+function renderReport(sales: Sale[] = Array.from({ length: 60 }, (_, index) => sale(index))) {
+  const summary = calculateMonth(sales, "2026-08", DEFAULT_PAY_PLAN);
   return render(createElement(FiReportCenter, {
     calculatedSales: summary.calculatedSales,
     analytics: calculateMonthReportAnalytics(summary),
@@ -59,6 +59,79 @@ afterEach(() => {
 });
 
 describe("F&I report view performance", () => {
+  it("explains an empty period without claiming complete data or offering an ineffective filter reset", () => {
+    renderReport([]);
+
+    expect(screen.queryByText("All F&I details are complete")).toBeNull();
+    expect(screen.getByText("Add a delivered sale or choose a period with deliveries to see F&I results.")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Deals" }));
+
+    expect(screen.getByText("No delivered sales in this period")).toBeVisible();
+    expect(screen.queryByText("No deals match this view")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Show all deals" })).toBeNull();
+    expect(screen.queryByRole("searchbox", { name: "Find a deal" })).toBeNull();
+  });
+
+  it("explains why pending-only sales do not have delivered F&I results", () => {
+    renderReport([{ ...sale(0), status: "pending" }]);
+
+    expect(screen.queryByText("All F&I details are complete")).toBeNull();
+    expect(screen.getByText("No delivered sales yet")).toBeVisible();
+    expect(screen.getByText("1 pending sale is not included in F&I results. Mark each sale Delivered in Sales after delivery.")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Deals" }));
+
+    expect(screen.getByText("No delivered sales yet")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Show all deals" })).toBeNull();
+  });
+
+  it("distinguishes excluded delivered records from a period without deliveries", () => {
+    renderReport([sale(0), { ...sale(1), stockNumber: sale(0).stockNumber }]);
+
+    expect(screen.getByText("No delivered sales count in this report yet")).toBeVisible();
+    expect(screen.getByText("2 delivered sales are excluded from these totals. Review the flagged records in Sales to see what needs attention.")).toBeVisible();
+    expect(screen.queryByText("All F&I details are complete")).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Deals" }));
+
+    expect(screen.getByText("No delivered sales count in this report yet")).toBeVisible();
+    expect(screen.queryByText("No delivered sales in this period")).toBeNull();
+  });
+
+  it("keeps a useful reset when delivered deals exist but a search has no matches", () => {
+    renderReport();
+    fireEvent.click(screen.getByRole("tab", { name: "Deals" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find a deal" }), { target: { value: "does-not-exist" } });
+
+    expect(screen.getByText("No deals match this view")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Show all deals" }));
+
+    expect(screen.getByText("Showing 24 of 60 matching deals")).toBeVisible();
+    expect(screen.getByRole("searchbox", { name: "Find a deal" })).toHaveValue("");
+  });
+
+  it.each([true, false])("respects reduced motion=%s while moving focus to the selected evidence", (reduceMotion) => {
+    renderReport();
+    fireEvent.click(screen.getByRole("tab", { name: "Products" }));
+    const scheduledFrames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      scheduledFrames.push(callback);
+      return scheduledFrames.length;
+    });
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: reduceMotion }));
+
+    fireEvent.click(screen.getByRole("button", { name: "View deals for Service contract / warranty" }));
+    const evidenceHeading = screen.getByRole("heading", { name: "Deals behind these totals" });
+    evidenceHeading.scrollIntoView = vi.fn();
+    act(() => scheduledFrames.forEach((callback) => callback(0)));
+
+    expect(evidenceHeading.scrollIntoView).toHaveBeenCalledWith({ behavior: reduceMotion ? "instant" : "smooth", block: "start" });
+    expect(evidenceHeading).toHaveFocus();
+    expect(screen.getByRole("tab", { name: "Deals" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("combobox", { name: "Show" })).toHaveValue("serviceContract");
+  });
+
   it("mounts only the active report view and reveals deal evidence in bounded batches", () => {
     const { container } = renderReport();
 

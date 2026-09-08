@@ -255,3 +255,62 @@ test("compiled Firebase Settings stays responsive and uses cloud saving instead 
   await expect(page.getByLabel("Salesperson name", { exact: false })).toHaveValue("Cloud layout example");
   expect([...unexpectedOrigins]).toEqual([]);
 });
+
+test("compiled cloud recovery and split guidance fit small and large screens", async ({ context, page, request }, testInfo) => {
+  const unexpected = await blockRemoteRequests(context);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(APP_ORIGIN);
+  await signInWithEmailLink(page, request, await createAccount(request));
+  await page.evaluate(() => {
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function(options) {
+      if (typeof options === "object") this.setAttribute("data-tested-scroll-behavior", options.behavior ?? "auto");
+      original.call(this, options);
+    };
+  });
+  await page.getByRole("button", { name: "Edit work schedule", exact: true }).click();
+  await expect(page.locator(".work-schedule-actions")).toContainText("Changes save automatically and update your pace.");
+  await expect(page.locator('[data-tested-scroll-behavior="instant"]')).not.toHaveCount(0);
+  await expect(page.locator(".work-schedule-details > summary")).toBeFocused();
+  await page.getByRole("button", { name: "Reports", exact: true }).first().click();
+  await page.getByRole("tab", { name: "F&I", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Missing details", exact: true }).getByText("No delivered sales in this period", { exact: true })).toBeVisible();
+  await expect(page.getByText("All F&I details are complete", { exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Deals", exact: true }).click();
+  await expect(page.getByRole("tabpanel", { name: "Deals", exact: true }).getByText("No delivered sales in this period", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show all deals", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
+  await context.setOffline(true);
+  try {
+    const account = page.getByRole("region", { name: "Cloud account", exact: true });
+    await expect(account).toContainText("Offline — reconnect to save");
+    await expect(account).toContainText("Keep this tab open and reconnect before closing or refreshing.");
+    for (const [width, height] of [[320, 568], [440, 844], [768, 900], [1440, 900], [2560, 1440]]) {
+      await page.setViewportSize({ width, height });
+      const geometry = await account.evaluate((element) => {
+        const button = element.querySelector("button")!.getBoundingClientRect();
+        return { width: element.clientWidth, scroll: element.scrollWidth, buttonWidth: button.width, buttonHeight: button.height, pageWidth: document.documentElement.scrollWidth };
+      });
+      expect(geometry.scroll).toBeLessThanOrEqual(geometry.width + 1);
+      expect(geometry.pageWidth).toBeLessThanOrEqual(width + 1);
+      expect(geometry.buttonWidth).toBeGreaterThanOrEqual(44);
+      expect(geometry.buttonHeight).toBeGreaterThanOrEqual(44);
+      if (width === 320 || width === 1440) {
+        const a11y = await new AxeBuilder({ page }).include(".cloud-account-bar").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+        expect(a11y.violations).toEqual([]);
+      }
+      await page.screenshot({ path: testInfo.outputPath(`cloud-recovery-${width}.png`), fullPage: true });
+    }
+  } finally { await context.setOffline(false); }
+  await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
+  await page.getByRole("checkbox", { name: "Split deal", exact: true }).check();
+  await expect(page.getByText("Enter your share of front and F&I gross.", { exact: true })).toBeVisible();
+  for (const width of [320, 440, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const helper = page.locator("#split-gross-help");
+    await helper.scrollIntoViewIfNeeded();
+    expect(await helper.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`split-guidance-${width}.png`) });
+  }
+  expect([...unexpected]).toEqual([]);
+});

@@ -525,7 +525,7 @@ export function SettingsPage({
         focusTarget = section;
       }
 
-      scrollTarget?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollTarget?.scrollIntoView({ behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
       focusTarget?.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(animationFrame);
@@ -1410,7 +1410,7 @@ export function SettingsPage({
                 })}
               </div>
               <div className="work-schedule-actions">
-                <p>Select your days off, then save before changing months.</p>
+                <p>Select your days off. Changes save automatically and update your pace.</p>
                 {selectedDaysOff.length ? (
                   <Button type="button" variant="outline" onClick={clearSelectedMonthDaysOff}>
                     <RotateCcw aria-hidden="true" /> Clear {monthLabel(settings.selectedMonth, "short")} days off

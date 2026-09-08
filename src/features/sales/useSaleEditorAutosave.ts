@@ -3,7 +3,7 @@ import { getPaymentMethod } from "@/domain/financing";
 import { formatCurrencyInput, parseCurrencyToCents } from "@/domain/money";
 import type { Sale } from "@/domain/types";
 import type { SaleFormErrors, SaleFormValues } from "@/domain/validation";
-import { captureStorageContext } from "@/persistence/database";
+import { captureStorageContext, resolveRevertedSaleWrite } from "@/persistence/database";
 import {
   clearEditorDraft,
   loadEditorDraft,
@@ -75,6 +75,12 @@ function snapshotForSale(sale: Sale): SaleEditorSnapshot {
   return { values: saleEditorValues(sale), fiProducts: saleEditorProducts(sale) };
 }
 
+/** protectedRaw only contains snapshots serialized by this editor. */
+function draftDiffersFromCommitted(protectedRaw: string, committedKey: string): boolean {
+  return Boolean(protectedRaw)
+    && saleEditorContentKey(JSON.parse(protectedRaw) as SaleEditorSnapshot) !== committedKey;
+}
+
 function buildSale(snapshot: SaleEditorSnapshot, baseline: Sale | null, draftId: string): Sale {
   const { values, fiProducts } = snapshot;
   const now = new Date().toISOString();
@@ -135,6 +141,7 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
     baselineSale: options.initialSale,
     committedKey: saleEditorContentKey(options.initialSnapshot),
     protectedRaw: "",
+    pendingRevertCheck: false,
   });
   const [isNew, setIsNew] = useState(!options.initialSale);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -148,6 +155,7 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
   const draftRecordRef = useRef<EditorDraftRecord | null>(null);
   const committedKeyRef = useRef(saleEditorContentKey(options.initialSnapshot));
   const protectedRawRef = useRef("");
+  const revertedSaleCheckRef = useRef<Sale | null>(null);
   const workRef = useRef<Promise<Sale | null> | null>(null);
   const lifetimeRef = useRef(0);
   const activeRef = useRef(false);
@@ -164,6 +172,7 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
       baselineSale: baselineRef.current,
       committedKey: committedKeyRef.current,
       protectedRaw: protectedRawRef.current,
+      pendingRevertCheck: Boolean(revertedSaleCheckRef.current),
     });
   }, []);
 
@@ -273,7 +282,8 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
     const contentKey = saleEditorContentKey(current);
     const dirty = contentKey !== committedKeyRef.current;
     const shouldCommit = Boolean(baselineRef.current) || commitNew;
-    if (!dirty && !(commitNew && !baselineRef.current)) return baselineRef.current;
+    const clearRevertedDraft = !dirty && !(commitNew && !baselineRef.current);
+    if (clearRevertedDraft && !protectedRawRef.current && !revertedSaleCheckRef.current) return baselineRef.current;
     const generation = lifetimeRef.current;
 
     const perform = async (): Promise<Sale | null> => {
@@ -281,6 +291,33 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
       errorRef.current = null;
       setError(null);
       try {
+        if (clearRevertedDraft) {
+          // Returning to the saved values also changes the recoverable draft.
+          // Leaving an earlier invalid draft behind would resurrect it the
+          // next time the editor opens, even though this form looks saved.
+          if (protectedRawRef.current) {
+            const cleared = await clearEditorDraft(draftKeyRef.current, draftRecordRef.current!.revision);
+            assertActive(generation);
+            draftRecordRef.current = cleared;
+            protectedRawRef.current = "";
+            revertedSaleCheckRef.current = baselineRef.current;
+            setRestored(false);
+            // An erased Add sale must not reuse an ID whose previous Add request
+            // might have reached the server before its response was interrupted.
+            if (!baselineRef.current) draftIdRef.current = crypto.randomUUID();
+            publishMetadata();
+          }
+          if (revertedSaleCheckRef.current) {
+            // Clearing a draft does not prove that a failed sale write left
+            // the saved sale unchanged. Verify that before dismissing its
+            // warning; a failed read can retry without clearing the draft twice.
+            await resolveRevertedSaleWrite(revertedSaleCheckRef.current);
+            assertActive(generation);
+            revertedSaleCheckRef.current = null;
+            publishMetadata();
+          }
+          return baselineRef.current;
+        }
         if (rawKey !== protectedRawRef.current) {
           const record = await saveEditorDraft(draftKeyRef.current, {
             draftId: draftIdRef.current,
@@ -306,6 +343,7 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
         // safe baseline for the next queued write.
         baselineRef.current = saved;
         committedKeyRef.current = contentKey;
+        revertedSaleCheckRef.current = null;
         setIsNew(false);
         setSaveCount((count) => count + 1);
         publishMetadata();
@@ -347,14 +385,19 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
   }, [assertActive, publishMetadata]);
 
   const rawKey = JSON.stringify(snapshot);
-  const hasChanges = saleEditorContentKey(snapshot) !== metadata.committedKey;
+  const hasContentChanges = saleEditorContentKey(snapshot) !== metadata.committedKey;
+  const hasRevertedDraft = !hasContentChanges && draftDiffersFromCommitted(metadata.protectedRaw, metadata.committedKey);
+  // Pending removal of an old draft is still unsaved work: the visible form
+  // must not claim it is safely saved until reopening will show those values.
+  const hasChanges = hasContentChanges || hasRevertedDraft || metadata.pendingRevertCheck;
+  const needsDraftCleanup = !hasContentChanges && Boolean(metadata.protectedRaw);
   const validationKey = JSON.stringify(options.validate(snapshot));
   const canCommit = options.canCommit(snapshot, metadata.baselineSale?.id);
   useEffect(() => {
-    if (!options.open || !ready || !hasChanges || isConflict(errorRef.current)) return;
+    if (!options.open || !ready || (!hasChanges && !needsDraftCleanup) || isConflict(errorRef.current)) return;
     const timeout = window.setTimeout(() => { void saveNow().catch(() => {}); }, options.delayMs ?? 1_000);
     return () => window.clearTimeout(timeout);
-  }, [rawKey, validationKey, canCommit, options.open, options.delayMs, ready, hasChanges, saveNow]);
+  }, [rawKey, validationKey, canCommit, options.open, options.delayMs, ready, hasChanges, needsDraftCleanup, saveNow]);
 
   useEffect(() => {
     if (!options.open) return;
@@ -383,6 +426,7 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
     assertActive();
     if (isConflict(errorRef.current)) throw errorRef.current;
     baselineRef.current = null;
+    revertedSaleCheckRef.current = null;
     draftIdRef.current = crypto.randomUUID();
     initialSnapshotRef.current = next;
     committedKeyRef.current = saleEditorContentKey(next);
@@ -465,7 +509,9 @@ export function useSaleEditorAutosave(options: UseSaleEditorAutosaveOptions) {
       setError(null);
       setLoadAttempt((attempt) => attempt + 1);
     },
-    canCloseSafely: () => saleEditorContentKey(snapshotRef.current) === committedKeyRef.current
+    canCloseSafely: () => (saleEditorContentKey(snapshotRef.current) === committedKeyRef.current
+      && !revertedSaleCheckRef.current
+      && !draftDiffersFromCommitted(protectedRawRef.current, committedKeyRef.current))
       || protectedRawRef.current === JSON.stringify(snapshotRef.current),
   };
 }

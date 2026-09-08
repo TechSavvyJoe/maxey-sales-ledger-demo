@@ -8,7 +8,7 @@ import type { Sale } from "@/domain/types";
 import type { EditorDraftPayload, EditorDraftRecord } from "@/persistence/editorDrafts";
 
 const storage = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), clear: vi.fn() }));
-vi.mock("@/persistence/database", () => ({ CLOUD_BUILD: false, captureStorageContext: () => () => {} }));
+vi.mock("@/persistence/database", () => ({ CLOUD_BUILD: false, captureStorageContext: () => () => {}, resolveRevertedSaleWrite: async () => {} }));
 vi.mock("@/persistence/editorDrafts", () => ({ loadEditorDraft: storage.load, saveEditorDraft: storage.save, clearEditorDraft: storage.clear }));
 import { SaleFormSheet } from "./SaleFormSheet";
 
@@ -55,6 +55,19 @@ async function openForm(source: Sale | null = sale) {
 async function idle() { await act(async () => { await vi.advanceTimersByTimeAsync(1_050); }); }
 
 describe("sale editor autosave interaction", () => {
+  it("explains gross-share entry visibly only when a split deal is selected", async () => {
+    await openForm();
+    expect(document.getElementById("split-gross-help")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Split deal" }));
+    expect(screen.getByText("Enter your share of front and F&I gross.")).toBeVisible();
+    expect(screen.getByLabelText("Front gross")).toHaveAttribute("aria-describedby", "split-gross-help");
+    expect(screen.getByLabelText("Total F&I gross")).toHaveAttribute("aria-describedby", "fi-gross-help split-gross-help");
+    expect(screen.getByLabelText("Front gross")).toHaveValue("2300.00");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Split deal" }));
+    expect(document.getElementById("split-gross-help")).toBeNull();
+    expect(screen.getByLabelText("Front gross")).toHaveValue("2300.00");
+  });
+
   it("keeps focus and editable text stable through a background save", async () => {
     const { onSave, onUnsavedChange } = await openForm();
     const input = screen.getByLabelText("Customer last name");

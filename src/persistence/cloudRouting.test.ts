@@ -1,13 +1,15 @@
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { CloudRepository } from "@/cloud/firebaseRepository";
+import type { Sale } from "@/domain/types";
 import {
   activateCloudRepository, getCloudStorageState, importSales, initializePublishedDemo,
   loadBackupSnapshot, loadDemoSales, loadTrackerData, persistSale, replaceDatabaseFromBackup, updateSelectedContext, captureStorageContext,
-  loadEditorDraft, saveEditorDraft, clearEditorDraft,
+  loadEditorDraft, saveEditorDraft, clearEditorDraft, persistSettings, recordBackupExport, resolveRevertedSaleWrite,
 } from "./database";
 import type { EditorDraftRecord } from "./editorDraftSchema";
 import { createDefaultSettings } from "./localDatabase";
+import { SaleWriteConflictError } from "./errors";
 
 let deactivate: (() => void) | undefined;
 afterEach(() => { deactivate?.(); vi.unstubAllGlobals(); });
@@ -16,6 +18,7 @@ function fake() {
   const data: Awaited<ReturnType<CloudRepository["loadTrackerData"]>> = { settings: createDefaultSettings(), sales: [], auditEvents: [] };
   const target = {
     loadTrackerData: vi.fn(async () => data), loadBackupSnapshot: vi.fn(async () => data), persistSale: vi.fn(async () => {}),
+    persistSettings: vi.fn(async () => data.settings), recordBackupExport: vi.fn(async () => data.settings),
     updateSelectedContext: vi.fn(async () => data.settings),
     loadEditorDraft: vi.fn(async (): Promise<EditorDraftRecord> => ({ key: "new-sale", revision: 0, payload: null, updatedAt: null })),
     saveEditorDraft: vi.fn(async (): Promise<EditorDraftRecord> => ({ key: "new-sale", revision: 1, payload: null, updatedAt: "2026-09-03T12:00:00.000Z" })),
@@ -23,6 +26,22 @@ function fake() {
   };
   deactivate = activateCloudRepository(target as unknown as CloudRepository, { uid: "synthetic-account", email: "example@example.invalid" });
   return target;
+}
+
+function deferred() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
+  return { promise, resolve, reject };
+}
+
+function savedSale(): Sale {
+  return {
+    id: "sale-a", profileId: "primary", saleDate: "2026-09-01", customerLastName: "Sample",
+    stockNumber: "SYNTHETIC-1", vehicleDescription: "Sample vehicle", status: "delivered",
+    unitCreditBasis: 1_000, frontGrossCents: 230_000, fiGrossCents: null, notes: "",
+    createdAt: "2026-09-01T12:00:00.000Z", updatedAt: "2026-09-01T12:00:00.000Z", revision: 1,
+  };
 }
 
 describe("explicit cloud destination", () => {
@@ -39,6 +58,233 @@ describe("explicit cloud destination", () => {
     await expect(persistSale({} as never, true)).rejects.toThrow("Sale save failed");
     await saveEditorDraft("new-sale", {} as never, 0);
     expect(getCloudStorageState()).toMatchObject({ error: "Sale save failed", lastSavedAt: null, pending: 0 });
+  });
+  it("unrelated sale, settings, welcome, and backup acknowledgements cannot erase a failed sale save", async () => {
+    const target = fake();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale A was not saved"));
+    await expect(persistSale({ id: "sale-a" } as never, true)).rejects.toThrow("Sale A was not saved");
+    const unrelatedWrites = [
+      () => persistSale({ id: "sale-b" } as never, true),
+      () => persistSettings(createDefaultSettings()),
+      () => updateSelectedContext(createDefaultSettings(), { onboardingDismissed: true }),
+      () => recordBackupExport(),
+    ];
+    for (const save of unrelatedWrites) {
+      await save();
+      expect(getCloudStorageState()).toMatchObject({ error: "Sale A was not saved", pending: 0 });
+    }
+    expect(getCloudStorageState()?.lastSavedAt).not.toBeNull();
+  });
+  it("keeps a failed save visible throughout its retry and clears it only after acknowledgement", async () => {
+    const target = fake();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale A was not saved"));
+    await expect(persistSale({ id: "sale-a" } as never, true)).rejects.toThrow("Sale A was not saved");
+    const retry = deferred();
+    target.persistSale.mockImplementationOnce(() => retry.promise);
+    const saving = persistSale({ id: "sale-a" } as never, true);
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale A was not saved", pending: 1, lastSavedAt: null });
+    retry.resolve(); await saving;
+    expect(getCloudStorageState()).toMatchObject({ error: null, pending: 0 });
+    expect(getCloudStorageState()?.lastSavedAt).not.toBeNull();
+  });
+  it("welcome preferences and backup activity cannot clear a failed settings or payroll save", async () => {
+    const target = fake();
+    target.persistSettings.mockRejectedValueOnce(new Error("Payroll changes were not saved"));
+    await expect(persistSettings(createDefaultSettings())).rejects.toThrow("Payroll changes were not saved");
+    await updateSelectedContext(createDefaultSettings(), { onboardingDismissed: true });
+    await recordBackupExport();
+    expect(getCloudStorageState()?.error).toBe("Payroll changes were not saved");
+    await persistSettings(createDefaultSettings());
+    expect(getCloudStorageState()?.error).toBeNull();
+  });
+  it("keeps and updates the warning when a retry fails again", async () => {
+    const target = fake();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale A was not saved"));
+    await expect(persistSale({ id: "sale-a" } as never, true)).rejects.toThrow("Sale A was not saved");
+    const retry = deferred();
+    target.persistSale.mockImplementationOnce(() => retry.promise);
+    const saving = persistSale({ id: "sale-a" } as never, true);
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale A was not saved", pending: 1 });
+    retry.reject(new Error("Sale A retry failed"));
+    await expect(saving).rejects.toThrow("Sale A retry failed");
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale A retry failed", pending: 0, lastSavedAt: null });
+  });
+  it("retains the failed resource when another concurrent write succeeds afterward", async () => {
+    const target = fake();
+    const first = deferred(); const second = deferred();
+    target.persistSale.mockImplementationOnce(() => first.promise).mockImplementationOnce(() => second.promise);
+    const savingA = persistSale({ id: "sale-a" } as never, true);
+    const savingB = persistSale({ id: "sale-b" } as never, true);
+    expect(getCloudStorageState()?.pending).toBe(2);
+    first.reject(new Error("Sale A failed"));
+    await expect(savingA).rejects.toThrow("Sale A failed");
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale A failed", pending: 1 });
+    second.resolve(); await savingB;
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale A failed", pending: 0 });
+  });
+  it("reveals another unresolved error when the most recent failed resource is successfully retried", async () => {
+    const target = fake();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale A failed"));
+    await expect(persistSale({ id: "sale-a" } as never, true)).rejects.toThrow("Sale A failed");
+    target.persistSettings.mockRejectedValueOnce(new Error("Settings failed"));
+    await expect(persistSettings(createDefaultSettings())).rejects.toThrow("Settings failed");
+    expect(getCloudStorageState()?.error).toBe("Settings failed");
+    await persistSettings(createDefaultSettings());
+    expect(getCloudStorageState()?.error).toBe("Sale A failed");
+    await persistSale({ id: "sale-a" } as never, true);
+    expect(getCloudStorageState()?.error).toBeNull();
+  });
+  it("an older acknowledgement of the same resource cannot hide a newer failed attempt", async () => {
+    const target = fake();
+    const older = deferred();
+    target.persistSale.mockImplementationOnce(() => older.promise).mockRejectedValueOnce(new Error("Newer sale edit failed"));
+    const savingOlder = persistSale({ id: "sale-a" } as never, false);
+    await expect(persistSale({ id: "sale-a" } as never, false)).rejects.toThrow("Newer sale edit failed");
+    older.resolve(); await savingOlder;
+    expect(getCloudStorageState()).toMatchObject({ error: "Newer sale edit failed", pending: 0 });
+  });
+  it("an older failure cannot replace a later acknowledgement of the same resource", async () => {
+    const target = fake();
+    const older = deferred();
+    target.persistSale.mockImplementationOnce(() => older.promise);
+    const savingOlder = persistSale({ id: "sale-a" } as never, false);
+    await persistSale({ id: "sale-a" } as never, false);
+    older.reject(new Error("Old sale edit failed"));
+    await expect(savingOlder).rejects.toThrow("Old sale edit failed");
+    expect(getCloudStorageState()).toMatchObject({ error: null, pending: 0 });
+  });
+  it("clears resource errors on account change and ignores late failures from the old account", async () => {
+    const first = fake();
+    first.persistSale.mockRejectedValueOnce(new Error("Old sale A failed"));
+    await expect(persistSale({ id: "sale-a" } as never, true)).rejects.toThrow("Old sale A failed");
+    const outstanding = deferred();
+    first.persistSale.mockImplementationOnce(() => outstanding.promise);
+    const saving = persistSale({ id: "sale-b" } as never, true);
+    deactivate?.(); fake();
+    outstanding.reject(new Error("Old sale B failed"));
+    await expect(saving).rejects.toThrow("Old sale B failed");
+    await persistSale({ id: "sale-c" } as never, true);
+    expect(getCloudStorageState()).toMatchObject({ error: null, pending: 0 });
+  });
+  it("does not perform recovery reads without a failed baseline sale or in local mode", async () => {
+    const target = fake();
+    await resolveRevertedSaleWrite(savedSale());
+    expect(target.loadTrackerData).not.toHaveBeenCalled();
+    target.persistSettings.mockRejectedValueOnce(new Error("Settings failed"));
+    await expect(persistSettings(createDefaultSettings())).rejects.toThrow("Settings failed");
+    await resolveRevertedSaleWrite(savedSale());
+    expect(target.loadTrackerData).not.toHaveBeenCalled();
+    expect(getCloudStorageState()?.error).toBe("Settings failed");
+    deactivate?.();
+    await resolveRevertedSaleWrite(savedSale());
+    expect(target.loadTrackerData).not.toHaveBeenCalled();
+  });
+  it("resolves only a reverted sale's failure after verifying the exact saved server baseline", async () => {
+    const target = fake();
+    const expected = savedSale();
+    await recordBackupExport();
+    const lastSavedAt = getCloudStorageState()?.lastSavedAt;
+    target.persistSettings.mockRejectedValueOnce(new Error("Settings failed"));
+    await expect(persistSettings(createDefaultSettings())).rejects.toThrow("Settings failed");
+    target.persistSale.mockRejectedValueOnce(new Error("Sale edit was not confirmed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Sale edit was not confirmed");
+    // Field order and omitted undefined values are serialization details, not changes.
+    target.loadTrackerData.mockResolvedValueOnce({ settings: createDefaultSettings(), sales: [{ ...Object.fromEntries(Object.entries(expected).reverse()), gapSold: undefined } as Sale], auditEvents: [] });
+    await resolveRevertedSaleWrite(expected);
+    expect(target.loadTrackerData).toHaveBeenCalledOnce();
+    expect(getCloudStorageState()).toMatchObject({ error: "Settings failed", pending: 0, lastSavedAt });
+    expect(target.persistSale).toHaveBeenCalledOnce();
+  });
+  it.each([
+    ["new revision", { revision: 2 }],
+    ["new timestamp", { updatedAt: "2026-09-02T12:00:00.000Z" }],
+    ["changed contents", { frontGrossCents: 240_000 }],
+    ["deleted sale", { deletedAt: "2026-09-02T12:00:00.000Z" }],
+  ])("requires review instead of clearing a reverted-sale warning for a %s", async (_label, change) => {
+    const target = fake();
+    const expected = savedSale();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale edit was not confirmed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Sale edit was not confirmed");
+    target.loadTrackerData.mockResolvedValueOnce({ settings: createDefaultSettings(), sales: [{ ...expected, ...change }], auditEvents: [] });
+    await expect(resolveRevertedSaleWrite(expected)).rejects.toBeInstanceOf(SaleWriteConflictError);
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale edit was not confirmed", lastSavedAt: null });
+  });
+  it("requires review when the reverted baseline sale no longer exists", async () => {
+    const target = fake();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale edit was not confirmed"));
+    await expect(persistSale(savedSale(), false)).rejects.toThrow("Sale edit was not confirmed");
+    await expect(resolveRevertedSaleWrite(savedSale())).rejects.toBeInstanceOf(SaleWriteConflictError);
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale edit was not confirmed", lastSavedAt: null });
+  });
+  it("preserves a reverted-sale warning through a failed server read and allows a later verified retry", async () => {
+    const target = fake();
+    const expected = savedSale();
+    target.persistSale.mockRejectedValueOnce(new Error("Sale edit was not confirmed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Sale edit was not confirmed");
+    target.loadTrackerData.mockRejectedValueOnce(new Error("Reconnect to verify"));
+    await expect(resolveRevertedSaleWrite(expected)).rejects.toThrow("Reconnect to verify");
+    expect(getCloudStorageState()).toMatchObject({ error: "Sale edit was not confirmed", connectionError: "Reconnect to verify", lastSavedAt: null });
+    target.loadTrackerData.mockResolvedValueOnce({ settings: createDefaultSettings(), sales: [expected], auditEvents: [] });
+    await resolveRevertedSaleWrite(expected);
+    expect(getCloudStorageState()).toMatchObject({ error: null, connectionError: null, lastSavedAt: null });
+  });
+  it("cannot clear a newer sale failure while the baseline verification is pending", async () => {
+    const target = fake();
+    const expected = savedSale();
+    target.persistSale.mockRejectedValueOnce(new Error("Old edit failed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Old edit failed");
+    let finish!: (data: Awaited<ReturnType<CloudRepository["loadTrackerData"]>>) => void;
+    target.loadTrackerData.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const recovery = resolveRevertedSaleWrite(expected);
+    target.persistSale.mockRejectedValueOnce(new Error("New edit failed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("New edit failed");
+    finish({ settings: createDefaultSettings(), sales: [expected], auditEvents: [] });
+    await expect(recovery).rejects.toBeInstanceOf(SaleWriteConflictError);
+    expect(getCloudStorageState()).toMatchObject({ error: "New edit failed", lastSavedAt: null });
+  });
+  it("cannot clear an error while a newer same-sale write is still pending", async () => {
+    const target = fake();
+    const expected = savedSale();
+    target.persistSale.mockRejectedValueOnce(new Error("Old edit failed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Old edit failed");
+    let finish!: (data: Awaited<ReturnType<CloudRepository["loadTrackerData"]>>) => void;
+    target.loadTrackerData.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const recovery = resolveRevertedSaleWrite(expected);
+    const nextWrite = deferred();
+    target.persistSale.mockImplementationOnce(() => nextWrite.promise);
+    const saving = persistSale(expected, false);
+    finish({ settings: createDefaultSettings(), sales: [expected], auditEvents: [] });
+    await expect(recovery).rejects.toBeInstanceOf(SaleWriteConflictError);
+    expect(getCloudStorageState()).toMatchObject({ error: "Old edit failed", pending: 1 });
+    nextWrite.resolve(); await saving;
+    expect(getCloudStorageState()).toMatchObject({ error: null, pending: 0 });
+  });
+  it("cannot resolve a failure if a newer same-sale write was already pending before verification", async () => {
+    const target = fake();
+    const expected = savedSale();
+    target.persistSale.mockRejectedValueOnce(new Error("Old edit failed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Old edit failed");
+    const nextWrite = deferred();
+    target.persistSale.mockImplementationOnce(() => nextWrite.promise);
+    const saving = persistSale(expected, false);
+    target.loadTrackerData.mockResolvedValueOnce({ settings: createDefaultSettings(), sales: [expected], auditEvents: [] });
+    await expect(resolveRevertedSaleWrite(expected)).rejects.toBeInstanceOf(SaleWriteConflictError);
+    expect(getCloudStorageState()).toMatchObject({ error: "Old edit failed", pending: 1 });
+    nextWrite.resolve(); await saving;
+    expect(getCloudStorageState()).toMatchObject({ error: null, pending: 0 });
+  });
+  it("rejects old-account baseline verification without changing the new account's status", async () => {
+    const target = fake();
+    const expected = savedSale();
+    target.persistSale.mockRejectedValueOnce(new Error("Old edit failed"));
+    await expect(persistSale(expected, false)).rejects.toThrow("Old edit failed");
+    let finish!: (data: Awaited<ReturnType<CloudRepository["loadTrackerData"]>>) => void;
+    target.loadTrackerData.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const recovery = resolveRevertedSaleWrite(expected);
+    deactivate?.(); fake();
+    finish({ settings: createDefaultSettings(), sales: [expected], auditEvents: [] });
+    await expect(recovery).rejects.toThrow("account changed");
+    expect(getCloudStorageState()).toMatchObject({ error: null, connectionError: null, pending: 0, lastSavedAt: null });
   });
   it("rejects late draft data after an account changes", async () => {
     const first = fake();

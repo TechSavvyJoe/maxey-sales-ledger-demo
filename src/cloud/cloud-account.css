@@ -5,11 +5,16 @@
 .cloud-account-bar__identity { display: grid; gap: 2px; flex: 1; min-width: 0; }
 .cloud-account-bar__identity strong { font-size: 14px; overflow-wrap: anywhere; }
 .cloud-account-bar__identity span { font-size: 12px; color: #52687c; }
-.cloud-account-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 7px 11px; border: 1px solid #b9cadb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
+.cloud-account-bar button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 7px 11px; border: 1px solid #b9cadb; border-radius: 8px; background: #fff; font-size: 13px; font-weight: var(--font-weight-semibold); white-space: nowrap; }
 .cloud-account-bar button svg { width: 16px; height: 16px; }
 .cloud-account-bar button:disabled { opacity: .5; cursor: wait; }
 .cloud-account-bar button:focus-visible { outline: 3px solid #0876d1; outline-offset: 2px; }
-.cloud-account-bar > p { flex: 0 0 100%; margin: 0; padding-inline-start: 30px; color: #a12b20; font-size: 12px; line-height: 1.4; }
+.cloud-account-bar > p { flex: 0 0 100%; margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.cloud-account-bar__recovery { padding-block-start: 8px; border-top: 1px solid #e9d8b9; color: #6d4a16; }
+.cloud-account-bar__error { color: #a12b20; }
+.cloud-account-bar__spinner { animation: cloud-account-saving 1.2s linear infinite; }
+@keyframes cloud-account-saving { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .cloud-account-bar__spinner { animation: none; } }
 .cloud-data-copy { display: grid; gap: 12px; padding: 16px; color: #385167; }
 .cloud-data-copy p { margin: 0; }
 .cloud-data-copy strong { color: #143854; }

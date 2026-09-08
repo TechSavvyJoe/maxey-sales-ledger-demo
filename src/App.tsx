@@ -22,7 +22,7 @@ import type { AppView, Sale } from "@/domain/types";
 import { getPayPlanSchedule, hasPayPlanCoverage } from "@/domain/payPlan";
 import { useAutomaticBackup } from "@/hooks/useAutomaticBackup";
 import { useTrackerData } from "@/hooks/useTrackerData";
-import { CLOUD_BUILD, captureStorageContext, getCloudStorageState, loadDemoSales, recordBackupExport } from "@/persistence/database";
+import { CLOUD_BUILD, captureStorageContext, getCloudStorageState, loadDemoSales, recordBackupExport, resolveRevertedSaleWrite } from "@/persistence/database";
 import { CloudAccountBar, type CloudAccount } from "@/cloud/CloudAccountBar";
 import { isSaleWriteConflictError, type SaleVersionToken } from "@/persistence/errors";
 import { activateWaitingServiceWorker } from "@/registerServiceWorker";
@@ -86,7 +86,6 @@ function AppContent({ cloudAccount }: { cloudAccount?: CloudAccount }) {
   const [destination, setDestination] = useState<AppDestination>({ view: "dashboard" });
   const [tabContext, setTabContext] = useState<TabContext | null>(null);
   const saleFormReturnFocusRef = useRef<HTMLElement | null>(null);
-  const latestConflictSalesRef = useRef(new Map<string, Sale>());
   const tabContextInitializedRef = useRef(false);
   const settings = useMemo(
     () => persistedSettings
@@ -227,18 +226,17 @@ function AppContent({ cloudAccount }: { cloudAccount?: CloudAccount }) {
   }
 
   async function handleLoadLatestSale(saleId: string) {
-    let latest = latestConflictSalesRef.current.get(saleId);
-    if (!latest) {
-      const refreshed = await refreshAfterExternalMutation();
-      latest = refreshed?.sales.find((sale) => sale.id === saleId);
-    }
+    // A cached conflict snapshot may itself have changed while the user was
+    // reviewing the dialog. Explicit recovery always rechecks the server.
+    const refreshed = await refreshAfterExternalMutation();
+    const latest = refreshed?.sales.find((sale) => sale.id === saleId);
     if (!latest || latest.deletedAt) {
       toast.error("Latest sale could not be loaded.", {
         description: "Close this form, reopen the sales log, and try again.",
       });
       return;
     }
-    latestConflictSalesRef.current.delete(saleId);
+    await resolveRevertedSaleWrite(latest);
     setSaleToEdit(latest);
     setSaleFormInstance((instance) => instance + 1);
     setSaleFormOpen(true);
@@ -250,16 +248,13 @@ function AppContent({ cloudAccount }: { cloudAccount?: CloudAccount }) {
   async function handleSaveSale(sale: Sale, isNew: boolean, options: { silent?: boolean; expectedVersion?: SaleVersionToken } = {}) {
     try {
       const saved = await saveSale(sale, isNew, options.expectedVersion);
-      latestConflictSalesRef.current.delete(sale.id);
       if (!options.silent) toast.success(isNew ? "Sale added." : "Sale updated.", {
         description: `${sale.stockNumber || "Missing stock"} · ${sale.status}`,
       });
       return saved;
     } catch (caughtError) {
       if (isSaleWriteConflictError(caughtError)) {
-        const refreshed = await refreshAfterExternalMutation();
-        const latest = refreshed?.sales.find((sale) => sale.id === caughtError.saleId);
-        if (latest) latestConflictSalesRef.current.set(caughtError.saleId, latest);
+        await refreshAfterExternalMutation();
         if (!options.silent) toast.error("Newer sale changes found.", {
           description: "Use Load latest in the open sale to review the saved version.",
         });
