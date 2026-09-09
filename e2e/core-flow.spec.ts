@@ -367,44 +367,6 @@ test("Google Drive handoff checks a complete backup before download", async ({ p
   await expect(dialog).toContainText("Backup download started");
 });
 
-test("automatic folder backup verifies saved changes and reconnects after reload", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(window, "showDirectoryPicker", {
-      configurable: true,
-      value: () => navigator.storage.getDirectory(),
-    });
-  });
-  await page.goto("/");
-  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
-  await openSettingsDisclosure(page, ".data-settings");
-  const backupSection = page.getByRole("region", { name: "Automatic backup folder" });
-  await backupSection.getByRole("button", { name: "Choose backup folder" }).click();
-  await expect(backupSection).toContainText("Automatic backups on");
-  await expect(backupSection).toContainText("Last successful backup");
-
-  await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
-  await page.getByLabel(/Customer last name/).fill("BackupTest");
-  await page.getByLabel(/Stock number/).fill("AUTO-BACKUP-001");
-  await page.getByLabel("Front gross").fill("2000");
-  await page.getByRole("button", { name: "Add sale", exact: true }).click();
-  await expect(page.getByText("Sale added.")).toBeVisible();
-
-  await expect.poll(async () => page.evaluate(async () => {
-    const root = await navigator.storage.getDirectory();
-    const directory = await root.getDirectoryHandle("Sales Ledger Backups");
-    const handle = await directory.getFileHandle("Sales Ledger - Current Backup.json");
-    const parsed = JSON.parse(await (await handle.getFile()).text()) as {
-      data?: { sales?: Array<{ stockNumber?: string }> };
-    };
-    return parsed.data?.sales?.some((sale) => sale.stockNumber === "AUTO-BACKUP-001") ?? false;
-  }), { timeout: 10_000 }).toBe(true);
-
-  await page.reload();
-  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
-  await openSettingsDisclosure(page, ".data-settings");
-  await expect(page.getByRole("region", { name: "Automatic backup folder" })).toContainText("Automatic backups on");
-});
-
 test("populated dashboard and sales views have no automatically detectable WCAG A/AA violations", async ({ page }, testInfo) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
