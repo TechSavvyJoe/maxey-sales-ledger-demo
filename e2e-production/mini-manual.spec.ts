@@ -18,6 +18,8 @@ test("compiled Mini settings and personal spiff payouts survive save, reload, an
   await page.clock.setFixedTime(new Date("2026-09-03T16:00:00.000Z"));
   await page.goto("./");
   await expect(page.locator(".dashboard-page")).toBeVisible();
+  await page.getByRole("button", { name: /^Choose reporting month/ }).click();
+  await page.getByRole("button", { name: "This month", exact: true }).click();
   await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
   await page.getByLabel("Customer last name", { exact: true }).fill("Example");
   await page.getByLabel(/Stock number/).fill("MINI-RELEASE-TEST");

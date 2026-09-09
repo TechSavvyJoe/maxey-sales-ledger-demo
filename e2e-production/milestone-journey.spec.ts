@@ -30,13 +30,15 @@ test("compiled milestone journey from next reward through delivery, reports, and
   await page.clock.setFixedTime(new Date("2026-09-15T16:00:00Z"));
   await page.goto("./");
   await expect(page.locator(".dashboard-page")).toBeVisible();
+  await page.getByRole("button", { name: /^Choose reporting month/ }).click();
+  await page.getByRole("button", { name: "This month", exact: true }).click();
   // Public builds preload fictional history. Remove it via the supported UI in
   // this isolated test profile before constructing exact threshold fixtures.
   if (await page.getByRole("complementary", { name: "Demo data active" }).count()) {
     await page.getByRole("button", { name: "Settings", exact: true }).first().click();
     await page.getByRole("button", { name: /^Data & backups/ }).click();
-    await page.getByRole("button", { name: "Remove demo data", exact: true }).click();
-    await page.getByRole("dialog").getByRole("button", { name: "Remove demo data", exact: true }).click();
+    await page.getByRole("button", { name: /^Remove (?:sample|demo) data$/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /^Remove (?:sample|demo) data$/ }).click();
     await expect(page.getByRole("complementary", { name: "Demo data active" })).toHaveCount(0);
     await page.getByRole("button", { name: "Dashboard", exact: true }).first().click();
   }

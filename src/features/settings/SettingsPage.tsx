@@ -51,6 +51,7 @@ import {
   type AutomaticBackupController,
 } from "@/features/settings/AutomaticBackupCard";
 import { GoogleDriveBackupCard } from "@/features/settings/GoogleDriveBackupCard";
+import { WorkspaceExportCard } from "./WorkspaceExportCard";
 import {
   applySettingsNumber,
   createBonusRowIdentity,
@@ -670,7 +671,7 @@ export function SettingsPage({
   async function saveSettings(background = false) {
     if (savingRef.current) return;
     if (externalSettingsChange) {
-      if (!background) toast.error("Settings changed in another tab. Load the latest settings before saving.");
+      if (!background) toast.error("Saved settings have changed. Load the latest settings before saving.");
       return;
     }
     // Canonicalize valid visible text even when a different field blocks saving.
@@ -1079,8 +1080,8 @@ export function SettingsPage({
         <div className="form-summary-error settings-external-change" role="alert">
           <AlertTriangle aria-hidden="true" />
           <div>
-            <strong>Settings changed in another tab</strong>
-            <p>Sales Ledger paused saving so newer profile or pay-plan information cannot be overwritten. Load the latest settings, then re-enter any change you still need.</p>
+            <strong>Saved settings have changed</strong>
+            <p>Saved profile or pay-plan information differs from the version you opened. Saving is paused to protect those changes. Load the latest settings, then re-enter any change you still need.</p>
             <Button type="button" variant="outline" onClick={loadLatestSettings}>Load latest settings</Button>
           </div>
         </div>
@@ -1506,8 +1507,8 @@ export function SettingsPage({
           {CLOUD_BUILD ? <div className="cloud-data-copy">
             <p><strong>Save here. Open it on your next computer.</strong></p>
             <p><strong>Automatic saving:</strong> Your sales and settings follow your signed-in account. Use the same account on another device—no folders or uploads needed. If saving needs attention, leave the page open and reconnect.</p>
-            <p><strong>Recovery:</strong> Open <strong>Sales → Recently deleted</strong> to restore a deleted sale. Earlier sale versions are retained for recovery support; automatic recovery backups are not included.</p>
-            <Button variant="outline" disabled={isDirty} onClick={() => void exportBackup()}><FileJson aria-hidden="true" /> Download a copy</Button>
+            <p><strong>Find older sales:</strong> Open <strong>Sales → All months</strong> to search your full history. Use <strong>Recently deleted</strong> there to restore a deleted sale.</p>
+            <p><strong>Recovery:</strong> Earlier sale versions are retained for recovery support; automatic recovery backups are not included.</p>
           </div> : <>
           <div className="storage-card">
             <span className="storage-card__icon"><HardDrive aria-hidden="true" /></span>
@@ -1578,6 +1579,8 @@ export function SettingsPage({
           </div>
           </>}
         </SettingsDisclosure>
+
+        <WorkspaceExportCard waitingForSave={isDirty || isSaving} />
 
         <SettingsSecondaryDisclosure
           className="privacy-settings"

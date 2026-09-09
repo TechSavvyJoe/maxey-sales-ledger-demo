@@ -986,7 +986,7 @@ export function FiReportCenter({
                 <article key={item.sale.id} className="fi-evidence-card report-openable-sale" onClick={(event) => openSaleFromReportRow(event, item.sale, onOpenSale)}>
                   <header>
                     <div><ReportSaleIdentity sale={item.sale} includeLastNames={includeLastNames} onOpenSale={onOpenSale} /><ReportMilestoneIndicator item={item} /></div>
-                    <span>{formatUnitCredit(item.sale.unitCreditBasis)} units</span>
+                    <span>{formatUnitCredit(item.sale.unitCreditBasis)} {item.sale.unitCreditBasis === 1000 ? "unit" : "units"}</span>
                   </header>
                   <ReportSaleMetadata sale={item.sale} onOpenSale={onOpenSale} />
                   <ProductOutcomeBadges sale={item.sale} />

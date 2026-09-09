@@ -25,6 +25,8 @@ Neither edition is an official dealership DMS/CRM, payroll system, manager dashb
 - Persistent demo-data labeling across the workspace while sample records are included in totals and exports.
 - Account-scoped Firebase rules, self-service own-UID enrollment, Google/email-link sign-in, background cloud editor drafts, acknowledged autosave, cross-account denial, stale-write protection, and three-browser emulator journeys.
 - A safe reload screen for tabs left open across a deployment, preventing expired lazy page files from producing a blank application.
+- Complete account-scoped Excel and JSON downloads in Settings, using a fresh saved snapshot rather than the visible reporting period. The independent 18-sheet workbook contains a month-selectable Report, full saved sales, commissions, reporting, settings and retained deleted records; see `portable-workbook-validation-2026-09-09.md` for formula and spreadsheet-viewer evidence.
+- An explicit **All months** Sales search that preserves each sale's original month and pay plan when showing commissions, plus all-history access to retained deleted sales.
 
 Exact executed results for the release package are recorded in the final handoff rather than hard-coded here so this document cannot become stale.
 
@@ -83,3 +85,4 @@ For the local/demo build or any new host:
 - Product and financing outcomes may be Yes, No, or Not marked. Sales Ledger stores one total deal-level F&I gross only and cannot attribute dollars, commission, chargebacks, or cancellations to an individual outcome. Matching-outcome cohort gross can overlap and is not additive across rows.
 - Delete and demo removal are soft deletes; there is no permanent purge/retention scheduler.
 - Complete JSON backups always include last names, gross/payroll values, deleted rows, settings, and activity.
+- Complete Excel downloads contain the same sensitive saved business information and work independently after download. They are not a clone of the application: no cloud syncing, sign-in, draft recovery or prior sale versions; export-time inclusion and ordering are fixed, and adding or restructuring records requires checking the spreadsheet model. Neither download enables scheduled server backups.

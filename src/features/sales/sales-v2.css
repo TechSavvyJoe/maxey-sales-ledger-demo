@@ -1,5 +1,87 @@
 /* Sales workspace: responsive table/list behavior and legible input density. */
 
+.app-shell .sales-page .sales-history-scope {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.app-shell .sales-page .sales-history-scope__choices {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--color-control-border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+
+.app-shell .sales-page .sales-history-scope__choices button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--navy-900);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+}
+
+.app-shell .sales-page .sales-history-scope__choices button[aria-pressed="true"] {
+  background: var(--blue-700);
+  color: white;
+}
+
+.app-shell .sales-page .sales-history-scope > span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.app-shell .sales-page .sales-history-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.app-shell .sales-page .row-primary-action strong,
+.app-shell .sales-page .row-primary-action small,
+.app-shell .sales-page .sales-table--deleted td:nth-child(2) strong,
+.app-shell .sales-page .sales-table--deleted td:nth-child(2) small {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .sales-page .sales-surface .sales-table thead th:first-child {
+  width: 106px;
+}
+
+.app-shell .sales-page .sales-surface .sales-table:not(.sales-table--deleted) thead th:nth-child(2) {
+  width: 215px;
+}
+
+@media (min-width: 1121px) and (max-width: 1320px) {
+  .app-shell .sales-page .sales-surface .sales-table:not(.sales-table--deleted) thead th:nth-child(2) {
+    width: calc(29% - 118px);
+  }
+
+  .app-shell .sales-page .sales-surface .sales-table:not(.sales-table--deleted) thead th:last-child {
+    width: 60px;
+  }
+}
+
+.app-shell .sales-page .sales-table time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .app-shell .sales-page,
 .app-shell .sales-page > *,
 .app-shell .sales-toolbar,

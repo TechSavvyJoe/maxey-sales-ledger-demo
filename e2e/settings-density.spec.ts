@@ -307,6 +307,7 @@ test("Settings uses one stable category strip and expanded sections never leave 
     await page.getByRole("button", { name: "Data & backups", exact: true }).click();
     const privacy = page.locator(".privacy-settings");
     const activity = page.locator(".activity-settings");
+    await expect(page.locator("#settings-panel-data > .workspace-export")).toBeVisible();
 
     for (const state of ["collapsed", "privacy", "both", "activity"] as const) {
       if (state === "privacy") await privacy.locator(":scope > summary").click();
@@ -319,7 +320,8 @@ test("Settings uses one stable category strip and expanded sections never leave 
           return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width };
         })
       ));
-      expect(stack.length).toBe(4);
+      // Complete workspace downloads are a fifth section in the same flow.
+      expect(stack.length).toBe(5);
       expect(stack.every((rect) => Math.abs(rect.left - stack[0].left) < 1),
         `${viewport.name} ${state} sections share one left edge`).toBe(true);
       expect(stack.every((rect) => Math.abs(rect.width - stack[0].width) < 1),

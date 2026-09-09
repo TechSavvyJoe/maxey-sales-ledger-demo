@@ -357,6 +357,19 @@ describe("explicit cloud destination", () => {
     expect(getCloudStorageState()?.lastSavedAt).toBeNull();
     expect(getCloudStorageState()?.pending).toBe(0);
   });
+  it("rejects a late settings acknowledgement after account change without publishing it to the new workspace", async () => {
+    const first = fake();
+    const pending = deferred();
+    const saved = { ...createDefaultSettings(), salespersonName: "Old account example" };
+    first.persistSettings.mockImplementationOnce(async () => { await pending.promise; return saved; });
+    const saving = persistSettings(saved);
+    deactivate?.();
+    const second = fake();
+    pending.resolve();
+    await expect(saving).rejects.toThrow("account changed");
+    expect(second.persistSettings).not.toHaveBeenCalled();
+    expect(getCloudStorageState()).toMatchObject({ error: null, pending: 0, lastSavedAt: null });
+  });
   it("month navigation never claims a cloud save or clears a failed-save warning", async () => {
     const target = fake();
     target.persistSale.mockRejectedValue(new Error("Save failed"));

@@ -201,7 +201,17 @@ export async function resolveRevertedSaleWrite(expected: Sale): Promise<void> {
 export const persistSale: typeof local.persistSale = (...args) => write(`sale:${args[0].id}`, (target) => target.persistSale(...args));
 export const softDeleteSale: typeof local.softDeleteSale = (...args) => write(`sale:${args[0].id}`, (target) => target.softDeleteSale(...args));
 export const restoreSale: typeof local.restoreSale = (...args) => write(`sale:${args[0].id}`, (target) => target.restoreSale(...args));
-export const persistSettings: typeof local.persistSettings = (...args) => write("settings", (target) => target.persistSettings(...args));
+export const persistSettings: typeof local.persistSettings = (...args) => {
+  const assertCurrent = captureStorageContext();
+  return write("settings", async (target) => {
+    assertCurrent();
+    const result = await target.persistSettings(...args);
+    // A late acknowledgement (including verified lost-response recovery)
+    // belongs only to the workspace that started the settings change.
+    assertCurrent();
+    return result;
+  });
+};
 export const updateSelectedContext: typeof local.updateSelectedContext = (settings, changes) => {
   // Month/view selection is device-local in cloud mode. It is not evidence of
   // an acknowledged server write and must not clear a failed-save warning.

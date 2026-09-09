@@ -23,7 +23,7 @@ test("settings refresh across tabs without silently overwriting newer edits", as
   await expect(secondPage.getByText("Changes save automatically when you finish typing.")).toBeVisible();
   await expect(secondPage.getByText("All changes saved. Settings save automatically.")).toBeVisible();
 
-  await expect(page.getByRole("alert").filter({ hasText: "Settings changed in another tab" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Saved settings have changed" })).toBeVisible();
   await expect(firstGoal).toHaveValue("");
   await expect(page.getByRole("button", { name: "Save settings", exact: true }).first()).toBeDisabled();
 

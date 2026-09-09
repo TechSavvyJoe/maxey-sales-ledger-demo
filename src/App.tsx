@@ -3,6 +3,7 @@ import { AlertTriangle, FlaskConical, RefreshCw } from "lucide-react";
 import { ThemeProvider } from "next-themes";
 import { WorkspaceToastProvider, useWorkspaceToast } from "@/hooks/useWorkspaceToast";
 import { AppShell } from "@/components/AppShell";
+import { WorkspaceLoading } from "@/components/WorkspaceLoading";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { SaleFormSheet } from "@/features/sales/SaleFormSheet";
@@ -196,13 +197,7 @@ function AppContent({ cloudAccount }: { cloudAccount?: CloudAccount }) {
   }
 
   if (isLoading || !settings) {
-    return (
-      <div className="app-loading" role="status">
-        <img className="app-loading__mark" src={`${import.meta.env.BASE_URL}brand/sales-ledger-mark.svg`} width="48" height="48" alt="" />
-        <strong>Opening your sales workspace</strong>
-        <small>Loading your sales and totals…</small>
-      </div>
-    );
+    return <WorkspaceLoading isOnline={isOnline} isCloud={CLOUD_BUILD} />;
   }
 
   function openNewSale() {

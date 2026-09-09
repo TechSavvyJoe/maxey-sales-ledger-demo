@@ -1,3 +1,6 @@
+overrides:
+  # ExcelJS uses only the compatible v4 API; keep its UUID dependency patched.
+  'exceljs>uuid': 11.1.1
 allowBuilds:
   '@firebase/util': false
   protobufjs: false

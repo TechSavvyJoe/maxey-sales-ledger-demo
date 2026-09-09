@@ -33,13 +33,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageHeading, ReviewState, StatusBadge } from "@/components/shared";
 import { attentionSummary, getAttentionRecords } from "@/domain/attention";
-import { calculateMonth } from "@/domain/commission";
 import { formatSaleDate, monthKeyFromDate, monthLabel, todayDateOnly } from "@/domain/date";
 import { formatCurrency, formatUnitCredit } from "@/domain/money";
 import type { SalesDestinationFilter } from "@/domain/navigation";
-import { getPayPlanSchedule } from "@/domain/payPlan";
 import type { CalculatedSale, EditableSaleStatus, ProfileSettings, Sale } from "@/domain/types";
 import { cn } from "@/lib/utils";
+import { calculateSalesHistory, matchesSaleSearch } from "./salesHistory";
+import type { SalesHistoryItem, SalesScope } from "./salesHistory";
 
 type Filter = "all" | EditableSaleStatus | "review" | "deleted";
 type Sort =
@@ -135,58 +135,51 @@ export function SalesPage({
 }: SalesPageProps) {
   const toast = useWorkspaceToast();
   const [query, setQuery] = useState("");
+  const [scope, setScope] = useState<SalesScope>("month");
   const [filter, setFilter] = useState<Filter>(initialFilter ?? "all");
   const [sort, setSort] = useState<Sort>("newest");
   const [visibleCount, setVisibleCount] = useState(SALES_PAGE_SIZE);
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [restoringSaleId, setRestoringSaleId] = useState<string | null>(null);
-  const payPlanSchedule = useMemo(
-    () => getPayPlanSchedule(settings),
-    [settings],
+  const calculatedSales = useMemo(
+    () => calculateSalesHistory(sales, settings, scope),
+    [sales, settings, scope],
   );
-
-  const summary = useMemo(
-    () =>
-      calculateMonth(
-        sales,
-        settings.selectedMonth,
-        payPlanSchedule,
-        settings.actualPaidByMonth[settings.selectedMonth] ?? null,
-      ),
-    [payPlanSchedule, sales, settings.actualPaidByMonth, settings.selectedMonth],
-  );
-  const attentionRecords = useMemo(
-    () => getAttentionRecords(summary.calculatedSales, todayDateOnly()),
-    [summary.calculatedSales],
-  );
+  const attentionRecords = useMemo(() => {
+    const records = new Map(getAttentionRecords(calculatedSales, todayDateOnly()).map((record) => [record.id, record]));
+    for (const item of calculatedSales) {
+      if (!item.calculationUnavailable) continue;
+      const existing = records.get(item.sale.id);
+      records.set(item.sale.id, {
+        id: item.sale.id, sale: item.sale, stockLabel: item.sale.stockNumber || "Missing stock",
+        reasons: [...(existing?.reasons ?? []), { id: "unavailable-calculation", kind: "calculation",
+          label: item.calculationUnavailable, severity: "warning" }],
+        severity: existing?.severity ?? "warning", ageDays: existing?.ageDays ?? null,
+      });
+    }
+    return [...records.values()];
+  }, [calculatedSales]);
   const attentionBySaleId = useMemo(
     () => new Map(attentionRecords.map((record) => [record.sale.id, record])),
     [attentionRecords],
   );
 
+  const scopedDeletedSales = useMemo(() => sales.filter((sale) => sale.deletedAt
+    && (scope === "all-months" || monthKeyFromDate(sale.saleDate) === settings.selectedMonth)),
+  [sales, scope, settings.selectedMonth]);
   const deletedSales = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("en-US");
-    return sales
-      .filter((sale) => sale.deletedAt && monthKeyFromDate(sale.saleDate) === settings.selectedMonth)
-      .filter((sale) => !normalizedQuery || [sale.customerLastName, sale.stockNumber, sale.vehicleDescription]
-        .join(" ")
-        .toLocaleLowerCase("en-US")
-        .includes(normalizedQuery))
+    return scopedDeletedSales
+      .filter((sale) => matchesSaleSearch(sale, query))
       .sort((a, b) => (b.deletedAt ?? "").localeCompare(a.deletedAt ?? ""));
-  }, [query, sales, settings.selectedMonth]);
+  }, [query, scopedDeletedSales]);
 
   const filteredSales = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase("en-US");
-    const matches = summary.calculatedSales.filter((item) => {
+    const matches = calculatedSales.filter((item) => {
       if (filter === "deleted") return false;
       if (filter === "review" && !attentionBySaleId.has(item.sale.id)) return false;
       if ((filter === "delivered" || filter === "pending") && item.sale.status !== filter) return false;
-      if (!normalizedQuery) return true;
-      return [item.sale.customerLastName, item.sale.stockNumber, item.sale.vehicleDescription]
-        .join(" ")
-        .toLocaleLowerCase("en-US")
-        .includes(normalizedQuery);
+      return matchesSaleSearch(item.sale, query);
     });
     const newestFirst = (a: CalculatedSale, b: CalculatedSale) =>
       b.sale.saleDate.localeCompare(a.sale.saleDate) || b.sale.updatedAt.localeCompare(a.sale.updatedAt);
@@ -214,7 +207,10 @@ export function SalesPage({
       if (sort === "review-first") {
         return Number(attentionBySaleId.has(b.sale.id)) - Number(attentionBySaleId.has(a.sale.id)) || newestFirst(a, b);
       }
-      if (sort === "commission-high") return b.estimatedCommissionCents - a.estimatedCommissionCents;
+      if (sort === "commission-high") return nullableAmountDescending(
+        a.calculationUnavailable ? null : a.estimatedCommissionCents,
+        b.calculationUnavailable ? null : b.estimatedCommissionCents,
+      ) || newestFirst(a, b);
       if (sort === "front-high") {
         return nullableAmountDescending(a.sale.frontGrossCents, b.sale.frontGrossCents) || newestFirst(a, b);
       }
@@ -226,14 +222,14 @@ export function SalesPage({
       }
       return newestFirst(a, b);
     });
-  }, [attentionBySaleId, filter, query, sort, summary.calculatedSales]);
+  }, [attentionBySaleId, calculatedSales, filter, query, sort]);
 
   const statusCounts: Record<Filter, number> = {
-    all: summary.calculatedSales.length,
-    delivered: summary.calculatedSales.filter((item) => item.sale.status === "delivered").length,
-    pending: summary.calculatedSales.filter((item) => item.sale.status === "pending").length,
+    all: calculatedSales.length,
+    delivered: calculatedSales.filter((item) => item.sale.status === "delivered").length,
+    pending: calculatedSales.filter((item) => item.sale.status === "pending").length,
     review: attentionRecords.length,
-    deleted: sales.filter((sale) => sale.deletedAt && monthKeyFromDate(sale.saleDate) === settings.selectedMonth).length,
+    deleted: scopedDeletedSales.length,
   };
   const hasActiveFilters = query.trim().length > 0 || filter !== "all";
   const filteredContext = useMemo(() => {
@@ -250,11 +246,24 @@ export function SalesPage({
       ),
     };
   }, [filteredSales]);
+  const unavailableCalculationCount = filteredSales.filter((item) => item.calculationUnavailable).length;
   const headingDescription = filter === "deleted"
     ? `${deletedSales.length} recently deleted ${deletedSales.length === 1 ? "sale" : "sales"} · restore any sale without replacing the rest of your data`
+    : unavailableCalculationCount
+    ? `${filteredSales.length} sales · ${unavailableCalculationCount} ${unavailableCalculationCount === 1 ? "sale needs" : "sales need"} a date or pay-plan review before totals are available`
     : hasActiveFilters
-    ? `Showing ${filteredSales.length} of ${summary.calculatedSales.length} sales · ${filteredContext.delivered} delivered · ${formatCurrency(filteredContext.frontGrossCents)} front gross · ${formatCurrency(filteredContext.fiGrossCents)} total F&I gross`
-    : `${summary.deliveredCount} delivered · ${formatCurrency(summary.frontGrossCents)} front gross · ${formatCurrency(summary.fiGrossCents)} total F&I gross`;
+    ? `Showing ${filteredSales.length} of ${calculatedSales.length} sales · ${filteredContext.delivered} delivered · ${formatCurrency(filteredContext.frontGrossCents)} front gross · ${formatCurrency(filteredContext.fiGrossCents)} total F&I gross`
+    : `${filteredContext.delivered} delivered · ${formatCurrency(filteredContext.frontGrossCents)} front gross · ${formatCurrency(filteredContext.fiGrossCents)} total F&I gross`;
+  const scopeLabel = scope === "all-months" ? "All months" : monthLabel(settings.selectedMonth);
+
+  function showAllMonths() {
+    setScope("all-months");
+    setVisibleCount(SALES_PAGE_SIZE);
+  }
+
+  function commissionLabel(item: SalesHistoryItem) {
+    return item.calculationUnavailable ? "—" : formatCurrency(item.estimatedCommissionCents);
+  }
 
   function clearFilters() {
     setQuery("");
@@ -319,11 +328,22 @@ export function SalesPage({
   return (
     <div className="page-stack sales-page">
       <PageHeading
-        eyebrow={monthLabel(settings.selectedMonth)}
+        eyebrow={scopeLabel}
         title="Sales"
         description={headingDescription}
         action={<ReviewState count={attentionRecords.length} />}
       />
+
+      <div className="sales-history-scope">
+        <div className="sales-history-scope__choices" role="group" aria-label="Sales time range">
+          <button type="button" aria-pressed={scope === "month"} onClick={() => {
+            setScope("month");
+            setVisibleCount(SALES_PAGE_SIZE);
+          }}>{monthLabel(settings.selectedMonth)}</button>
+          <button type="button" aria-pressed={scope === "all-months"} onClick={showAllMonths}>All months</button>
+        </div>
+        <span>{scope === "all-months" ? "Each sale keeps its month’s commission." : "Find older sales with All months."}</span>
+      </div>
 
       <section className="sales-toolbar" aria-label="Search and filter sales">
         <div className="search-field">
@@ -401,7 +421,7 @@ export function SalesPage({
         {filter === "deleted" ? (
           deletedSales.length ? (
             <>
-              <div className="sales-table-wrap" role="region" aria-label={`${monthLabel(settings.selectedMonth)} recently deleted sales table`} tabIndex={0}>
+              <div className="sales-table-wrap" role="region" aria-label={`${scopeLabel} recently deleted sales table`} tabIndex={0}>
                 <table className="sales-table sales-table--deleted">
                   <thead>
                     <tr>
@@ -418,7 +438,7 @@ export function SalesPage({
                         <td><time dateTime={sale.saleDate}>{formatSaleDate(sale.saleDate)}</time></td>
                         <td><strong>{sale.customerLastName || "No last name"}</strong><small>{sale.vehicleDescription || "Vehicle not entered"}</small></td>
                         <td><span className="stock-number">{sale.stockNumber || "—"}</span></td>
-                        <td>{sale.deletedAt ? new Date(sale.deletedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</td>
+                        <td>{sale.deletedAt ? new Date(sale.deletedAt).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "—"}</td>
                         <td>
                           <Button type="button" variant="outline" size="sm" disabled={restoringSaleId === sale.id} onClick={() => void restoreDeletedSale(sale)}>
                             <Undo2 aria-hidden="true" /> {restoringSaleId === sale.id ? "Restoring…" : "Restore"}
@@ -458,14 +478,22 @@ export function SalesPage({
             </>
           ) : (
             <EmptyState
-              title="No recently deleted sales"
-              description="Deleted records from this month will appear here so they can be restored later."
-              action={hasActiveFilters && query ? <Button variant="outline" onClick={clearFilters}><X aria-hidden="true" /> Clear search</Button> : undefined}
+              title={query.trim() ? "No matching deleted sales" : "No recently deleted sales"}
+              description={query.trim() ? `No deleted sales match this search in ${scopeLabel.toLocaleLowerCase("en-US")}.`
+                : scope === "all-months" ? "Deleted records from any month will appear here so they can be restored later."
+                  : "Deleted records from this month will appear here so they can be restored later."}
+              action={<div className="sales-history-empty-actions">
+                {query.trim() ? <Button variant="outline" onClick={() => {
+                  setQuery("");
+                  setVisibleCount(SALES_PAGE_SIZE);
+                }}><X aria-hidden="true" /> Clear search</Button> : null}
+                {scope === "month" ? <Button variant="outline" onClick={showAllMonths}>Search all months</Button> : null}
+              </div>}
             />
           )
         ) : filteredSales.length ? (
           <>
-            <div className="sales-table-wrap" role="region" aria-label={`${monthLabel(settings.selectedMonth)} sales table`} tabIndex={0}>
+            <div className="sales-table-wrap" role="region" aria-label={`${scopeLabel} sales table`} tabIndex={0}>
               <table className="sales-table">
                 <thead>
                   <tr>
@@ -500,7 +528,7 @@ export function SalesPage({
                       <td className="numeric">{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</td>
                       <td><SaleProductBadges sale={item.sale} /></td>
                       <td className="numeric estimate-cell">
-                        <strong>{formatCurrency(item.estimatedCommissionCents)}</strong>
+                        <strong>{commissionLabel(item)}</strong>
                         {item.frontCommissionMethod === "mini" ? <small>Mini</small> : item.frontCommissionMethod === "manual" ? <small>Manual/spiff</small> : null}
                         <SaleMilestoneLink item={item} onOpen={onEditSale} />
                         {attentionBySaleId.has(item.sale.id) ? (
@@ -541,7 +569,7 @@ export function SalesPage({
                     <dl>
                       <div><dt>Front</dt><dd>{item.sale.frontGrossCents === null ? "—" : formatCurrency(item.sale.frontGrossCents)}</dd></div>
                       <div><dt>F&amp;I</dt><dd>{item.sale.fiGrossCents === null ? "—" : formatCurrency(item.sale.fiGrossCents)}</dd></div>
-                      <div><dt>Est. commission</dt><dd>{formatCurrency(item.estimatedCommissionCents)}</dd></div>
+                      <div><dt>Est. commission</dt><dd>{commissionLabel(item)}</dd></div>
                     </dl>
                     <SaleProductBadges sale={item.sale} />
                   </div>
@@ -575,20 +603,24 @@ export function SalesPage({
           </>
         ) : (
           <EmptyState
-            title={summary.calculatedSales.length ? "No matching sales" : "No sales in this month yet"}
+            title={hasActiveFilters ? "No matching sales" : scope === "all-months" ? "No sales yet" : "No sales in this month yet"}
             description={
-              summary.calculatedSales.length
-                ? "Change the filter or clear the search."
-                : "Add a delivered or pending vehicle to start tracking this month."
+              hasActiveFilters
+                ? `No sales match these filters in ${scopeLabel.toLocaleLowerCase("en-US")}.`
+                : scope === "all-months" ? "Add a delivered or pending vehicle to start tracking your sales."
+                  : "Add a delivered or pending vehicle, or search your older sales."
             }
             action={
-              summary.calculatedSales.length ? (
-                <Button variant="outline" onClick={clearFilters}>
-                  <SlidersHorizontal aria-hidden="true" /> Clear filters
-                </Button>
-              ) : (
-                <Button onClick={onAddSale}><Plus aria-hidden="true" /> Add sale</Button>
-              )
+              <div className="sales-history-empty-actions">
+                {hasActiveFilters ? (
+                  <Button variant="outline" onClick={clearFilters}>
+                    <SlidersHorizontal aria-hidden="true" /> Clear filters
+                  </Button>
+                ) : (
+                  <Button onClick={onAddSale}><Plus aria-hidden="true" /> Add sale</Button>
+                )}
+                {scope === "month" ? <Button variant="outline" onClick={showAllMonths}>Search all months</Button> : null}
+              </div>
             }
           />
         )}

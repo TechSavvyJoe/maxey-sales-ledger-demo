@@ -314,15 +314,17 @@ export function createFirebaseRepository(
     event: Omit<AuditEvent, "id" | "profileId" | "occurredAt">,
     timestamp: string,
     settings = stored.settings,
-  ): void {
+  ): AuditEvent {
     const cloudRevision = stored.cloudRevision + 1;
-    transaction.set(settingsRef, { ...settings, cloudRevision });
-    transaction.set(eventRef, withoutUndefined({
+    const audit = withoutUndefined({
       ...event,
       id: cloudRevision,
       profileId: PROFILE_ID,
       occurredAt: timestamp,
-    }) as DocumentData);
+    }) as AuditEvent;
+    transaction.set(settingsRef, { ...settings, cloudRevision });
+    transaction.set(eventRef, audit as DocumentData);
+    return audit;
   }
 
   async function persistSale(sale: Sale, isNew: boolean, expectedVersion?: SaleVersionToken): Promise<Sale> {
@@ -426,6 +428,7 @@ export function createFirebaseRepository(
       for (let attempt = 0; attempt < SNAPSHOT_ATTEMPTS; attempt += 1) {
         const snapshot = await readConsistentSnapshot();
         if (snapshot.settings.updatedAt !== expectedUpdatedAt) throw new SettingsWriteConflictError();
+        let attempted: { stored: StoredSettings; audit: AuditEvent } | undefined;
         try {
           const committed = await runTransaction(firestore, async (transaction) => {
             assertOnline();
@@ -448,7 +451,7 @@ export function createFirebaseRepository(
             const schedule = getPayPlanSchedule(updated);
             snapshot.sales.forEach((item) => assertSaleHasPayPlanCoverage(item, schedule));
             const payPlanChanged = stableJson(getPayPlanSchedule(stored.settings)) !== stableJson(schedule);
-            commitAudit(transaction, eventRef, stored, {
+            const audit = commitAudit(transaction, eventRef, stored, {
               action: "settings.updated",
               summary: payPlanChanged
                 ? `Updated pay plan ${updated.payPlan.version} beginning ${updated.payPlan.effectiveMonth}.`
@@ -463,10 +466,35 @@ export function createFirebaseRepository(
                 } : {}),
               },
             }, timestamp, updated);
+            attempted = { stored: { settings: updated, cloudRevision: stored.cloudRevision + 1 }, audit };
             return updated;
           }, { maxAttempts: 3 });
           return forThisDevice(committed);
         } catch (error) {
+          // A response can fail after the atomic commit reached the server.
+          // Confirm only this exact attempted payload and its unique audit
+          // document, never a matching name, cached view, or newer revision.
+          // A read-only transaction validates both server versions together;
+          // independent listener-backed reads can temporarily disagree after
+          // a failed response. Await its validation, with no write or retry.
+          // Denied/failed verification preserves the original save error.
+          if (attempted) {
+            try {
+              assertOnline();
+              const receipt = attempted;
+              const confirmed = await runTransaction(firestore, async (transaction) => {
+                const [current, audit] = await Promise.all([
+                  transaction.get(settingsRef), transaction.get(eventRef),
+                ]);
+                return [current, audit].every((document) =>
+                  !document.metadata.fromCache && !document.metadata.hasPendingWrites)
+                  && stableJson(parseSettingsDocument(current)) === stableJson(receipt.stored)
+                  && stableJson(parseAuditDocument(audit)) === stableJson(receipt.audit);
+              }, { maxAttempts: 1 });
+              assertOnline();
+              if (confirmed) return forThisDevice(receipt.stored.settings);
+            } catch { /* An unconfirmed write must remain a visible failure. */ }
+          }
           if (!(error instanceof SnapshotChangedError)) throw error;
         }
       }

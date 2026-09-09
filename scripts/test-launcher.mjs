@@ -147,7 +147,20 @@ async function assertSaleSurvived(profileDirectory) {
     const page = context.pages()[0] ?? await context.newPage();
     await page.goto(appUrl);
     await page.getByRole("button", { name: "Sales", exact: true }).first().click();
+    // Demo builds open a completed month, and Sales paginates newest first.
+    // Find the fixture by its identity instead of assuming its month/page.
+    await page.getByRole("group", { name: "Sales time range" })
+      .getByRole("button", { name: "All months", exact: true }).click();
+    await page.getByRole("searchbox", { name: "Search sales" }).fill("LAUNCH-0001");
     await page.getByText("LAUNCH-0001").first().waitFor();
+    await page.locator(".sales-table tbody tr").filter({ hasText: "LAUNCH-0001" })
+      .getByRole("button", { name: /LauncherTest/ }).click();
+    await page.getByRole("heading", { name: "Edit sale", exact: true }).waitFor();
+    const editor = page.getByRole("dialog");
+    assert.equal(await editor.getByLabel(/Customer last name/).inputValue(), "LauncherTest");
+    assert.equal(await editor.getByLabel(/Stock number/).inputValue(), "LAUNCH-0001");
+    assert.equal(Number((await editor.getByLabel("Front gross", { exact: true }).inputValue()).replaceAll(",", "")), 2000);
+    assert.equal(Number((await editor.getByLabel(/Total F&I gross/).inputValue()).replaceAll(",", "")), 500);
   } finally {
     await context.close();
   }

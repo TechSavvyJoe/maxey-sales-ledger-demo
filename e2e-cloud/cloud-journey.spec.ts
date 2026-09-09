@@ -262,12 +262,12 @@ test("self-service email-link login, Mini commission, second-device visibility, 
     });
     await expect(cloudSaving).toContainText("no folders or uploads needed");
     await expect(cloudSaving).toContainText("automatic recovery backups are not included");
-    await expect(page.getByRole("button", { name: "Download a copy", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download data file", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Import sales|Restore from backup|Choose.*folder|Connect.*folder|Connect Google Drive/i })).toHaveCount(0);
     await expect(page.locator('input[type="file"]')).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath("cloud-saving-settings.png"), fullPage: true });
     const downloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: "Download a copy", exact: true }).click();
+    await page.getByRole("button", { name: "Download data file", exact: true }).click();
     const download = await downloadPromise;
     expect(await download.failure()).toBeNull();
     const backupPath = testInfo.outputPath("synthetic-cloud-backup.json");
@@ -280,7 +280,7 @@ test("self-service email-link login, Mini commission, second-device visibility, 
         sales: [{ stockNumber: stock, customerLastName: "Example", frontGrossCents: -31661, fiGrossCents: 120000 }],
       },
     });
-    await expect(page.getByText("Verified full backup download started. Confirm the file was saved.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Data file download started." })).toBeVisible();
 
     // Leave a real, actionable notification at the account boundary. It must
     // not reappear in B's workspace or retain a callback to A's deleted sale.

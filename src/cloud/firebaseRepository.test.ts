@@ -29,6 +29,13 @@ const server = vi.hoisted(() => ({
   queryHook: undefined as undefined | ((path: string) => void),
   commitGate: undefined as undefined | Promise<void>,
   commitError: undefined as undefined | Error,
+  acknowledgementError: undefined as undefined | Error,
+  afterCommit: undefined as undefined | (() => void),
+  validateReadOnly: undefined as undefined | (() => void),
+  staleSettingsRead: undefined as undefined | Data,
+  readGate: undefined as undefined | Promise<void>,
+  readHook: undefined as undefined | ((path: string) => void),
+  readMetadata: undefined as undefined | Partial<Snapshot["metadata"]>,
   listener: undefined as undefined | ((snapshot: Snapshot) => void),
   listenerError: undefined as undefined | ((error: Error) => void),
   unsubscribe: vi.fn(),
@@ -56,7 +63,16 @@ vi.mock("firebase/firestore", () => {
     doc: vi.fn((parent: Ref | object, ...segments: string[]) => ref(parent, ...(
       segments.length ? segments : [`event-${++server.nextId}`]
     ))),
-    getDocFromServer: vi.fn(async (reference: Ref) => snapshot(reference)),
+    getDocFromServer: vi.fn(async (reference: Ref) => {
+      await server.readGate;
+      server.readHook?.(reference.path);
+      const result = snapshot(reference);
+      if (server.staleSettingsRead && reference.path.endsWith("/settings/primary")) {
+        result.data = () => structuredClone(server.staleSettingsRead);
+      }
+      result.metadata = { ...result.metadata, ...server.readMetadata };
+      return result;
+    }),
     getDocsFromServer: vi.fn(async (reference: Ref) => {
       const prefix = `${reference.path}/`;
       const docs = [...server.documents.keys()]
@@ -70,7 +86,13 @@ vi.mock("firebase/firestore", () => {
         server.transactionAttempts += 1;
         const writes: Array<[string, Data]> = [];
         const result = await callback({
-          get: async (reference: Ref) => snapshot(reference),
+          get: async (reference: Ref) => {
+            await server.readGate;
+            server.readHook?.(reference.path);
+            const result = snapshot(reference);
+            result.metadata = { ...result.metadata, ...server.readMetadata };
+            return result;
+          },
           set: (reference: Ref, data: Data) => { writes.push([reference.path, structuredClone(data)]); },
         });
         if (writes.length && server.retry) {
@@ -83,7 +105,9 @@ vi.mock("firebase/firestore", () => {
           await server.commitGate;
           if (server.commitError) throw server.commitError;
           for (const [path, data] of writes) server.documents.set(path, data);
-        }
+          server.afterCommit?.();
+          if (server.acknowledgementError) throw server.acknowledgementError;
+        } else server.validateReadOnly?.();
         return result;
       }
       throw new Error("Too many retries in test server.");
@@ -160,6 +184,13 @@ describe("Firebase online-first repository", () => {
     server.queryHook = undefined;
     server.commitGate = undefined;
     server.commitError = undefined;
+    server.acknowledgementError = undefined;
+    server.afterCommit = undefined;
+    server.validateReadOnly = undefined;
+    server.staleSettingsRead = undefined;
+    server.readGate = undefined;
+    server.readHook = undefined;
+    server.readMetadata = undefined;
     server.listener = undefined;
     server.listenerError = undefined;
     vi.clearAllMocks();
@@ -388,6 +419,90 @@ describe("Firebase online-first repository", () => {
     expect(server.documents.get(settingsPath)?.updatedAt).not.toBe(settings.updatedAt);
     expect(events()).toMatchObject([{ id: 1, action: "settings.updated", details: { payPlanChanged: false } }]);
   });
+
+  it.each(["unavailable", "permission-denied"])("confirms an exact settings commit after a lost %s acknowledgement, then reloads it", async (code) => {
+    const settings = seedSettings();
+    const status = vi.fn();
+    server.acknowledgementError = Object.assign(new Error("Save acknowledgement failed."), { code });
+    let releaseRead!: () => void;
+    server.afterCommit = () => {
+      server.readGate = new Promise<void>((resolve) => { releaseRead = resolve; });
+    };
+    const repository = createFirebaseRepository(firestore, "pilot-user", { onWriteStatus: status });
+    const saving = repository.persistSettings({ ...settings, salespersonName: "Confirmed example", monthlyGoal: 23 });
+    await vi.waitFor(() => expect(server.documents.get(settingsPath)?.salespersonName).toBe("Confirmed example"));
+    expect(status.mock.calls.map(([value]) => value)).toEqual(["saving"]);
+    releaseRead();
+    const committed = await saving;
+    expect(committed).toMatchObject({ salespersonName: "Confirmed example", monthlyGoal: 23 });
+    expect(committed.updatedAt).not.toBe(settings.updatedAt);
+    expect(status.mock.calls.map(([value]) => value)).toEqual(["saving", "saved"]);
+    expect(events()).toHaveLength(1);
+    expect(server.documents.get(settingsPath)?.cloudRevision).toBe(1);
+    const reloaded = await createFirebaseRepository(firestore, "pilot-user").loadTrackerData();
+    expect(reloaded.settings).toEqual(committed);
+    expect(reloaded.auditEvents).toEqual(events());
+    expect(reloaded.cloudRevision).toBe(1);
+  });
+
+  it("retains a real settings rejection instead of treating an unchanged server as saved", async () => {
+    const settings = seedSettings();
+    const status = vi.fn();
+    const failure = Object.assign(new Error("This account cannot save."), { code: "permission-denied" });
+    server.commitError = failure;
+    const before = structuredClone([...server.documents]);
+    await expect(createFirebaseRepository(firestore, "pilot-user", { onWriteStatus: status })
+      .persistSettings({ ...settings, salespersonName: "Unconfirmed example" })).rejects.toBe(failure);
+    expect([...server.documents]).toEqual(before);
+    expect(status.mock.calls.map(([value]) => value)).toEqual(["saving", "error"]);
+  });
+
+  it("uses a validated server transaction rather than a stale listener-backed settings read for recovery", async () => {
+    const settings = seedSettings();
+    server.acknowledgementError = new Error("The acknowledgement was lost.");
+    server.afterCommit = () => { server.staleSettingsRead = { ...settings, cloudRevision: 0 }; };
+    const committed = await createFirebaseRepository(firestore, "pilot-user")
+      .persistSettings({ ...settings, salespersonName: "Verified directly" });
+    expect(committed.salespersonName).toBe("Verified directly");
+    expect(server.documents.get(settingsPath)?.cloudRevision).toBe(1);
+    expect(events()).toHaveLength(1);
+  });
+
+  it.each(["missing audit", "different audit", "different event ID", "different settings", "newer revision", "denied read", "cached read", "pending read", "change during verification"])(
+    "keeps an uncertain settings save failed when fresh verification finds %s", async (scenario) => {
+      const settings = seedSettings();
+      const status = vi.fn();
+      const failure = new Error("The save could not be confirmed.");
+      server.acknowledgementError = failure;
+      server.afterCommit = () => {
+        const eventPath = [...server.documents.keys()].find((path) => path.includes("/auditEvents/"))!;
+        const stored = server.documents.get(settingsPath)!;
+        if (scenario === "missing audit") server.documents.delete(eventPath);
+        if (scenario === "different audit") server.documents.set(eventPath, { ...server.documents.get(eventPath), summary: "Another settings change." });
+        if (scenario === "different event ID") {
+          server.documents.set(`${eventPath}-other`, server.documents.get(eventPath)!);
+          server.documents.delete(eventPath);
+        }
+        if (scenario === "different settings") server.documents.set(settingsPath, { ...stored, monthlyGoal: 24 });
+        if (scenario === "newer revision") server.documents.set(settingsPath, { ...stored, cloudRevision: 2 });
+        if (scenario === "denied read") server.readHook = () => { throw Object.assign(new Error("Read denied."), { code: "permission-denied" }); };
+        if (scenario === "cached read") server.readMetadata = { fromCache: true };
+        if (scenario === "pending read") server.readMetadata = { hasPendingWrites: true };
+        if (scenario === "change during verification") {
+          server.validateReadOnly = () => {
+            server.documents.set(settingsPath, { ...stored, monthlyGoal: 25, cloudRevision: 2 });
+            throw new Error("Server read validation failed because the settings changed.");
+          };
+        }
+      };
+      await expect(createFirebaseRepository(firestore, "pilot-user", { onWriteStatus: status })
+        .persistSettings({ ...settings, salespersonName: "Unconfirmed example" })).rejects.toBe(failure);
+      expect(status.mock.calls.map(([value]) => value)).toEqual(["saving", "error"]);
+      // Verification is read-only, even if the original atomic write reached the server.
+      expect(server.transactionAttempts).toBeLessThanOrEqual(3);
+      expect(events().length).toBeLessThanOrEqual(1);
+    },
+  );
 
   it("compares the original settings timestamp after an SDK retry", async () => {
     const settings = seedSettings();

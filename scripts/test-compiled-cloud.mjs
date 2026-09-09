@@ -49,7 +49,7 @@ try {
   await preserveExistingBuild();
   managesDistCloud = true;
   runNode("scripts/build-cloud.mjs", ["--emulator-test"]);
-  runNode("node_modules/@playwright/test/cli.js", ["test", "--config", "playwright.cloud-compiled.config.ts"]);
+  runNode("node_modules/@playwright/test/cli.js", ["test", "--config", "playwright.cloud-compiled.config.ts", ...process.argv.slice(2)]);
 } catch (error) {
   exitCode = typeof error === "object" && error !== null && "exitCode" in error && Number.isInteger(error.exitCode)
     ? error.exitCode

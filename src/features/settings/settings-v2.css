@@ -95,12 +95,11 @@
 
 .settings-page .settings-category-button small {
   margin-top: 2px;
-  overflow: hidden;
   color: var(--slate-600);
   font-size: 12px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .settings-page .settings-category-content,

@@ -4,6 +4,7 @@ import path from "node:path";
 import type { RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { expect, test, type APIRequestContext, type BrowserContext, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { read as readWorkbook, utils as workbookUtils } from "xlsx";
 import { createReadyCloudTestEnvironment } from "./firestore-emulator-readiness";
 
 const PROJECT_ID = "demo-sales-ledger-rules";
@@ -164,6 +165,76 @@ test("compiled cloud signs in, saves in the background, and reloads without a se
   expect(builtIndex).toMatch(/\.\/assets\/index-[A-Za-z0-9_-]+\.js/);
 });
 
+test("complete downloads include older cloud sales and match their commission reports", async ({ context, page, request }, testInfo) => {
+  test.setTimeout(150_000);
+  const unexpectedOrigins = await blockRemoteRequests(context);
+  await page.clock.setFixedTime(new Date("2026-09-09T16:00:00.000Z"));
+  await page.goto(APP_ORIGIN);
+  await signInWithEmailLink(page, request, await createAccount(request));
+
+  const entries = [
+    { name: "OlderExample", stock: "EXPORT-OLD-01", date: "2026-01-05", gross: "-316.61", fi: "1200", vehicle: "2022 Ford Explorer Limited" },
+    { name: "RecentExample", stock: "EXPORT-NEW-01", date: "2026-09-01", gross: "2300", fi: "", vehicle: "2024 Ford Escape Active" },
+  ];
+  for (const entry of entries) {
+    await page.getByRole("button", { name: "Add sale", exact: true }).first().click();
+    await page.getByLabel("Delivery date", { exact: true }).fill(entry.date);
+    await page.getByLabel("Customer last name", { exact: true }).fill(entry.name);
+    await page.getByRole("textbox", { name: /^Stock number/ }).fill(entry.stock);
+    await page.getByLabel("Vehicle optional", { exact: true }).fill(entry.vehicle);
+    await page.getByRole("textbox", { name: "Front gross", exact: true }).fill(entry.gross);
+    await page.getByRole("textbox", { name: "Total F&I gross", exact: true }).fill(entry.fi);
+    await page.getByRole("radio", { name: "Finance", exact: true }).check();
+    await page.getByRole("checkbox", { name: "Service contract / warranty", exact: true }).check();
+    await page.getByLabel("Notes optional", { exact: true }).fill("Fictional export acceptance record.");
+    await page.locator(".sale-form__footer").getByRole("button", { name: "Add sale", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Add sale", exact: true })).toBeHidden();
+  }
+  await page.getByRole("button", { name: "Sales", exact: true }).first().click();
+  await page.getByRole("group", { name: "Sales time range" }).getByRole("button", { name: "All months", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search sales" }).fill("OlderExample");
+  await expect(page.locator(".sales-page")).toContainText("EXPORT-OLD-01");
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await page.getByRole("button", { name: "Cloud saving", exact: true }).click();
+  const savedStatus = await page.getByRole("region", { name: "Cloud account", exact: true }).getByRole("status").textContent();
+
+  const excelPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Excel report", exact: true }).click();
+  const excel = await excelPromise;
+  expect(await excel.failure()).toBeNull();
+  expect(excel.suggestedFilename()).toMatch(/^Sales-Ledger-All-Data-.*\.xlsx$/);
+  const excelPath = testInfo.outputPath("complete-synthetic-report.xlsx");
+  await excel.saveAs(excelPath);
+  const workbook = readWorkbook(await readFile(excelPath), { type: "buffer", cellFormula: true });
+  expect(workbook.SheetNames).toEqual(expect.arrayContaining(["Start here", "Sales", "Deleted sales", "Commissions", "Monthly", "Yearly", "Weekly", "Metric guide"]));
+  const rows = (sheet: string) => workbookUtils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheet], { range: 4, defval: null });
+  expect(rows("Sales")).toHaveLength(2);
+  expect(rows("Sales")).toEqual(expect.arrayContaining(entries.map((entry) => expect.objectContaining({ "Customer last name": entry.name, "Stock number": entry.stock, Vehicle: entry.vehicle, Notes: "Fictional export acceptance record." }))));
+  expect(rows("Commissions")).toEqual(expect.arrayContaining([
+    expect.objectContaining({ "Customer last name": "OlderExample", "Front commission": 300, "F&I commission": 240, "Sale commission": 540 }),
+    expect.objectContaining({ "Customer last name": "RecentExample", "Front commission": 690, "F&I commission": 0, "Sale commission": 690 }),
+  ]));
+  expect(rows("Monthly")).toEqual(expect.arrayContaining([
+    expect.objectContaining({ Month: "2026-01", Delivered: 1, "Front gross": -316.61, "Estimated commission": 540 }),
+    expect.objectContaining({ Month: "2026-09", Delivered: 1, "F&I amounts awaiting": 1, "Estimated commission": 690 }),
+  ]));
+  const jsonPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download data file", exact: true }).click();
+  const json = await jsonPromise;
+  const jsonPath = testInfo.outputPath("complete-synthetic-data.json");
+  await json.saveAs(jsonPath);
+  const envelope = JSON.parse(await readFile(jsonPath, "utf8"));
+  expect(envelope.data.sales).toHaveLength(2);
+  expect(envelope.data.sales).toEqual(expect.arrayContaining([
+    expect.objectContaining({ stockNumber: "EXPORT-OLD-01", frontGrossCents: -31661, fiGrossCents: 120000 }),
+    expect.objectContaining({ stockNumber: "EXPORT-NEW-01", fiGrossCents: null }),
+  ]));
+  expect(envelope.data.profile.payPlan).toBeTruthy();
+  expect(envelope.data.auditEvents.length).toBeGreaterThanOrEqual(2);
+  expect(await page.getByRole("region", { name: "Cloud account", exact: true }).getByRole("status").textContent()).toBe(savedStatus);
+  expect([...unexpectedOrigins]).toEqual([]);
+});
+
 test("compiled Firebase Settings stays responsive and uses cloud saving instead of Drive setup", async ({ context, page, request }, testInfo) => {
   test.setTimeout(150_000);
   const unexpectedOrigins = await blockRemoteRequests(context);
@@ -219,7 +290,24 @@ test("compiled Firebase Settings stays responsive and uses cloud saving instead 
       }
     }
     await expect(page.locator(".cloud-data-copy")).toContainText("Automatic saving:");
-    await expect(page.getByRole("button", { name: "Download a copy", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download data file", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download Excel report", exact: true })).toBeVisible();
+    const exportGeometry = await page.locator(".workspace-export").evaluate((element) => ({
+      width: element.clientWidth,
+      scroll: element.scrollWidth,
+      controls: [...element.querySelectorAll("button")].map((button) => ({
+        height: button.getBoundingClientRect().height, width: button.clientWidth, scroll: button.scrollWidth,
+      })),
+    }));
+    expect(exportGeometry.scroll).toBeLessThanOrEqual(exportGeometry.width + 1);
+    for (const control of exportGeometry.controls) {
+      expect(control.height).toBeGreaterThanOrEqual(44);
+      expect(control.scroll).toBeLessThanOrEqual(control.width + 1);
+    }
+    if (width === 390 || width === 1180) {
+      await page.locator(".workspace-export").screenshot({ path: testInfo.outputPath(`complete-export-${width}.png`) });
+      expect((await new AxeBuilder({ page }).include(".workspace-export").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+    }
     await expect(page.getByText(/Google Drive/)).toHaveCount(0);
     await expect(page.locator(".automatic-backup-card, .google-drive-backup-card")).toHaveCount(0);
     if (width <= 390) {
@@ -312,5 +400,67 @@ test("compiled cloud recovery and split guidance fit small and large screens", a
     expect(await helper.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`split-guidance-${width}.png`) });
   }
+  expect([...unexpected]).toEqual([]);
+});
+
+test("Settings verifies a lost save acknowledgement but preserves and retries a truly rejected change", async ({ context, page, request }, testInfo) => {
+  const unexpected = await blockRemoteRequests(context);
+  const email = await createAccount(request);
+  await page.goto(APP_ORIGIN);
+  await signInWithEmailLink(page, request, email);
+  await page.setViewportSize({ width: 520, height: 844 });
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+
+  let fault: "lost acknowledgement" | "rejected change" | null = "lost acknowledgement";
+  let injected = 0;
+  await context.route(/^http:\/\/127\.0\.0\.1:8080\/v1\/projects\/demo-sales-ledger-rules\/databases\/\(default\)\/documents:commit(?:\?|$)/, async (route) => {
+    const payload = route.request().postData() ?? "";
+    if (!fault || !payload.includes('"settings.updated"')) return route.continue();
+    const mode = fault;
+    fault = null;
+    injected += 1;
+    if (mode === "lost acknowledgement") {
+      // Apply only this synthetic emulator commit, then simulate a failed
+      // acknowledgement. No request is ever forwarded to a live Firebase app.
+      const committed = await route.fetch({ maxRedirects: 0 });
+      expect(committed.status()).toBe(200);
+    }
+    await route.fulfill({
+      status: 403,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: 403, status: "PERMISSION_DENIED", message: "Synthetic acknowledgement failure." } }),
+    });
+  });
+
+  const name = page.getByLabel("Salesperson name", { exact: false });
+  await name.fill("Confirmed save example");
+  await expect(page.locator(".settings-dirty-state")).toContainText("All changes saved.");
+  expect(injected).toBe(1);
+  await expect(page.getByRole("alert").filter({ hasText: "Saved settings have changed" })).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await expect(name).toHaveValue("Confirmed save example");
+
+  fault = "rejected change";
+  await name.fill("Retry after rejection example");
+  await expect(page.locator(".settings-dirty-state")).toContainText("Not saved yet.");
+  await expect(name).toHaveValue("Retry after rejection example");
+  expect(injected).toBe(2);
+  await page.screenshot({ path: testInfo.outputPath("settings-rejected-save-520.png"), fullPage: true });
+
+  const reader = await context.newPage();
+  await reader.goto(APP_ORIGIN);
+  // Sign-in state is intentionally scoped to a tab; use the same synthetic
+  // account rather than assuming a new page inherits its session storage.
+  await signInWithEmailLink(reader, request, email);
+  await reader.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await expect(reader.getByLabel("Salesperson name", { exact: false })).toHaveValue("Confirmed save example");
+  await reader.close();
+  await page.getByRole("button", { name: "Try saving again", exact: true }).first().click();
+  await expect(page.locator(".settings-dirty-state")).toContainText("All changes saved.");
+  await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  await expect(name).toHaveValue("Retry after rejection example");
+  await page.screenshot({ path: testInfo.outputPath("settings-recovered-save-520.png"), fullPage: true });
   expect([...unexpected]).toEqual([]);
 });

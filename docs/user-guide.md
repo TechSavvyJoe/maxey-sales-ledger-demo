@@ -26,7 +26,7 @@ In on-device mode, always use the same address and the same browser on the same 
 
 1. Open **Settings** and enter the salesperson name. Set the selected month’s delivery goal and, if useful, its optional commission goal. A saved month can override the profile defaults without changing another month.
 2. Review the pay-plan settings. Milestone bonuses stack into the running monthly total included in Estimated Commission.
-3. In **Work schedule**, open **Choose days off**, select any Monday–Saturday dates you expect to take off, and wait for the saved status. Sundays are already excluded. Valid settings save automatically after a short pause; **Save settings** also saves immediately.
+3. In **Settings → Days off**, open **Edit days off**, select any Monday–Saturday dates you expect to take off, and wait for the saved status. Sundays are already excluded. Valid settings save automatically after a short pause; **Save settings** also saves immediately.
 4. **On-device mode only:** select **Protect saved sales** to ask the browser for extra storage protection.
 5. In current desktop Edge or Chrome, select **Automatic backup folder** and choose a private Documents, OneDrive, or already-installed Google Drive folder.
 6. If a synced folder is unavailable, use **Google Drive backup** to create a checked download and open Google Drive for a manual upload.
@@ -69,19 +69,19 @@ Use the single period control in the top header:
 - Selecting the month label opens a 12-month grid and year arrows.
 - **This month** returns to the current calendar month.
 
-The selected period stays synchronized across Dashboard, Sales, and Reports in that browser tab. Each open tab keeps its own month and page selection for the session, so changing a report in one tab does not silently move another tab.
+The selected period stays synchronized across Dashboard, Sales, and Reports in that browser tab. **Sales → All months** is a separate search view: it searches your full saved history without changing the month selected for Dashboard and Reports. Each open tab keeps its own month and page selection for the session, so changing a report in one tab does not silently move another tab.
 
-To adjust pacing for that period, open **Settings → Work schedule → Choose days off**, select personal days off, and save before changing months. Past months show the final delivered total, the current month shows a projection after the first scheduled workday, and future months stay **Not started**.
+To adjust pacing for that period, open **Settings → Days off → Edit days off**, select personal days off, and wait for saving before changing months. Past months show the final delivered total, the current month shows a projection after the first scheduled workday, and future months stay **Not started**.
 
 The picker will not move before the earliest configured pay-plan month. To enter or import older sales, add a historical effective-dated plan in Settings first. A partial-coverage year shows only the months the configured plan covers.
 
 ## Review and correct sales
 
-Open **Sales** to search by last name, stock number, or vehicle and filter by status, **Needs attention**, or **Deleted**. Sort by date, customer, attention status, pending status, front gross, F&I gross, or sale commission. A filtered view shows its matching totals and one **Clear** action. Product badges show recorded deal outcomes. Select a row to edit it.
+Open **Sales** to search by last name, stock number, or vehicle and filter by status, **Needs attention**, or **Recently deleted**. Choose **All months** to find a sale anywhere in your saved history, or choose the month button beside it to return to the selected month. Each sale keeps the commission calculated for its own month and pay plan; an all-history search does not combine months to trigger a bonus or higher rate. Sort by date, customer, attention status, pending status, front gross, F&I gross, or sale commission. A filtered view shows its matching totals and one **Clear** action. Product badges show recorded deal outcomes. Select a row to edit it.
 
 Records may need attention for duplicate delivered stock, missing stock, invalid/future date, missing front gross without a manual payout, a negative F&I correction, or a Pending date that has passed. Zero/negative front gross with a Mini is not an error. Dashboard, Sales, and Reports use the same record-based count. Duplicate delivered records are excluded from delivered count and commission until corrected. Normally edit an existing Pending record to Delivered instead of creating a second record.
 
-Delete is a soft delete and first offers **Undo**. If that message is gone, open **Deleted** for the selected month and restore the record there. Deleted rows remain in full backups and Sales Ledger does not permanently erase them.
+Delete is a soft delete and first offers **Undo**. If that message is gone, open **Sales → Recently deleted** and restore the record there. Choose **All months** if you do not remember its month. Restoring one sale does not replace the rest of your workspace. Deleted rows remain in complete exports and Sales Ledger does not permanently erase them.
 
 If the same sale changed in another tab after you opened it, Sales Ledger refuses to overwrite the newer saved revision. Your form stays open; use **Load latest**, review the current record, and apply your change again.
 
@@ -129,13 +129,26 @@ Outcome reporting keeps **Yes**, **No**, and **Not marked** separate. Service co
 
 Reports use records in your signed-in cloud account, or this browser's on-device workspace, depending on the app you opened. They remain personal estimates and reconciliation aids. The Payroll report is not an official pay statement, and exporting a report does not send it to payroll or prove approval.
 
-Turn off **Include customer last names** for a more share-safe report. This option affects Print/PDF, monthly CSV, and Excel only; stock numbers remain included. Browser **Print / Save PDF** creates the PDF and the app does not upload it.
+Turn off **Include customer last names** for a more share-safe report. This option affects Print/PDF, monthly CSV, and the period-based Excel export in Reports; stock numbers remain included. It does not remove names from the complete workspace downloads in Settings. Browser **Print / Save PDF** creates the PDF and the app does not upload it.
 
-**Private backup** is intentionally separate from the Export menu and opens the Data section in Settings. A full recovery backup always includes last names, deleted rows, gross/payroll values, goals, work schedules, settings, and activity, regardless of the report’s name option.
+### Download every saved month and year
+
+Open **Settings → Cloud saving** (**Saving** on smaller screens), then find **Download all your data**. In on-device mode, use **Settings → Data & backups** (**Data** on smaller screens). These downloads cover the whole saved workspace, not just the month, year, search results, or report currently on screen.
+
+Wait for saving to finish, then choose:
+
+- **Download Excel report**: an independent workbook with 18 worksheets. Open **Start here** for links to the sheets. On **Report**, choose an exported month using the yellow **Report month** dropdown. Financial formulas support the sale-by-sale commissions, monthly/yearly totals, weekly targets, F&I products and payment mix, milestones, pay plans, bonuses, and work schedule. Saved settings, activity, retained deleted sales, and a metric guide are included too.
+- **Download data file**: the complete structured JSON copy for migration or recovery support. It contains the current saved sale records, including deleted sales, plus settings, saved pay plans, and activity. Keep it alongside the workbook if you may need to move or recover your data.
+
+Check your Downloads folder and open the file to confirm it saved. **Download started** does not confirm that the browser finished saving the file. Both formats include customer last names, stock numbers, notes, and gross/payroll information; store them securely.
+
+Excel works offline and its existing financial formulas recalculate, but it is not another copy of the cloud app. Changes in Excel do not update Sales Ledger. Sale inclusion, delivery order, month assignments, and the applicable pay plan are captured at export. Adding rows or changing sale dates, statuses, or the plan structure requires extending and checking the workbook’s calculations. Pace uses the export date, not the day you later open the file. If a historical month is missing its pay plan, Excel asks you to add that plan first; the JSON download remains available.
+
+Both downloads are snapshots of saved data. They exclude unfinished editor drafts and earlier versions of edited sales. They do not provide cloud syncing or an independent scheduled recovery service. The cloud app does not offer file import or full-workspace restoration; JSON restore is available only in on-device mode. The existing **Reports → Export** options remain available when you only want a particular report period.
 
 ## Import the prior Excel tracker (on-device mode)
 
-Open **Settings → Import prior Excel tracker**, select the workbook, and review added/rejected counts before applying. The importer does not execute macros and ignores workbook commission/calculation columns. It imports displayed values from recognized entry columns, preserves stock text, and recalculates commissions using this app's pay plan. When recognized service-contract/warranty, Tire & Wheel, GAP, or dealer-financing columns exist, their recorded outcomes are imported; missing outcome columns remain **Not marked**, distinct from a confirmed No result.
+Open **Settings → Data & backups → Import sales**, select the workbook, and review added/rejected counts before applying. The importer does not execute macros and ignores workbook commission/calculation columns. It imports displayed values from recognized entry columns, preserves stock text, and recalculates commissions using this app's pay plan. When recognized service-contract/warranty, Tire & Wheel, GAP, or dealer-financing columns exist, their recorded outcomes are imported; missing outcome columns remain **Not marked**, distinct from a confirmed No result. Importing sales is not a full-workspace restore.
 
 ## Change goals or the pay plan
 
@@ -145,7 +158,7 @@ Before saving a pay-plan change, review **Impact before saving**. It shows the e
 
 ## Restore a backup (on-device mode)
 
-Open **Settings → Restore full backup** and review the salesperson, record count, and creation time. Restore replaces the current profile, settings, sales, and activity; it does not merge workspaces. Download a current safety backup, confirm that the file exists and opens, then approve replacement. Original record-source labels and deleted rows are preserved.
+Open **Settings → Data & backups → Restore from backup** and select the complete JSON data file or backup. Review the salesperson, record count, and creation time. Restore replaces the current on-device profile, settings, sales, and activity; it does not merge workspaces or restore a cloud account. Download a current safety backup, confirm that the file exists and opens, then approve replacement. Original record-source labels and deleted rows are preserved. The Excel workbook is not a full-workspace restore file.
 
 If automatic folder backups are on, select **Folder options → Review folder backup** to open the same checked restore preview. Sales Ledger will not silently pull another computer's changes into the current workspace.
 

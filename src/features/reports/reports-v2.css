@@ -1423,6 +1423,16 @@
   }
 }
 
+/* Keep the record status readable when a longer customer name wraps. */
+.reports-page .report-sale-card > header > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.reports-page .report-sale-card > header > .status-badge {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 360px) {
   .reports-page .week-selector {
     grid-template-columns: repeat(2, minmax(0, 1fr));
