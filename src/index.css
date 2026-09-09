@@ -2955,10 +2955,6 @@ button:not(:disabled),
   padding: 20px;
 }
 
-.settings-mobile-save {
-  display: none;
-}
-
 .settings-dirty-state {
   width: fit-content;
   margin: -8px 0 0;
@@ -4519,14 +4515,6 @@ button:not(:disabled),
     display: flex;
     min-height: 32px;
     align-self: flex-start;
-  }
-  .settings-mobile-save {
-    display: inline-flex;
-    position: sticky;
-    z-index: 24;
-    top: 124px;
-    width: 100%;
-    min-height: 48px;
   }
   .pay-plan-version {
     display: grid;

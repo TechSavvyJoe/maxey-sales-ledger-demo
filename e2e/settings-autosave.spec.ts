@@ -1,11 +1,25 @@
 import { expect, test } from "@playwright/test";
 
 test("profile and Mini save automatically, while an empty number is not converted to zero", async ({ page, context }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
+  const saveState = page.locator(".settings-dirty-state");
+  await expect(saveState).toHaveText("All changes saved. Settings save automatically.");
+  const savedBounds = await saveState.boundingBox();
+  expect(savedBounds).not.toBeNull();
   const name = page.getByLabel("Salesperson name *");
   await name.fill("Autosave example");
-  await expect(page.getByText("All changes saved. Settings save automatically.")).toBeVisible();
+  await expect(saveState).toHaveText("Changes save automatically when you finish typing.");
+  await expect(page.locator(".settings-mobile-save")).toHaveCount(0);
+  const pendingBounds = await saveState.boundingBox();
+  expect(pendingBounds).not.toBeNull();
+  expect(pendingBounds?.y).toBe(savedBounds?.y);
+  expect(pendingBounds?.height).toBe(savedBounds?.height);
+  await expect(saveState).toHaveText("All changes saved. Settings save automatically.");
+  const acknowledgedBounds = await saveState.boundingBox();
+  expect(acknowledgedBounds?.y).toBe(savedBounds?.y);
+  expect(acknowledgedBounds?.height).toBe(savedBounds?.height);
   await page.reload();
   await expect(name).toHaveValue("Autosave example");
   await name.fill("");

@@ -55,11 +55,13 @@ describe("cloud account feedback", () => {
     expect(screen.queryByRole("button", { name: /reload|refresh/i })).toBeNull();
   });
 
-  it("announces saving until the acknowledged time is available", () => {
+  it("keeps routine background saves quiet in the account banner", () => {
     storage.state!.pending = 1;
     storage.state!.lastSavedAt = "2026-09-08T12:00:00.000Z";
     const view = show();
-    expect(screen.getByRole("status")).toHaveTextContent("Saving securely…");
+    expect(screen.getByRole("status")).toHaveTextContent("Saved securely at");
+    expect(screen.queryByText("Saving securely…")).toBeNull();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeDisabled();
     storage.state = { ...storage.state!, pending: 0 };
     view.rerender(createElement(CloudAccountBar, { account: { email: "example@example.test", onSignOut: async () => {} }, isOnline: true }));
     expect(screen.getByRole("status")).toHaveTextContent("Saved securely at");

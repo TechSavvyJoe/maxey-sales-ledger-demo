@@ -138,7 +138,11 @@
 }
 
 .settings-page .settings-dirty-state {
-  min-height: 20px;
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
   margin: -4px 0 0;
   border-radius: 0;
   padding: 0;
@@ -146,6 +150,15 @@
   color: var(--color-text-muted);
   font-size: 12px;
   font-weight: var(--font-weight-medium);
+}
+
+.settings-page .settings-dirty-state > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-page .settings-dirty-state > button {
+  flex: none;
 }
 
 .settings-page .settings-category-content :where(input, select, textarea) {
@@ -864,6 +877,8 @@
     font-size: 22px;
   }
 
+  /* Routine autosave progress stays out of the way in a short landscape
+     window. Attention states remove is-idle and remain visible. */
   .settings-page .settings-dirty-state.is-idle {
     display: none;
   }

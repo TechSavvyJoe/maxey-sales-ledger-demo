@@ -1052,30 +1052,28 @@ export function SettingsPage({
   }
 
   const saveStatusNeedsAttention = Boolean(
-    isDirty
-    || isSaving
-    || externalSettingsChange
+    externalSettingsChange
     || (localDraft && saveFailure)
     || (localDraft && hasBackgroundValidationIssue),
   );
 
   return (
-    <div className={cn("page-stack settings-page", isDirty && "has-unsaved-settings")}>
+    <div className="page-stack settings-page">
       <PageHeading
         eyebrow="Personal workspace"
         title="Settings"
         description={CLOUD_BUILD ? "Manage your goals, schedule, pay plan, and cloud saving." : "Manage your goals, schedule, pay plan, and backups."}
         action={<Button variant="outline" size="sm" onClick={() => void saveSettings()} disabled={!isDirty || isSaving || externalSettingsChange}><Save aria-hidden="true" /> {isSaving ? "Saving…" : localDraft && saveFailure ? "Try saving again" : "Save settings"}</Button>}
       />
-      {isDirty ? <Button className="settings-mobile-save" variant="outline" onClick={() => void saveSettings()} disabled={isSaving || externalSettingsChange}>
-        <Save aria-hidden="true" /> {isSaving ? "Saving…" : localDraft && saveFailure ? "Try saving again" : "Save settings"}
-      </Button> : null}
-      <p className={cn("settings-dirty-state", !saveStatusNeedsAttention && "is-idle")} role="status" aria-live="polite">
-        {isSaving ? "Saving changes…" : externalSettingsChange ? "Saving paused — review the newer settings below."
+      <div className={cn("settings-dirty-state", !saveStatusNeedsAttention && "is-idle")}>
+        <span role="status" aria-live="polite" aria-atomic="true">{isSaving ? "Saving changes…" : externalSettingsChange ? "Saving paused — review the newer settings below."
           : localDraft && saveFailure ? `Not saved yet. ${saveFailure.message}`
           : localDraft && hasBackgroundValidationIssue ? "Finish the highlighted setting before it can be saved."
-          : isDirty ? "Changes save automatically when you finish typing." : "All changes saved. Settings save automatically."}
-      </p>
+          : isDirty ? "Changes save automatically when you finish typing." : "All changes saved. Settings save automatically."}</span>
+        {localDraft && saveFailure ? <Button type="button" variant="outline" size="sm" onClick={() => void saveSettings()} disabled={isSaving || externalSettingsChange}>
+          <Save aria-hidden="true" /> {isSaving ? "Saving…" : "Try saving again"}
+        </Button> : null}
+      </div>
       {externalSettingsChange ? (
         <div className="form-summary-error settings-external-change" role="alert">
           <AlertTriangle aria-hidden="true" />
